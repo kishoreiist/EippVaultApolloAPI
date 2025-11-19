@@ -41,6 +41,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // 5. Add Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IGroupService, GroupService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMfaService, MfaService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

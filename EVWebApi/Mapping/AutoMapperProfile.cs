@@ -19,7 +19,7 @@ namespace EVWebApi.Mapping
 
 
             CreateMap<UpdateUserDto, User>();
-
+            CreateMap<Group, GroupDto>();
 
             CreateMap<Role, RoleDto>();
         }

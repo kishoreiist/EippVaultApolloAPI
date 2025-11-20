@@ -1,9 +1,7 @@
 using EVWebApi.Data;
-using EVWebApi.Interfaces;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
 using EVWebApi.Services;
-using EVWebAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +10,8 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using EVWebApi.Interfaces.Repositories;
+using EVWebApi.Interfaces.Services;
 
 
 
@@ -34,6 +34,9 @@ builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IMfaRepository, MfaRepository>();
+builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
+builder.Services.AddScoped<IMetadataRepository, MetadataRepository>();
+
 
 // 4. Add Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -41,8 +44,10 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // 5. Add Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IGroupService, GroupService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMfaService, MfaService>();
+builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
 

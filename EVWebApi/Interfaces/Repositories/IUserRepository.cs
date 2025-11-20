@@ -1,7 +1,7 @@
 ﻿using EVWebApi.Models;
 using EVWebApi.Repositories;
 
-namespace EVWebApi.Interfaces
+namespace EVWebApi.Interfaces.Repositories
 {
     public interface IUserRepository : IGenericRepository<User>
     {

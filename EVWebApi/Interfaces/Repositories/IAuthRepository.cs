@@ -1,6 +1,6 @@
 ﻿using EVWebApi.Models;
 
-namespace EVWebApi.Interfaces
+namespace EVWebApi.Interfaces.Repositories
 {
     public interface IAuthRepository
     {

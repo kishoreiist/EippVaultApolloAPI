@@ -1,4 +1,4 @@
-﻿namespace EVWebApi.Interfaces
+﻿namespace EVWebApi.Interfaces.Repositories
 {
     public interface IGenericRepository<T> where T : class
     {

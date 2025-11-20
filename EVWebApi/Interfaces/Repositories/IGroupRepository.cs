@@ -1,7 +1,6 @@
-﻿
-using EVWebApi.Models;
+﻿using EVWebApi.Models;
 
-namespace EVWebApi.Interfaces
+namespace EVWebApi.Interfaces.Repositories
 {
     public interface IGroupRepository : IGenericRepository<Group>
     {

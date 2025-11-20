@@ -1,5 +1,5 @@
 ﻿using EVWebApi.DTOs;
-using EVWebApi.Services;
+using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers

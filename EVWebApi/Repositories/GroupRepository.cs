@@ -1,5 +1,5 @@
 ﻿using EVWebApi.Data;
-using EVWebApi.Interfaces;
+using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
 

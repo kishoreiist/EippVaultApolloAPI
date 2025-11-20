@@ -35,6 +35,8 @@ namespace EVWebApi.Data
             modelBuilder.Entity<User>().ToTable("users");
             modelBuilder.Entity<Role>().ToTable("roles");
             modelBuilder.Entity<Group>().ToTable("groups");
+            modelBuilder.Entity<Document>().ToTable("documents");
+            modelBuilder.Entity<Metadata>().ToTable("metadata");
             modelBuilder.Entity<UserGroup>().ToTable("user_groups");
 
             modelBuilder.Entity<UserAuthenticator>().ToTable("user_authenticator");

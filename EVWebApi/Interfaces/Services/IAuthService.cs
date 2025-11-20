@@ -1,4 +1,4 @@
-﻿namespace EVWebAPI.Services
+﻿namespace EVWebApi.Interfaces.Services
 {
     public interface IAuthService
     {

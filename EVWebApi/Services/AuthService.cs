@@ -1,8 +1,7 @@
 using EVWebApi.Data;
-using EVWebApi.Interfaces;
+using EVWebApi.Interfaces.Repositories;
+using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
-using EVWebApi.Services;
-using EVWebAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto.Generators;

@@ -79,6 +79,11 @@ namespace EVWebApi.Data
             modelBuilder.Entity<User>()
                 .Property(u => u.UserId)
                 .HasColumnName("user_id");
+
+            modelBuilder.Entity<User>()
+                .Property(u => u.PasswordHash)
+                .HasColumnName("password_hash");
+
             // -------------------
             // Auth Entities
             // -------------------
@@ -125,6 +130,24 @@ namespace EVWebApi.Data
 
             modelBuilder.Entity<Group>().Property(g => g.CreatedAt).HasColumnName("created_at");
 
+            modelBuilder.Entity<UserMfaToken>().Property(e => e.TokenId).HasColumnName("token_id");
+            modelBuilder.Entity<UserMfaToken>().Property(e => e.Token).HasColumnName("mfa_token");
+            modelBuilder.Entity<UserMfaToken>().Property(e => e.CreatedAt).HasColumnName("created_at");
+            modelBuilder.Entity<UserMfaToken>().Property(e => e.ExpiresAt).HasColumnName("expires_at");
+            modelBuilder.Entity<UserMfaToken>().Property(e => e.UserId).HasColumnName("user_id");
+            modelBuilder.Entity<UserMfaToken>().Property(e => e.Used).HasColumnName("used");
+
+
+            modelBuilder.Entity<UserMfaToken>()
+                .Property(e => e.ExpiresAt)
+                .HasColumnType("timestamp with time zone");
+
+            
+            modelBuilder.Entity<UserMfaToken>()
+                .HasOne(t => t.User)
+                .WithMany(u => u.MfaTokens) // Explicit collection in User model
+                .HasForeignKey(t => t.UserId);
+
             // -------------------
             // Indexes
             // -------------------
@@ -132,7 +155,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
             modelBuilder.Entity<Role>().HasIndex(r => r.RoleName).IsUnique();
             modelBuilder.Entity<Group>().HasIndex(g => g.GroupName).IsUnique();
-
+            modelBuilder.Entity<UserMfaToken>().HasIndex(t => new { t.UserId, t.Token });
 
 
         }

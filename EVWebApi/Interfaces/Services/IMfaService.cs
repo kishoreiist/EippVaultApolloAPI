@@ -1,6 +1,6 @@
 ﻿using EVWebApi.Models;
 
-namespace EVWebApi.Services
+namespace EVWebApi.Interfaces.Services
 {
     public interface IMfaService
     {

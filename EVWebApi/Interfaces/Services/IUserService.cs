@@ -1,6 +1,6 @@
 ﻿using EVWebApi.DTOs;
 
-namespace EVWebApi.Services
+namespace EVWebApi.Interfaces.Services
 {
     public interface IUserService
     {

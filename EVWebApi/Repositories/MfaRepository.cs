@@ -1,7 +1,7 @@
 ﻿namespace EVWebApi.Repositories
 {
     using EVWebApi.Data;
-    using EVWebApi.Interfaces;
+    using EVWebApi.Interfaces.Repositories;
     using Microsoft.EntityFrameworkCore;
 
     public class MfaRepository : IMfaRepository

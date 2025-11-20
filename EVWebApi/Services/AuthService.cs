@@ -1,5 +1,6 @@
 using EVWebApi.Data;
-using EVWebApi.Interfaces;
+using EVWebApi.Interfaces.Repositories;
+using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
 using EVWebAPI.Controllers;

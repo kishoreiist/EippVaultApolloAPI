@@ -4,7 +4,6 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
 using EVWebAPI.Controllers;
-using EVWebAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto.Generators;
@@ -61,19 +60,33 @@ public class AuthService : IAuthService
     }
 
     private string GenerateJwtToken(User user) {
+
+
+        if (user == null)
+            throw new ArgumentNullException(nameof(user));
+
+        var key = _config["Jwt:Key"];
+        var issuer = _config["Jwt:Issuer"];
+        var audience = _config["Jwt:Audience"];
+
+        if (string.IsNullOrEmpty(key))
+            throw new InvalidOperationException("JWT Key is missing in configuration.");
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
         var claims = new[] {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
             new Claim("userId", user.UserId.ToString()),
-            new Claim("role", user.Role.RoleName)
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+       
         var token = new JwtSecurityToken(
-            issuer: _config["Jwt:Issuer"],
-            audience: _config["Jwt:Audience"],
+            issuer: issuer,
+            audience: audience,
             claims: claims,
             expires: DateTime.UtcNow.AddHours(1),
-            signingCredentials: creds
+            signingCredentials: credentials
         );
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

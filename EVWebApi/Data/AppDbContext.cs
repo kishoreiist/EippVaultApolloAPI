@@ -140,6 +140,12 @@ namespace EVWebApi.Data
             modelBuilder.Entity<UserMfaToken>().Property(e => e.Used).HasColumnName("used");
 
 
+            modelBuilder.Entity<User>()
+                .Property(u => u.MfaEnabled).HasColumnName("mfa_enabled");
+            modelBuilder.Entity<User>()
+                .Property(u => u.MfaMethod).HasColumnName("mfa_method");
+
+
             modelBuilder.Entity<UserMfaToken>()
                 .Property(e => e.ExpiresAt)
                 .HasColumnType("timestamp with time zone");
@@ -160,6 +166,24 @@ namespace EVWebApi.Data
             modelBuilder.Entity<UserMfaToken>().HasIndex(t => new { t.UserId, t.Token });
 
 
+
+
+            modelBuilder.Entity<UserAuthenticator>(entity =>
+            {
+                entity.ToTable("user_authenticator");
+
+                entity.HasKey(e => e.AuthId);
+                entity.Property(e => e.AuthId).HasColumnName("auth_id");
+                entity.Property(e => e.UserId).HasColumnName("user_id");
+                entity.Property(e => e.SecretKey).HasColumnName("secret_key");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.Enabled).HasColumnName("enabled");
+
+                entity.HasOne(e => e.User)
+                 .WithMany() 
+                 .HasForeignKey(e => e.UserId);
+            });
+           
         }
     }
 }

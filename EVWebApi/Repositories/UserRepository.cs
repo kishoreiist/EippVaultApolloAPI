@@ -31,6 +31,11 @@ namespace EVWebApi.Repositories
             return await _context.Users.ToListAsync();
         }
 
+        public async Task<int> SaveChangesAsync()
+        {
+            return await _context.SaveChangesAsync();
+        }
+
         //public override async Task<IEnumerable<User>> GetAllAsync()
         //{
         //    return await _dbSet

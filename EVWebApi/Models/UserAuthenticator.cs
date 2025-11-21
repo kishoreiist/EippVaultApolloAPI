@@ -6,4 +6,5 @@ public class UserAuthenticator {
     public string SecretKey { get; set; }
     public DateTime CreatedAt { get; set; }
     public User User { get; set; }
+    public bool Enabled { get; set; }
 }

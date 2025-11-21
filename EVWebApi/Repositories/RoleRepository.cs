@@ -18,11 +18,14 @@ namespace EVWebApi.Repositories
         {
             return await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == roleName);
         }
-        public async Task<IEnumerable<Role>> GetAllAsync()
+        //public async Task<IEnumerable<Role>> GetAllAsync()
+        //{
+        //    return await _context.Roles.ToListAsync();
+        //}
+
+        public IQueryable<Role> Query()
         {
-            return await _context.Roles.ToListAsync();
+            return _context.Roles.AsQueryable();
         }
-
-
     }
 }

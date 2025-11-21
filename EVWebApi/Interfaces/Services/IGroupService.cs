@@ -1,10 +1,12 @@
-﻿using EVWebApi.DTOs;
+﻿using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.Pagination;
+using EVWebApi.DTOs.User;
 
 namespace EVWebApi.Interfaces.Services
 {
     public interface IGroupService
     {
-        Task<IEnumerable<GroupDto>> GetAllAsync();
+        Task<PagedResponse<GroupDto>> GetAllAsync(GroupQueryParameters query);
         Task<GroupDto> GetByIdAsync(int id);
         Task<GroupDto> CreateAsync(GroupDto dto);
         Task<GroupDto> UpdateAsync(GroupDto dto);

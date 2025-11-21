@@ -1,9 +1,12 @@
 ﻿using AutoMapper;
-using EVWebApi.DTOs;
+using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.Pagination;
+using EVWebApi.DTOs.User;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace EVWebApi.Services
 {
@@ -17,10 +20,50 @@ namespace EVWebApi.Services
             _uow = uow;
             _mapper = mapper;
         }
-        public async Task<IEnumerable<GroupDto>> GetAllAsync()
+        public async Task<PagedResponse<GroupDto>> GetAllAsync(GroupQueryParameters query)
         {
-            var groups = await _uow.Groups.GetAllAsync();
-            return _mapper.Map<IEnumerable<GroupDto>>(groups);
+            //var groups = await _uow.Groups.GetAllAsync();
+            //return _mapper.Map<IEnumerable<GroupDto>>(groups);
+
+            var groupsQuery = _uow.Groups.Query();
+
+            // search (name + description)
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                string search = query.Search.ToLower();
+                groupsQuery = groupsQuery.Where(g =>
+                    g.GroupName.ToLower().Contains(search) ||
+                    (g.Description != null && g.Description.ToLower().Contains(search))
+                );
+            }
+
+            //  Date Range
+            if (query.FromDate.HasValue)
+            {
+                groupsQuery = groupsQuery.Where(g => g.CreatedAt >= query.FromDate.Value);
+            }
+            if (query.ToDate.HasValue)
+            {
+                groupsQuery = groupsQuery.Where(g => g.CreatedAt <= query.ToDate.Value);
+            }
+
+            //  Pagination 
+            int totalCount =  groupsQuery.Count();
+
+            var items = groupsQuery
+                .Skip((query.PageNumber - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToList();
+
+            var mapped = _mapper.Map<List<GroupDto>>(items);
+
+            return new PagedResponse<GroupDto>
+            {
+                Data = mapped,
+                TotalRecords = totalCount,
+                PageNumber = query.PageNumber,
+                PageSize = query.PageSize
+            };
         }
 
 
@@ -40,7 +83,9 @@ namespace EVWebApi.Services
             var group = new Group
             {
                 GroupName = dto.GroupName,
-                Description = dto.Description
+                Description = dto.Description,
+                CreatedAt = DateTime.UtcNow,
+                //UpdatedAt = DateTime.UtcNow
             };
             await _uow.Groups.AddAsync(group);
             await _uow.CompleteAsync();
@@ -56,7 +101,8 @@ namespace EVWebApi.Services
 
 
             if (!string.IsNullOrWhiteSpace(dto.GroupName)) group.GroupName = dto.GroupName;
-            if (!string.IsNullOrWhiteSpace(dto.Description)) group.Description = dto.Description; 
+            if (dto.Description!=null)
+                group.Description = dto.Description; 
             //group.UpdatedAt = DateTime.UtcNow;
 
 

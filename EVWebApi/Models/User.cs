@@ -20,7 +20,7 @@ namespace EVWebApi.Models
         public required string PasswordHash { get; set; }
         [Column("role_id")]
         public int RoleId { get; set; }
-        [Column("username")]
+       
         public Role? Role { get; set; }
 
         [Column("status")]

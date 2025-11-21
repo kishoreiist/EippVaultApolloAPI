@@ -1,4 +1,4 @@
-﻿using EVWebApi.DTOs;
+﻿using EVWebApi.DTOs.Document;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;

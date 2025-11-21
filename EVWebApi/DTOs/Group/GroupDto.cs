@@ -1,4 +1,4 @@
-﻿namespace EVWebApi.DTOs
+﻿namespace EVWebApi.DTOs.Group
 {
     public class GroupDto
     {
@@ -6,6 +6,7 @@
         public required string GroupName { get; set; }
         public string? Description { get; set; }
         public DateTime CreatedAt { get; set; }
+
         //public DateTime UpdatedAt { get; set; }
     }
 }

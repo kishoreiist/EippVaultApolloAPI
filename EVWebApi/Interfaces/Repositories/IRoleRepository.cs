@@ -8,7 +8,7 @@ namespace EVWebApi.Interfaces.Repositories
     {
         Task<Role> GetByNameAsync(string roleName);
 
-        Task<IEnumerable<Role>> GetAllAsync();
+        IQueryable<Role> Query();
 
 
     }

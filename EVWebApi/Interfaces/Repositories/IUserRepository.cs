@@ -7,6 +7,8 @@ namespace EVWebApi.Interfaces.Repositories
     {
         Task<User> GetByUsernameAsync(string username);
         Task<User> GetByEmailAsync(string email);
-        Task<IEnumerable<User>> GetAllAsync();
+        //Task<IEnumerable<User>> GetAllAsync();
+
+        IQueryable<User> Query();   
     }
 }

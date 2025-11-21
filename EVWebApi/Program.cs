@@ -1,17 +1,18 @@
 using EVWebApi.Data;
+using EVWebApi.Interfaces.Repositories;
+using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
 using EVWebApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
-
+using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
-using EVWebApi.Interfaces.Repositories;
-using EVWebApi.Interfaces.Services;
+using System.Text;
 
 
 
@@ -19,9 +20,19 @@ using EVWebApi.Interfaces.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Add DB Context (PostgreSQL)
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+var connString = builder.Configuration.GetConnectionString("DefaultConnection");
 
+// enabling to map dictionary to postgresql jsonb
+
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connString);
+dataSourceBuilder.EnableDynamicJson();
+var dataSource = dataSourceBuilder.Build();
+builder.Services.AddSingleton(dataSource);
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(dataSource));
+
+
+builder.Configuration.AddJsonFile("AuditMessages.json", optional: false, reloadOnChange: true);
 
 
 // 2. Add AutoMapper
@@ -115,7 +126,6 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
-
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();

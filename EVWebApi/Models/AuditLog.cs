@@ -1,8 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 public class AuditLog {
 
-    public int Id { get; set; }
+    //public int Id { get; set; }
+    [Key]
     [Column("log_id")]
     public int LogId { get; set; }
     [Column("user_id")]
@@ -12,11 +14,11 @@ public class AuditLog {
     [Column("mfa_attempt")]
     public bool MfaAttempt { get; set; }
     [Column("mfa_status")]
-    public string MfaStatus { get; set; }
+    public string? MfaStatus { get; set; }
     [Column("timestamp")]
     public DateTime Timestamp { get; set; }
     [Column("ip_address")]
-    public string IpAddress { get; set; }
+    public string? IpAddress { get; set; }
 
 
 

@@ -26,18 +26,15 @@ namespace EVWebApi.Repositories
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
-        public async Task<IEnumerable<User>> GetAllAsync()
+        //public async Task<IEnumerable<User>> GetAllAsync()
+        //{
+        //    return await _context.Users.ToListAsync();
+        //}
+
+        public IQueryable<User> Query()
         {
-            return await _context.Users.ToListAsync();
+            return _context.Users.AsQueryable();
         }
 
-        //public override async Task<IEnumerable<User>> GetAllAsync()
-        //{
-        //    return await _dbSet
-        //        .Include(u => u.Role)
-        //        .Include(u => u.UserGroups)
-        //            .ThenInclude(ug => ug.Group)
-        //        .ToListAsync();
-        //}
     }
 }

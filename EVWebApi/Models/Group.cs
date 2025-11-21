@@ -11,7 +11,6 @@ namespace EVWebApi.Models
         [Column("description")]
         public string? Description { get; set; }
         public DateTime CreatedAt { get; set; }
-        //public DateTime UpdatedAt { get; set; }
         public  ICollection<UserGroup>? UserGroups { get; set; }
     }
 }

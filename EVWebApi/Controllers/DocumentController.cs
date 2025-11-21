@@ -1,19 +1,22 @@
 ﻿using EVWebApi.DTOs;
-using EVWebApi.Models;
-using Microsoft.AspNetCore.Mvc;
 using EVWebApi.Interfaces.Services;
+using EVWebApi.Models;
+using EVWebApi.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class DocumentController : ControllerBase
+    public class DocumentController : BaseController
     {
         private readonly IDocumentService _documentService;
+        private readonly IAuditLogService _auditlogservice;
 
-        public DocumentController(IDocumentService documentService)
+        public DocumentController(IDocumentService documentService, IAuditLogService auditLogService)
         {
             _documentService = documentService;
+            _auditlogservice = auditLogService;
         }
 
         // Upload Document
@@ -21,6 +24,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
         {
             var result = await _documentService.UploadDocument(dto);
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Upload", result.DocumentId);
             return Ok(result);
         }
 
@@ -29,6 +33,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetDocument(int id)
         {
             var doc = await _documentService.GetDocument(id);
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
             return Ok(doc);
         }
 
@@ -38,7 +43,7 @@ namespace EVWebApi.Controllers
         {
             var fileStream = await _documentService.GetDocumentStream(id);
             if (fileStream == null) return NotFound();
-
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
             return File(fileStream, "application/pdf");
         }
 
@@ -48,7 +53,7 @@ namespace EVWebApi.Controllers
         {
             var download = await _documentService.GetDocumentForDownload(id);
             if (download == null) return NotFound();
-
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
             return File(download.Stream, "application/octet-stream", download.FileName);
         }
 
@@ -57,6 +62,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> ArchiveDocument(int id)
         {
             await _documentService.ArchiveDocument(id);
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
             return Ok(new { message = "Document archived" });
         }
 
@@ -65,6 +71,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> RestoreDocument(int id)
         {
             await _documentService.RestoreDocument(id);
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
             return Ok(new { message = "Document restored" });
         }
 
@@ -75,7 +82,7 @@ namespace EVWebApi.Controllers
 
             if (!success)
                 return NotFound(new { message = "Document not found" });
-
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Delete", id);
             return Ok(new { message = "Document deleted successfully" });
         }
     }

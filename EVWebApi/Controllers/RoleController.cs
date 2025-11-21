@@ -1,5 +1,6 @@
 ﻿
 using EVWebApi.DTOs;
+using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,14 +8,17 @@ namespace EVWebApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class RoleController : ControllerBase
+    [RequiresPermission("manage_users")]
+    public class RoleController : BaseController
     {
         private readonly IRoleService _roleService;
+        private readonly IAuditLogService _auditlogservice;
 
 
-        public RoleController(IRoleService roleService)
+        public RoleController(IRoleService roleService, IAuditLogService auditlogservice)
         {
             _roleService = roleService;
+            _auditlogservice = auditlogservice;
         }
 
 
@@ -22,6 +26,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetAll()
         {
             var roles = await _roleService.GetAllAsync();
+            await _auditlogservice.LogAsync(CurrentUserId, "Role", "GetAll");
             return Ok(roles);
         }
 
@@ -30,6 +35,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Get(int id)
         {
             var role = await _roleService.GetByIdAsync(id);
+            await _auditlogservice.LogAsync(CurrentUserId, "Role", "Get", id);
             if (role == null) return NotFound();
             return Ok(role);
         }
@@ -39,6 +45,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Create([FromBody] CreateRoleDto dto)
         {
             var created = await _roleService.CreateAsync(dto);
+            await _auditlogservice.LogAsync(CurrentUserId, "Role", "Create", created.RoleId);
             return CreatedAtAction(nameof(Get), new { id = created.RoleId }, created);
         }
 
@@ -48,6 +55,7 @@ namespace EVWebApi.Controllers
         {
             if (id != dto.RoleId) return BadRequest();
             var updated = await _roleService.UpdateAsync(dto);
+            await _auditlogservice.LogAsync(CurrentUserId, "Role", "Update", id);
             return Ok(updated);
         }
 
@@ -56,6 +64,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             await _roleService.DeleteAsync(id);
+            await _auditlogservice.LogAsync(CurrentUserId, "Role", "Delete", id);
             return NoContent();
         }
     }

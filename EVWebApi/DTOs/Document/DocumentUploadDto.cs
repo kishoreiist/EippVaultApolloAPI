@@ -1,6 +1,6 @@
 ﻿using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace EVWebApi.DTOs
+namespace EVWebApi.DTOs.Document
 { 
 public class DocumentUploadDto
 {

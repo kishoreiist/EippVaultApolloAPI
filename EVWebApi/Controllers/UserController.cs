@@ -1,8 +1,9 @@
-﻿using EVWebApi.DTOs;
+﻿using EVWebApi.DTOs.User;
 using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace EVWebApi.Controllers
 {
@@ -24,9 +25,9 @@ namespace EVWebApi.Controllers
 
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] UserQueryParameters query)
         {
-            var users = await _userService.GetAllAsync();
+            var users = await _userService.GetAllAsync(query);
             await _auditlogservice.LogAsync(CurrentUserId, "User","GetAll");
             return Ok(users);
         }

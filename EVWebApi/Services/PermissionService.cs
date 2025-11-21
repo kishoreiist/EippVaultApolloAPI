@@ -20,14 +20,11 @@ namespace EVWebApi.Services
                 .Where(r => r.RoleId == roleId)
                 .Select(r => r.Permissions)
                 .FirstOrDefaultAsync();
-            if (rolePermissions?.ValueKind == JsonValueKind.Object)
-            {
-                var jsonElement = rolePermissions.Value;
 
-                if (jsonElement.TryGetProperty(permissionKey, out var permissionValue))
-                {
-                    return permissionValue.ValueKind == JsonValueKind.True;
-                }
+            if (rolePermissions != null &&
+                rolePermissions.TryGetValue(permissionKey, out bool isAllowed))
+            {
+                return isAllowed;
             }
             return false;
         }

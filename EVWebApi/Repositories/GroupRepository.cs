@@ -18,9 +18,15 @@ namespace EVWebApi.Repositories
             return await _context.Groups
                 .FirstOrDefaultAsync(u => u.GroupName == groupname);
         }
-        public async Task<IEnumerable<Group>> GetAllAsync()
+        //public async Task<IEnumerable<Group>> GetAllAsync()
+        //{
+        //    return await _context.Groups.ToListAsync();
+        //}
+
+        public IQueryable<Group> Query()
         {
-            return await _context.Groups.ToListAsync();
+            return _context.Groups.AsQueryable();
         }
+
     }
 }

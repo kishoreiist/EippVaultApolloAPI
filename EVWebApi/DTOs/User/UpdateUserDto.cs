@@ -1,7 +1,7 @@
 ﻿using EVWebApi.Models;
 using System.ComponentModel.DataAnnotations;
 
-namespace EVWebApi.DTOs
+namespace EVWebApi.DTOs.User
 {
     public class UpdateUserDto
     {

@@ -1,6 +1,6 @@
 ﻿using EVWebApi.Models;
 
-namespace EVWebApi.DTOs
+namespace EVWebApi.DTOs.User
 {
     public class UserDto
     {

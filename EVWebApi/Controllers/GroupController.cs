@@ -1,4 +1,5 @@
-﻿using EVWebApi.DTOs;
+﻿using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.User;
 using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
@@ -22,10 +23,10 @@ namespace EVWebApi.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] GroupQueryParameters query)
         {
-            var groups = await _groupService.GetAllAsync();
-            await _auditlogservice.LogAsync(CurrentUserId, "Role", "GetAll");
+            var groups = await _groupService.GetAllAsync(query);
+            await _auditlogservice.LogAsync(CurrentUserId, "Group", "GetAll");
             return Ok(groups);
         }
 

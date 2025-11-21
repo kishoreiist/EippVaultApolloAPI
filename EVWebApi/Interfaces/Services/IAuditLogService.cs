@@ -10,8 +10,6 @@
                   string? details = null
               );
 
-        Task<IEnumerable<AuditLog>> GetRecentActivityAsync();
-
         //pagination+filter 
 
         Task<(IEnumerable<AuditLog> Logs, int TotalCount)> GetLogsAsync(

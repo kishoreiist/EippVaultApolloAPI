@@ -1,5 +1,7 @@
 ﻿using AutoMapper;
-using EVWebApi.DTOs;
+using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.Role;
+using EVWebApi.DTOs.User;
 using EVWebApi.Models;
 
 namespace EVWebApi.Mapping

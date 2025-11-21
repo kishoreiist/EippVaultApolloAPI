@@ -1,6 +1,7 @@
 ﻿using EVWebApi.Data;
 using EVWebApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Text;
 
 namespace EVWebApi.Services
@@ -9,16 +10,32 @@ namespace EVWebApi.Services
     {
         private readonly AppDbContext _context;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IConfiguration _configuration;
 
-        public AuditLogService(AppDbContext context, IHttpContextAccessor httpContextAccessor)
+        public AuditLogService(AppDbContext context, IHttpContextAccessor httpContextAccessor, IConfiguration configuration)
         {
             _context = context;
             _httpContextAccessor = httpContextAccessor;
+            _configuration = configuration;
         }
 
         public async Task LogAsync(int userId, string module, string action, int? targetId = null, string? details = null)
         {
             var ip = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+
+            if (string.IsNullOrEmpty(details))
+            {
+                string? messageTemplate = null;
+                messageTemplate = _configuration.GetSection($"AuditMessages:CommonActions:{action}")?.Value;
+                if (string.IsNullOrEmpty(messageTemplate))
+                {
+                    messageTemplate = _configuration.GetSection("AuditMessages:Default:Message").Value;
+                }
+                details = messageTemplate?
+            .Replace("{targetId}", targetId?.ToString() ?? "N/A")
+            .Replace("{module}", module)
+            .Replace("{action}", action);
+            }
 
             var log = new AuditLog
             {
@@ -27,6 +44,7 @@ namespace EVWebApi.Services
                 Action = action,
                 TargetId = targetId,
                 Details = details,
+                Timestamp= DateTime.UtcNow,
                 IpAddress = ip
             };
 
@@ -34,12 +52,6 @@ namespace EVWebApi.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<IEnumerable<AuditLog>> GetRecentActivityAsync()
-        {
-            return await _context.AuditLogs
-                .OrderByDescending(a => a.Timestamp)
-                .ToListAsync();
-        }
 
         //pagination+filter
 
@@ -53,8 +65,10 @@ namespace EVWebApi.Services
             DateTime? toDate = null
         )
         {
+
+
             var query = _context.AuditLogs
-                .Include(a => a.UserId)
+                //.Include(a => a.UserId)
                 .AsQueryable();
 
             // FILTER: Username

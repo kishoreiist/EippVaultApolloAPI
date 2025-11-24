@@ -41,7 +41,7 @@ public class AuthService : IAuthService
 
         if (user.MfaEnabled)
         {
-            await _mfaService.GenerateAndSendTokenAsync(user);
+            //await _mfaService.GenerateAndSendTokenAsync(user);
             return "MFA_REQUIRED";
         }
         return GenerateJwtToken(user);

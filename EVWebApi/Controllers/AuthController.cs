@@ -92,6 +92,18 @@ namespace EVWebAPI.Controllers
                 {
                     var issuer = string.IsNullOrWhiteSpace(request.Issuer) ? "MyApp" : request.Issuer;
 
+
+                    if (user.MfaEnabled && user.MfaMethod == MfaMethod.authenticator)
+                    {
+                        return Ok(new
+                        {
+                            status = "already_enabled",
+                            message = "MFA is already enabled for this account.",
+                            qrCodeDataUrl= "already_enabled"
+                        });
+                    }
+
+
                     // Generate QR as base64 image (no prefix)
                     var base64Png = await _mfaService.GenerateQrCodeAsync(user.UserId, user.Email);
 
@@ -154,7 +166,8 @@ namespace EVWebAPI.Controllers
                 if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
                 {
                     // Use the user's email and the code as token for verification
-                    success = await _mfaService.VerifyTokenAsync(request.Email, request.Code);
+                    success = await _mfaService.VerifyTotpAsync(user.UserId, request.Code);                   
+
                 }
                 else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
                 {
@@ -164,7 +177,6 @@ namespace EVWebAPI.Controllers
                 {
                     return BadRequest(new { message = "Invalid MFA method" });
                 }
-
                 if (!success)
                 {
                     _logger.LogWarning("Failed MFA verification for {Email} using {Method}", request.Email, request.Method);

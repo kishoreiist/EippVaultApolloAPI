@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
-using EVWebApi.DTOs;
+using EVWebApi.DTOs.Pagination;
+using EVWebApi.DTOs.User;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -22,10 +23,86 @@ namespace EVWebApi.Services
         }
 
 
-        public async Task<IEnumerable<UserDto>> GetAllAsync()
+        public async Task<PagedResponse<UserDto>> GetAllAsync(UserQueryParameters query)
         {
-            var users = await _uow.Users.GetAllAsync();
-            return _mapper.Map<IEnumerable<UserDto>>(users);
+            //var users = await _uow.Users.GetAllAsync();
+            //return _mapper.Map<IEnumerable<UserDto>>(users);
+
+
+            var usersQuery = _uow.Users.Query();
+
+            // search (username, email, phone number)
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var keyword = query.Search.ToLower();
+
+                usersQuery = usersQuery.Where(u =>
+                    u.Username.ToLower().Contains(keyword) ||
+                    u.Email.ToLower().Contains(keyword) ||
+                    u.PhoneNumber.ToLower().Contains(keyword)
+                );
+            }
+
+            // Role ID
+            if (query.RoleId.HasValue)
+            {
+                usersQuery = usersQuery.Where(u => u.RoleId == query.RoleId.Value);
+            }
+
+            //  Status
+            if (query.Status.HasValue)
+            {
+                usersQuery = usersQuery.Where(u => u.Status == query.Status.Value);
+            }
+
+            //MFA Enabled
+            if (query.MfaEnabled.HasValue)
+            {
+                usersQuery = usersQuery.Where(u => u.MfaEnabled == query.MfaEnabled.Value);
+            }
+
+            //  Email Verified
+            if (query.EmailVerified.HasValue)
+            {
+                usersQuery = usersQuery.Where(u => u.EmailVerified == query.EmailVerified.Value);
+            }
+
+            //  MFA Method
+            if (query.MfaMethod.HasValue)
+            {
+                usersQuery = usersQuery.Where(u => u.MfaMethod == query.MfaMethod);
+            }
+
+            //  Date Range
+            if (query.FromDate.HasValue)
+            {
+                usersQuery = usersQuery.Where(g => g.CreatedAt >= query.FromDate.Value);
+            }
+            if (query.ToDate.HasValue)
+            {
+                usersQuery = usersQuery.Where(g => g.CreatedAt <= query.ToDate.Value);
+            }
+
+            //  TOTAL count BEFORE pagination
+            var totalRecords = usersQuery.Count();
+
+            // APPLY PAGINATION
+            var pagedUsers = usersQuery
+                .Skip((query.PageNumber - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToList();
+
+            // MAP TO DTO
+            var userDtos = _mapper.Map<List<UserDto>>(pagedUsers);
+
+            //  RETURN PAGED RESPONSE
+            return new PagedResponse<UserDto>
+            {
+                Data = userDtos,
+                TotalRecords = totalRecords,
+                PageNumber = query.PageNumber,
+                PageSize = query.PageSize
+            };
         }
 
 

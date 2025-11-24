@@ -26,9 +26,14 @@ namespace EVWebApi.Repositories
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
-        public async Task<IEnumerable<User>> GetAllAsync()
+        //public async Task<IEnumerable<User>> GetAllAsync()
+        //{
+        //    return await _context.Users.ToListAsync();
+        //}
+
+        public IQueryable<User> Query()
         {
-            return await _context.Users.ToListAsync();
+            return _context.Users.AsQueryable();
         }
 
         public async Task<int> SaveChangesAsync()

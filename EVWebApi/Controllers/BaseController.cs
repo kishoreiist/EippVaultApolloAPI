@@ -5,7 +5,7 @@ namespace EVWebApi.Controllers
 {
     public abstract class BaseController : ControllerBase
     {
-
+        //protected int CurrentUserId = 1;---->for testing need to remove bfr production
     protected int CurrentUserId =>
             int.Parse(User.FindFirst("userId")?.Value ?? "0");
 

@@ -1,5 +1,5 @@
-﻿
-using EVWebApi.DTOs;
+﻿using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.Role;
 using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -23,9 +23,9 @@ namespace EVWebApi.Controllers
 
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] RoleQueryParameters query)
         {
-            var roles = await _roleService.GetAllAsync();
+            var roles = await _roleService.GetAllAsync(query);
             await _auditlogservice.LogAsync(CurrentUserId, "Role", "GetAll");
             return Ok(roles);
         }

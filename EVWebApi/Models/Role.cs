@@ -11,8 +11,8 @@ namespace EVWebApi.Models
              public int RoleId { get; set; }
              [Column("role_name")]
              public required string RoleName { get; set; }
-             [Column("permissions")]
-             public JsonElement? Permissions { get; set; }
+             [Column("permissions", TypeName = "jsonb")]
+             public Dictionary<string, bool>? Permissions { get; set; }
 
             public DateTime CreatedAt { get; set; }
             public DateTime UpdatedAt { get; set; }

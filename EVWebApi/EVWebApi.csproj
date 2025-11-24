@@ -36,4 +36,18 @@
 	  <PackageReference Include="System.Text.Json" Version="10.0.0" />
   </ItemGroup>
 
+
+
+  <ItemGroup>
+    <Content Update="AuditMessages.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+
+
+  <ItemGroup>
+    <Folder Include="Configurations\" />
+  </ItemGroup>
+
 </Project>

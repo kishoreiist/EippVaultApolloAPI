@@ -9,5 +9,8 @@ namespace EVWebApi.Interfaces.Repositories
         Task<User> GetByEmailAsync(string email);
         Task<IEnumerable<User>> GetAllAsync();
         Task<int> SaveChangesAsync(); // Add this method to support SaveChangesAsync calls
+        //Task<IEnumerable<User>> GetAllAsync();
+
+        IQueryable<User> Query();   
     }
 }

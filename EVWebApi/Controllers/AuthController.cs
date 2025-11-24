@@ -154,7 +154,8 @@ namespace EVWebAPI.Controllers
                 if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
                 {
                     // Use the user's email and the code as token for verification
-                    success = await _mfaService.VerifyTokenAsync(request.Email, request.Code);
+                    success = await _mfaService.VerifyTotpAsync(user.UserId, request.Code);                   
+
                 }
                 else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
                 {

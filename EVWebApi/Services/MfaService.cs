@@ -1,4 +1,4 @@
-using EVWebApi.Data;
+﻿using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OtpNet;
 using QRCoder;
+using System.Text;
+using System.Text.RegularExpressions;
 
 public class MfaService : IMfaService
 {
@@ -94,15 +96,75 @@ public class MfaService : IMfaService
     }
 
     // New: Verify TOTP Code
+    //public async Task<bool> VerifyTotpAsync(int userId, string code)
+    //{
+    //    var authenticator = await _authenticatorRepo.GetByUserIdAsync(userId);
+    //    if (authenticator == null) return false;
+
+    //    var secretKey = Base32Encoding.ToBytes(authenticator.SecretKey);
+    //    var totp = new Totp(secretKey);
+    //    return totp.VerifyTotp(code, out long timeStepMatched, new VerificationWindow(previous: 1, future: 1));
+    //}
+
     public async Task<bool> VerifyTotpAsync(int userId, string code)
     {
+        // 1) Basic normalization & validation
+        if (string.IsNullOrWhiteSpace(code)) return false;
+        code = code.Trim();
+
+        // Normalize potential Unicode digits to ASCII
+        code = code
+            .Replace(" ", "")
+            .Normalize(NormalizationForm.FormKC);
+
+        // Ensure 6 ASCII digits
+        if (!Regex.IsMatch(code, "^[0-9]{6}$"))
+            return false;
+
+        // 2) Load authenticator/secret for this user
         var authenticator = await _authenticatorRepo.GetByUserIdAsync(userId);
         if (authenticator == null) return false;
 
-        var secretKey = Base32Encoding.ToBytes(authenticator.SecretKey);
-        var totp = new Totp(secretKey);
-        return totp.VerifyTotp(code, out long timeStepMatched, new VerificationWindow(previous: 1, future: 1));
+        var secretBase32 = authenticator.SecretKey;
+        if (string.IsNullOrWhiteSpace(secretBase32)) return false;
+
+        // Normalize secret: remove spaces/padding issues
+        secretBase32 = secretBase32.Trim().Replace(" ", "");
+
+        // 3) Decode Base32 → bytes
+        byte[] secretBytes;
+        try
+        {
+            secretBytes = Base32Encoding.ToBytes(secretBase32);
+        }
+        catch
+        {
+            // Decoding failed (corrupted or invalid Base32)
+            return false;
+        }
+
+        // 4) Verify using Google Authenticator defaults
+        var totp = new Totp(
+            secretBytes,
+            step: 30,                 // 30-second time step
+            mode: OtpHashMode.Sha1,   // Google Authenticator uses SHA-1
+            totpSize: 6               // 6 digits
+        );
+
+        // Allow ±1 step to tolerate minor skew
+        var isValid = totp.VerifyTotp(
+            code,
+            out long matchedStep,
+            new VerificationWindow(previous: 1, future: 1)
+        );
+
+        // Optional: log diagnostic info to help debugging
+        // var remaining = totp.RemainingSeconds();
+        // logger.LogDebug("TOTP valid={isValid}, step={matchedStep}, remaining={remaining}");
+
+        return isValid;
     }
+
 
     public Task<bool> VerifyEmailOtpAsync(string email, string token)
     {

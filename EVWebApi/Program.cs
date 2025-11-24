@@ -1,4 +1,5 @@
 using EVWebApi.Data;
+using EVWebApi.DTOs;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -65,6 +66,12 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddHttpContextAccessor();
 
+builder.Services.AddScoped<IUserAuthenticatorRepository, UserAuthenticatorRepository>();
+builder.Services.AddScoped<IMfaService, MfaService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddTransient<IEmailSender, SmtpEmailSender>();
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
+builder.Services.Configure<MfaSettings>(builder.Configuration.GetSection("Mfa"));
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

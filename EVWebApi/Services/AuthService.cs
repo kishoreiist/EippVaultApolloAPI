@@ -26,12 +26,7 @@ public class AuthService : IAuthService
 
     public async Task<string> AuthenticateAsync(string email, string password) {
         var user = await _userRepo.GetByEmailAsync(email);
-        if(user == null) return null;
-
-        //Temperu hash password generatin example for testing
-        string password1 = "123456";
-        string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password1);
-        Console.WriteLine(hashedPassword);
+        if(user == null) return null;      
 
         try
         {

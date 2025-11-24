@@ -22,8 +22,11 @@
 	<PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.15.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
+    <PackageReference Include="Otp.NET" Version="1.4.0" />
 
     <PackageReference Include="Portable.BouncyCastle" Version="1.9.0" />
+
+    <PackageReference Include="QRCoder" Version="1.7.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
 

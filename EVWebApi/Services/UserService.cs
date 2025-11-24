@@ -139,14 +139,9 @@ namespace EVWebApi.Services
                 }).ToList()
             };
 
-
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
-
-
             await _uow.Users.AddAsync(user);
             await _uow.CompleteAsync();
-
-
             return _mapper.Map<UserDto>(user);
         }
 

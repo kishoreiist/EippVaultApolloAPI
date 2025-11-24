@@ -36,5 +36,18 @@ namespace EVWebApi.Repositories
             return _context.Users.AsQueryable();
         }
 
+        public async Task<int> SaveChangesAsync()
+        {
+            return await _context.SaveChangesAsync();
+        }
+
+        //public override async Task<IEnumerable<User>> GetAllAsync()
+        //{
+        //    return await _dbSet
+        //        .Include(u => u.Role)
+        //        .Include(u => u.UserGroups)
+        //            .ThenInclude(ug => ug.Group)
+        //        .ToListAsync();
+        //}
     }
 }

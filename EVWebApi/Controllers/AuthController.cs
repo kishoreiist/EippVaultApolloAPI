@@ -1,4 +1,7 @@
-﻿using EVWebApi.Interfaces.Services;
+﻿using EVWebApi.DTOs;
+using EVWebApi.Interfaces.Repositories;
+using EVWebApi.Interfaces.Services;
+using EVWebApi.Models;
 using EVWebAPI.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
@@ -13,16 +16,19 @@ namespace EVWebAPI.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IMfaService _mfaService;
+        private readonly IUserRepository _userRepo;
 
         private readonly ILogger<AuthController> _logger;
-        public AuthController(IAuthService authService, IMfaService mfaService, ILogger<AuthController> logger)
+        public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger)
         {
             ArgumentNullException.ThrowIfNull(authService);
             ArgumentNullException.ThrowIfNull(mfaService);
+            ArgumentNullException.ThrowIfNull(userRepo);
             ArgumentNullException.ThrowIfNull(logger);
 
             _authService = authService;
             _mfaService = mfaService;
+            _userRepo = userRepo;
             _logger = logger;
         }
 
@@ -43,7 +49,11 @@ namespace EVWebAPI.Controllers
                 {
                     _logger.LogInformation("MFA required for {Email}", request.Email);
                     // 202 Accepted: MFA flow was started (token generation & sending)
-                    return Accepted(new { status = "MFA_REQUIRED" });
+
+                    return Accepted(new
+                    {
+                        status = "MFA_REQUIRED"
+                    });
                 }
 
                 if (result is null)
@@ -63,6 +73,68 @@ namespace EVWebAPI.Controllers
             }
         }
 
+
+        [HttpPost("enable-mfa")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> EnableMfa([FromBody] EnableMfaRequest request)
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Method))
+                return BadRequest();
+
+            var user = await _userRepo.GetByEmailAsync(request.Email);
+            if (user == null) return NotFound();
+
+            try
+            {
+                if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
+                {
+                    var issuer = string.IsNullOrWhiteSpace(request.Issuer) ? "MyApp" : request.Issuer;
+
+                    // Generate QR as base64 image (no prefix)
+                    var base64Png = await _mfaService.GenerateQrCodeAsync(user.UserId, user.Email);
+
+                    // Persist method choice (optional but recommended)
+                    user.MfaMethod = MfaMethod.authenticator;
+                    user.MfaEnabled = true; // or set true after first successful verification
+                    _userRepo.Update(user);
+                    await _userRepo.SaveChangesAsync();
+
+                    // Optional: return a data URL to simplify frontend
+                    var dataUrl = $"data:image/png;base64,{base64Png}";
+
+                    return Ok(new
+                    {
+                        qrCodeBase64 = base64Png,     // raw base64 (PNG)
+                        qrCodeDataUrl = dataUrl,      // convenient for <img src={...}>
+                        issuer
+                    });
+                }
+                else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _mfaService.GenerateAndSendTokenAsync(user);
+
+                    user.MfaMethod = MfaMethod.email;
+                    user.MfaEnabled = true; // or enable after first successful verification
+                    _userRepo.Update(user);
+                    await _userRepo.SaveChangesAsync();
+
+                    return Ok(new { message = "Email MFA enabled. A verification code has been sent to your email." });
+                }
+                else
+                {
+                    return BadRequest(new { message = "Invalid MFA method" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error enabling MFA for {Email}", request.Email);
+                return Problem(detail: "An unexpected error occurred while enabling MFA.",
+                               statusCode: StatusCodes.Status500InternalServerError);
+            }
+        }
+
         [HttpPost("mfa/verify")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -74,15 +146,33 @@ namespace EVWebAPI.Controllers
 
             try
             {
-                var success = await _mfaService.VerifyTokenAsync(request.Email, request.Token);
+                var user = await _userRepo.GetByEmailAsync(request.Email);
+                if (user == null) return Unauthorized();
+
+                bool success = false;
+
+                if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Use the user's email and the code as token for verification
+                    success = await _mfaService.VerifyTokenAsync(request.Email, request.Code);
+                }
+                else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
+                {
+                    success = await _mfaService.VerifyTokenAsync(request.Email, request.Code);
+                }
+                else
+                {
+                    return BadRequest(new { message = "Invalid MFA method" });
+                }
+
                 if (!success)
                 {
-                    _logger.LogWarning("Failed MFA verification for {Email}", request.Email);
-                    return Unauthorized();
+                    _logger.LogWarning("Failed MFA verification for {Email} using {Method}", request.Email, request.Method);
+                    return Unauthorized(new { message = "Invalid MFA code" });
                 }
 
                 var jwt = await _authService.GenerateJwtAfterMfaAsync(request.Email);
-                _logger.LogInformation("MFA verified and JWT issued for {Email}", request.Email);
+                _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
                 return Ok(new { token = jwt });
             }
             catch (Exception ex)
@@ -91,6 +181,7 @@ namespace EVWebAPI.Controllers
                 return Problem(detail: "An unexpected error occurred while verifying MFA.",
                                statusCode: StatusCodes.Status500InternalServerError);
             }
-        }
+        }        
+
     }
 }

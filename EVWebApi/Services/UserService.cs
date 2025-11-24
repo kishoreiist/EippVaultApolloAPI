@@ -1,10 +1,12 @@
 ﻿using AutoMapper;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
+using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace EVWebApi.Services
 {
@@ -12,24 +14,20 @@ namespace EVWebApi.Services
     {
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
-        private readonly IPasswordHasher<User> _passwordHasher;
+ 
 
 
-        public UserService(IUnitOfWork uow, IMapper mapper, IPasswordHasher<User> passwordHasher)
+        public UserService(IUnitOfWork uow, IMapper mapper)
         {
             _uow = uow;
             _mapper = mapper;
-            _passwordHasher = passwordHasher;
         }
 
 
         public async Task<PagedResponse<UserDto>> GetAllAsync(UserQueryParameters query)
         {
-            //var users = await _uow.Users.GetAllAsync();
-            //return _mapper.Map<IEnumerable<UserDto>>(users);
-
-
             var usersQuery = _uow.Users.Query();
+
 
             // search (username, email, phone number)
             if (!string.IsNullOrWhiteSpace(query.Search))
@@ -88,8 +86,8 @@ namespace EVWebApi.Services
 
             // APPLY PAGINATION
             var pagedUsers = usersQuery
-                .Skip((query.PageNumber - 1) * query.PageSize)
-                .Take(query.PageSize)
+                .Skip(query.Offset)
+                .Take(query.Limit)
                 .ToList();
 
             // MAP TO DTO
@@ -100,8 +98,8 @@ namespace EVWebApi.Services
             {
                 Data = userDtos,
                 TotalRecords = totalRecords,
-                PageNumber = query.PageNumber,
-                PageSize = query.PageSize
+                Offset = query.Offset,
+                Limit = query.Limit
             };
         }
 
@@ -109,23 +107,27 @@ namespace EVWebApi.Services
         public async Task<UserDto> GetByIdAsync(int id)
         {
             var user = await _uow.Users.GetByIdAsync(id);
-            if (user == null) return null;
+            if (user == null)
+                throw new NotFoundException($"User with id {id} not found");
+
             return _mapper.Map<UserDto>(user);
         }
         public async Task<UserDto> CreateAsync(CreateUserDto dto)
         {
             var exists = await _uow.Users.GetByUsernameAsync(dto.Username);
-            if (exists != null) throw new ArgumentException("Username already exists");
+            if (exists != null)
+                throw new ConflictException($"Username '{dto.Username}' already exists");
 
 
             var emailExists = await _uow.Users.GetByEmailAsync(dto.Email);
-            if (emailExists != null) throw new ArgumentException("Email already exists");
+            if (emailExists != null) 
+                throw new ConflictException($"Username '{dto.Username}' already exists");
 
 
             var user = new User
             {
                 Username = dto.Username,
-                PasswordHash = dto.Password,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Email = dto.Email,
                 RoleId = dto.RoleId,
                 MfaEnabled = dto.MfaEnabled,
@@ -139,7 +141,6 @@ namespace EVWebApi.Services
                 }).ToList()
             };
 
-            user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
             await _uow.Users.AddAsync(user);
             await _uow.CompleteAsync();
             return _mapper.Map<UserDto>(user);
@@ -149,7 +150,8 @@ namespace EVWebApi.Services
         public async Task<UserDto> UpdateAsync(UpdateUserDto dto)
         {
             var user = await _uow.Users.GetByIdAsync(dto.UserId);
-            if (user == null) throw new ArgumentException("User not found");
+            if (user == null) 
+                throw new NotFoundException($"User with id {dto.UserId} not found");
 
 
             if (!string.IsNullOrWhiteSpace(dto.Username)) user.Username = dto.Username;
@@ -176,7 +178,8 @@ namespace EVWebApi.Services
         public async Task DeleteAsync(int id)
         {
             var user = await _uow.Users.GetByIdAsync(id);
-            if (user == null) throw new ArgumentException("User not found");
+            if (user == null) 
+                throw new NotFoundException("User not found");
 
 
             _uow.Users.Remove(user);

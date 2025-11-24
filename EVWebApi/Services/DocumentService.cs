@@ -1,5 +1,6 @@
 ﻿using EVWebApi.DTOs;
 using EVWebApi.DTOs.Document;
+using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -23,6 +24,9 @@ namespace EVWebApi.Services
         // ---------------------- UPLOAD ----------------------
         public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto)
         {
+            if (dto.File == null)
+                throw new BadRequestException("File is required");
+
             // Create folder if not exist
             string folderPath = Path.Combine(_env.ContentRootPath, "Uploads", "Documents", dto.CabinetId.ToString());
             if (!Directory.Exists(folderPath))
@@ -51,6 +55,10 @@ namespace EVWebApi.Services
                 Version = version,
                 Status = "active"
             });
+
+            if (doc == null)
+                throw new ServerException("Failed to save document");
+
             if (dto.Metadata != null)
             {
                 foreach (var item in dto.Metadata)
@@ -84,6 +92,10 @@ namespace EVWebApi.Services
         public async Task<DocumentResponseDto> GetDocument(int id)
         {
             var doc = await _repo.GetDocument(id);
+
+            if (doc == null)
+                throw new NotFoundException("Document not found");
+
             var metadata = await _metadataRepo.GetMetadataByDocumentId(id);
 
             return new DocumentResponseDto
@@ -105,13 +117,14 @@ namespace EVWebApi.Services
         public async Task<Stream?> GetDocumentStream(int id)
         {
             var doc = await _repo.GetDocument(id);
-            if (doc == null) return null;
+            if (doc == null)
+                throw new NotFoundException("Document not found");
 
             var rootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
             var fullPath = Path.Combine(rootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
 
             if (!File.Exists(fullPath))
-                return null;
+                throw new NotFoundException("File not found in storage");
 
             return new FileStream(fullPath, FileMode.Open, FileAccess.Read);
         }
@@ -124,7 +137,7 @@ namespace EVWebApi.Services
             var fullPath = Path.Combine(rootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
 
             if (!File.Exists(fullPath))
-                return null;
+                throw new NotFoundException("File not found in storage");
 
             var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return new DocumentDownloadDto { Stream = fs, FileName = doc.FileName };
@@ -146,7 +159,7 @@ namespace EVWebApi.Services
         {
             var doc = await _repo.GetDocument(id);
             if (doc == null)
-                return false;
+                throw new NotFoundException("Document not found");
 
             // Delete metadata
             await _metadataRepo.DeleteMetadataByDocumentId(id);

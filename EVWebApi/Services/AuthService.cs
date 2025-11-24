@@ -1,4 +1,5 @@
 using EVWebApi.Data;
+using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -16,28 +17,33 @@ public class AuthService : IAuthService
     private readonly IUserRepository _userRepo;
     private readonly IConfiguration _config;
     private readonly IMfaService _mfaService;
-    private readonly ILogger<AuthController> _logger;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService) {
+    public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService, ILogger<AuthService> logger) {
         _userRepo = userRepo;
         _config = config;
         _mfaService = mfaService;
+        _logger = logger;
     }
 
     public async Task<string> AuthenticateAsync(string email, string password) {
         var user = await _userRepo.GetByEmailAsync(email);
-        if(user == null) return null;      
+        if(user == null)
+            throw new NotFoundException("User not found");
+
+        bool validPassword;
 
         try
         {
-            if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
-                return null;
+            validPassword = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Password verification failed for {Email}", email);
-            return null;
+            _logger.LogError(ex, "Password hash verification failed for {Email}", email);
+            throw new AuthenticationException("Password verification failed");
         }
+        if (!validPassword)
+            throw new AuthenticationException("Invalid email or password");
 
         if (user.MfaEnabled)
         {
@@ -50,7 +56,8 @@ public class AuthService : IAuthService
 
     public async Task<string> GenerateJwtAfterMfaAsync(string email) {
         var user = await _userRepo.GetByEmailAsync(email);
-        if (user == null) return null;
+        if (user == null)
+            throw new NotFoundException("User not found");
         return GenerateJwtToken(user);
     }
 
@@ -58,7 +65,7 @@ public class AuthService : IAuthService
 
 
         if (user == null)
-            throw new ArgumentNullException(nameof(user));
+            throw new BadRequestException("User object is null");
 
         var key = _config["Jwt:Key"];
         var issuer = _config["Jwt:Issuer"];
@@ -70,10 +77,11 @@ public class AuthService : IAuthService
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[] {
+        var claims = new [] {
             new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
             new Claim("userId", user.UserId.ToString()),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Role, user.RoleId.ToString()) 
         };
        
         var token = new JwtSecurityToken(

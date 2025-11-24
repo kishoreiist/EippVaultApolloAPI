@@ -1,12 +1,15 @@
 ﻿using EVWebApi.DTOs.User;
+using EVWebApi.Exceptions;
 using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace EVWebApi.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     [RequiresPermission("manage_users")]
@@ -55,7 +58,8 @@ namespace EVWebApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
-            if (id != dto.UserId) return BadRequest();
+            if (id != dto.UserId)
+                throw new BadRequestException("User not exists");
             var updated = await _userService.UpdateAsync(dto);
             await _auditlogservice.LogAsync(CurrentUserId, "User", "Update", id);
             return Ok(updated);

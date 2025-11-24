@@ -3,10 +3,12 @@ using EVWebApi.DTOs.User;
 using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     [RequiresPermission("manage_users")]

@@ -33,7 +33,7 @@ namespace EVWebApi.Repositories
 
         public IQueryable<User> Query()
         {
-            return _context.Users.AsQueryable();
+            return _context.Users.Include(u => u.Role).AsQueryable();
         }
 
         public async Task<int> SaveChangesAsync()

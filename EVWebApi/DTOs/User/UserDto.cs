@@ -9,7 +9,7 @@ namespace EVWebApi.DTOs.User
         public required string Email { get; set; }
         public int RoleId { get; set; }
         public required string RoleName { get; set; }
-        public UserStatus Status { get; set; }
+        public string Status { get; set; }
         public bool MfaEnabled { get; set; }
         public MfaMethod? MfaMethod { get; set; }
         public string? PhoneNumber { get; set; }

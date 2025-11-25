@@ -44,10 +44,4 @@
     </Content>
   </ItemGroup>
 
-
-
-  <ItemGroup>
-    <Folder Include="Configurations\" />
-  </ItemGroup>
-
 </Project>

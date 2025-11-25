@@ -2,6 +2,7 @@
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
+using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -22,8 +23,6 @@ namespace EVWebApi.Services
         }
         public async Task<PagedResponse<GroupDto>> GetAllAsync(GroupQueryParameters query)
         {
-            //var groups = await _uow.Groups.GetAllAsync();
-            //return _mapper.Map<IEnumerable<GroupDto>>(groups);
 
             var groupsQuery = _uow.Groups.Query();
 
@@ -51,8 +50,8 @@ namespace EVWebApi.Services
             int totalCount =  groupsQuery.Count();
 
             var items = groupsQuery
-                .Skip((query.PageNumber - 1) * query.PageSize)
-                .Take(query.PageSize)
+                .Skip(query.Offset)
+                .Take(query.Limit)
                 .ToList();
 
             var mapped = _mapper.Map<List<GroupDto>>(items);
@@ -61,8 +60,8 @@ namespace EVWebApi.Services
             {
                 Data = mapped,
                 TotalRecords = totalCount,
-                PageNumber = query.PageNumber,
-                PageSize = query.PageSize
+                Offset = query.Offset,
+                Limit = query.Limit
             };
         }
 
@@ -70,14 +69,16 @@ namespace EVWebApi.Services
         public async Task<GroupDto> GetByIdAsync(int id)
         {
             var group = await _uow.Groups.GetByIdAsync(id);
-            if (group == null) return null;
+            if (group == null) 
+                throw new NotFoundException("Group not found");
             return _mapper.Map<GroupDto>(group);
         }
 
         public async Task<GroupDto> CreateAsync(GroupDto dto)
         {
             var exists = await _uow.Groups.GetByGroupnameAsync(dto.GroupName);
-            if (exists != null) throw new ArgumentException("Group name already exists");
+            if (exists != null) 
+                throw new ConflictException($"GroupName '{dto.GroupName}' already exists");
 
 
             var group = new Group
@@ -97,7 +98,8 @@ namespace EVWebApi.Services
         public async Task<GroupDto> UpdateAsync(GroupDto dto)
         {
             var group = await _uow.Groups.GetByIdAsync(dto.GroupId);
-            if (group == null) throw new ArgumentException("Group not found");
+            if (group == null) 
+                throw new NotFoundException("Group not found");
 
 
             if (!string.IsNullOrWhiteSpace(dto.GroupName)) group.GroupName = dto.GroupName;
@@ -115,7 +117,8 @@ namespace EVWebApi.Services
         public async Task DeleteAsync(int id)
         {
             var group = await _uow.Groups.GetByIdAsync(id);
-            if (group == null) throw new ArgumentException("Group not found");
+            if (group == null) 
+                throw new NotFoundException("Group not found");
 
 
             _uow.Groups.Remove(group);

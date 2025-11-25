@@ -11,7 +11,12 @@ namespace EVWebApi.Mapping
         public AutoMapperProfile()
         {
             CreateMap<User, UserDto>()
-            .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role.RoleName));
+            .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role.RoleName))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()))
+
+            .ForMember(dest => dest.MfaMethod,
+                opt => opt.MapFrom(src =>
+                    src.MfaMethod.HasValue ? src.MfaMethod.ToString() : null));
 
 
             CreateMap<CreateUserDto, User>()

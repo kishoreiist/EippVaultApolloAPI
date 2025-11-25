@@ -2,6 +2,8 @@ using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
+using EVWebApi.Mapping;
+using EVWebApi.Middleware;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
 using EVWebApi.Services;
@@ -37,7 +39,7 @@ builder.Configuration.AddJsonFile("AuditMessages.json", optional: false, reloadO
 
 
 // 2. Add AutoMapper
-builder.Services.AddAutoMapper(typeof(Program));
+builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
 // 3. Add Repositories
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -68,7 +70,6 @@ builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IUserAuthenticatorRepository, UserAuthenticatorRepository>();
 builder.Services.AddScoped<IMfaService, MfaService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddTransient<IEmailSender, SmtpEmailSender>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 builder.Services.Configure<MfaSettings>(builder.Configuration.GetSection("Mfa"));
@@ -122,7 +123,17 @@ builder.Services.AddSwaggerGen(c =>
     c.AddSecurityDefinition("Bearer", securityScheme);
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { securityScheme, new string[] { } }
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer" 
+                }
+            },
+            new string[] {}
+        }
     });
 });
 
@@ -134,6 +145,9 @@ app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 

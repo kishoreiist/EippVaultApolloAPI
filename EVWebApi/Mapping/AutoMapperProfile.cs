@@ -1,6 +1,5 @@
 ﻿using AutoMapper;
 using EVWebApi.DTOs.Group;
-using EVWebApi.DTOs.Role;
 using EVWebApi.DTOs.User;
 using EVWebApi.Models;
 
@@ -11,19 +10,18 @@ namespace EVWebApi.Mapping
         public AutoMapperProfile()
         {
             CreateMap<User, UserDto>()
-            .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role == null ? string.Empty : src.Role.RoleName))
+            
                 .ForMember(dest => dest.Status,
                opt => opt.MapFrom(src => src.Status == UserStatus.active))
 
 
-            .ForMember(dest => dest.GroupIds,
-               opt => opt.MapFrom(src => src.UserGroups.Select(ug => ug.GroupId).ToList()))
-            .ForMember(dest => dest.GroupNames,
+            .ForMember(dest => dest.GroupId,
+               opt => opt.MapFrom(src => src.UserGroup != null ? src.UserGroup.GroupId : (int?)null))
+            .ForMember(dest => dest.GroupName,
                opt => opt.MapFrom(src =>
-                    src.UserGroups
-                     .Where(ug => ug.Group != null)
-                    .Select(ug => ug.Group.GroupName).ToList()
-                ));
+                    src.UserGroup != null && src.UserGroup.Group != null
+                    ? src.UserGroup.Group.GroupName
+                    : null));
 
 
 
@@ -47,7 +45,7 @@ namespace EVWebApi.Mapping
             CreateMap<UpdateUserDto, User>();
             CreateMap<Group, GroupDto>();
 
-            CreateMap<Role, RoleDto>();
+
         }
     }
 }

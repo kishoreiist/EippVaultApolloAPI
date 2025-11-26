@@ -17,10 +17,7 @@ namespace EVWebApi.DTOs.User
         public required string Password { get; set; }
 
 
-        [Required]
-        public int RoleId { get; set; }
-
-        public List<int>? GroupIds { get; set; } = new();
+        public int GroupId { get; set; } = new();
 
         public bool Status { get; set; } = true;
         public bool MfaEnabled { get; set; }

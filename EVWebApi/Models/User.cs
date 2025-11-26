@@ -18,10 +18,7 @@ namespace EVWebApi.Models
         public required string Email { get; set; }
         [Column("password_hash")]
         public required string PasswordHash { get; set; }
-        [Column("role_id")]
-        public int RoleId { get; set; }
-       
-        public Role? Role { get; set; }
+
 
         [Column("status")]
         public UserStatus Status { get; set; } = UserStatus.active;
@@ -41,8 +38,8 @@ namespace EVWebApi.Models
         public DateTime UpdatedAt { get; set; }
 
 
-        // Many-to-many
-        public required ICollection<UserGroup> UserGroups { get; set; } = new List<UserGroup>();
+        // junction table
+        public UserGroup? UserGroup { get; set; }
         public ICollection<UserMfaToken> MfaTokens { get; set; }
     }
 }

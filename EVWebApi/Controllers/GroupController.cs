@@ -1,6 +1,5 @@
 ﻿using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.User;
-using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +10,7 @@ namespace EVWebApi.Controllers
     [Authorize]
     [ApiController]
     [Route("api/[controller]")]
-    [RequiresPermission("manage_users")]
+
     public class GroupController : BaseController
     {
         private readonly IGroupService _groupService;

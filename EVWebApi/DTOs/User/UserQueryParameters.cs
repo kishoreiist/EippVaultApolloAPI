@@ -16,8 +16,7 @@ namespace EVWebApi.DTOs.User
         [FromQuery(Name = "phone_number")]
         public string? PhoneNumber { get; set; }
 
-        [FromQuery(Name = "role_name")]
-        public string? RoleName { get; set; }
+
 
         [FromQuery(Name = "group_name")]
         public string? GroupName { get; set; }

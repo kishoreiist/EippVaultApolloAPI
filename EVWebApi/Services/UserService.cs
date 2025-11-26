@@ -7,6 +7,7 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace EVWebApi.Services
 {
@@ -28,58 +29,20 @@ namespace EVWebApi.Services
         {
             var usersQuery = _uow.Users.Query();
 
+            if (!string.IsNullOrWhiteSpace(query.Username))
+                usersQuery = usersQuery.Where(u => u.Username.Contains(query.Username));
 
-            // search (username, email, phone number)
-            if (!string.IsNullOrWhiteSpace(query.Search))
-            {
-                var keyword = query.Search.ToLower();
+            if (!string.IsNullOrWhiteSpace(query.Email))
+                usersQuery = usersQuery.Where(u => u.Email.Contains(query.Email));
 
-                usersQuery = usersQuery.Where(u =>
-                    u.Username.ToLower().Contains(keyword) ||
-                    u.Email.ToLower().Contains(keyword) ||
-                    u.PhoneNumber.ToLower().Contains(keyword)
-                );
-            }
+            if (!string.IsNullOrWhiteSpace(query.PhoneNumber))
+                usersQuery = usersQuery.Where(u => u.PhoneNumber.Contains(query.PhoneNumber));
 
-            // Role ID
-            if (query.RoleId.HasValue)
-            {
-                usersQuery = usersQuery.Where(u => u.RoleId == query.RoleId.Value);
-            }
+            if (!string.IsNullOrWhiteSpace(query.RoleName))
+                usersQuery = usersQuery.Where(u => u.Role.RoleName.ToLower().Contains(query.RoleName));
 
-            //  Status
-            if (query.Status.HasValue)
-            {
-                usersQuery = usersQuery.Where(u => u.Status == query.Status.Value);
-            }
-
-            //MFA Enabled
-            if (query.MfaEnabled.HasValue)
-            {
-                usersQuery = usersQuery.Where(u => u.MfaEnabled == query.MfaEnabled.Value);
-            }
-
-            //  Email Verified
-            if (query.EmailVerified.HasValue)
-            {
-                usersQuery = usersQuery.Where(u => u.EmailVerified == query.EmailVerified.Value);
-            }
-
-            //  MFA Method
-            if (query.MfaMethod.HasValue)
-            {
-                usersQuery = usersQuery.Where(u => u.MfaMethod == query.MfaMethod);
-            }
-
-            //  Date Range
-            if (query.FromDate.HasValue)
-            {
-                usersQuery = usersQuery.Where(g => g.CreatedAt >= query.FromDate.Value);
-            }
-            if (query.ToDate.HasValue)
-            {
-                usersQuery = usersQuery.Where(g => g.CreatedAt <= query.ToDate.Value);
-            }
+            if (!string.IsNullOrWhiteSpace(query.GroupName))
+                usersQuery = usersQuery.Where(u => u.UserGroups.Any(g => g.Group.GroupName.ToLower().Contains(query.GroupName)));
 
             //  TOTAL count BEFORE pagination
             var totalRecords = usersQuery.Count();
@@ -92,8 +55,6 @@ namespace EVWebApi.Services
 
             // MAP TO DTO
             var userDtos = _mapper.Map<List<UserDto>>(pagedUsers);
-
-            //  RETURN PAGED RESPONSE
             return new PagedResponse<UserDto>
             {
                 Data = userDtos,
@@ -121,8 +82,7 @@ namespace EVWebApi.Services
 
             var emailExists = await _uow.Users.GetByEmailAsync(dto.Email);
             if (emailExists != null) 
-                throw new ConflictException($"Username '{dto.Username}' already exists");
-
+                throw new ConflictException($"User mail '{dto.Email}' already exists");
 
             var user = new User
             {
@@ -131,7 +91,7 @@ namespace EVWebApi.Services
                 Email = dto.Email,
                 RoleId = dto.RoleId,
                 MfaEnabled = dto.MfaEnabled,
-                
+                Status = dto.Status ? UserStatus.active : UserStatus.inactive,
                 PhoneNumber = dto.PhoneNumber,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
@@ -143,7 +103,10 @@ namespace EVWebApi.Services
 
             await _uow.Users.AddAsync(user);
             await _uow.CompleteAsync();
-            return _mapper.Map<UserDto>(user);
+
+            var updatedUser = await _uow.Users.GetByIdAsync(user.UserId);
+
+            return _mapper.Map<UserDto>(updatedUser);
         }
 
 
@@ -157,11 +120,16 @@ namespace EVWebApi.Services
             if (!string.IsNullOrWhiteSpace(dto.Username)) user.Username = dto.Username;
             if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email;
             if (dto.RoleId.HasValue) user.RoleId = dto.RoleId.Value;
-            if (dto.Status.HasValue) user.Status = dto.Status.Value;
             if (dto.MfaEnabled.HasValue) user.MfaEnabled = dto.MfaEnabled.Value;
             if (dto.MfaMethod.HasValue) user.MfaMethod = dto.MfaMethod;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PhoneNumber = dto.PhoneNumber;
             if (dto.EmailVerified.HasValue) user.EmailVerified = dto.EmailVerified.Value;
+            if (dto.Status)
+            {
+                user.Status = dto.Status
+                    ? UserStatus.active
+                    : UserStatus.inactive;
+            }
 
 
             user.UpdatedAt = DateTime.UtcNow;
@@ -169,9 +137,9 @@ namespace EVWebApi.Services
 
             _uow.Users.Update(user);
             await _uow.CompleteAsync();
+            var updatedUser = await _uow.Users.GetByIdAsync(user.UserId);
 
-
-            return _mapper.Map<UserDto>(user);
+            return _mapper.Map<UserDto>(updatedUser);
         }
 
 

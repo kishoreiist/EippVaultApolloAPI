@@ -11,8 +11,32 @@ namespace EVWebApi.Mapping
         public AutoMapperProfile()
         {
             CreateMap<User, UserDto>()
-            .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role.RoleName));
+            .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role == null ? string.Empty : src.Role.RoleName))
+                .ForMember(dest => dest.Status,
+               opt => opt.MapFrom(src => src.Status == UserStatus.active))
 
+
+            .ForMember(dest => dest.GroupIds,
+               opt => opt.MapFrom(src => src.UserGroups.Select(ug => ug.GroupId).ToList()))
+            .ForMember(dest => dest.GroupNames,
+               opt => opt.MapFrom(src =>
+                    src.UserGroups
+                     .Where(ug => ug.Group != null)
+                    .Select(ug => ug.Group.GroupName).ToList()
+                ));
+
+
+
+
+            CreateMap<CreateUserDto, User>()
+                .ForMember(dest => dest.Status,
+                    opt => opt.MapFrom(src => src.Status ? UserStatus.active : UserStatus.inactive));
+
+            CreateMap<UpdateUserDto, User>()
+                .ForMember(dest => dest.Status,
+                    opt => opt.MapFrom(src => src.Status
+                     ? UserStatus.active
+                     : UserStatus.inactive));
 
             CreateMap<CreateUserDto, User>()
             .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())

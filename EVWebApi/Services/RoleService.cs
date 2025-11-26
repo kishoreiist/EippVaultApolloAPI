@@ -1,15 +1,16 @@
 ﻿using AutoMapper;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.Role;
+using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
+using System.Collections.Generic;
 using System.Data;
 using System.Text.Json;
-using System.Collections.Generic;
-using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace EVWebApi.Services
 {
@@ -26,9 +27,6 @@ namespace EVWebApi.Services
 
         public async Task<PagedResponse<RoleDto>> GetAllAsync(RoleQueryParameters query)
         {
-            //var roles = await _uow.Roles.GetAllAsync();
-            //return _mapper.Map<IEnumerable<RoleDto>>(roles);
-
 
             var rolesQuery = _uow.Roles.Query();
 
@@ -68,8 +66,8 @@ namespace EVWebApi.Services
             int totalCount = rolesQuery.Count();
 
             var items = rolesQuery
-                .Skip((query.PageNumber - 1) * query.PageSize)
-                .Take(query.PageSize)
+                .Skip(query.Offset)
+                .Take(query.Limit)
                 .ToList();
 
             var mapped = _mapper.Map<List<RoleDto>>(items);
@@ -78,21 +76,23 @@ namespace EVWebApi.Services
             {
                 Data = mapped,
                 TotalRecords = totalCount,
-                PageNumber = query.PageNumber,
-                PageSize = query.PageSize
+                Offset = query.Offset,
+                Limit = query.Limit
             };
         }
         public async Task<RoleDto> GetByIdAsync(int id)
         {
             var role = await _uow.Roles.GetByIdAsync(id);
-            if (role == null) return null;
+            if (role == null)
+                throw new NotFoundException("Role not found");
             return _mapper.Map<RoleDto>(role);
         }
 
         public async Task<RoleDto> CreateAsync(CreateRoleDto dto)
         {
             var exists = await _uow.Roles.GetByNameAsync(dto.RoleName);
-            if (exists != null) throw new ArgumentException("Role name already exists");
+            if (exists != null)
+                throw new ConflictException($"RoleName '{dto.RoleName}' already exists");
 
             var role = new Role
             {
@@ -109,7 +109,8 @@ namespace EVWebApi.Services
         public async Task<RoleDto> UpdateAsync(UpdateRoleDto dto)
         {
             var role = await _uow.Roles.GetByIdAsync(dto.RoleId);
-            if (role == null) throw new ArgumentException("Role not found");
+            if (role == null) 
+                throw new ConflictException($"RoleName '{dto.RoleName}' already exists");
 
 
             if (!string.IsNullOrWhiteSpace(dto.RoleName)) role.RoleName = dto.RoleName;
@@ -129,7 +130,8 @@ namespace EVWebApi.Services
         public async Task DeleteAsync(int id)
         {
             var role = await _uow.Roles.GetByIdAsync(id);
-            if (role == null) throw new ArgumentException("Role not found");
+            if (role == null) 
+                throw new NotFoundException("Role not found");
 
 
             _uow.Roles.Remove(role);

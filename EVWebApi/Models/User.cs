@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EVWebApi.Models
 {
-    public enum UserStatus { active, inactive, locked }
+    public enum UserStatus { active, inactive }
     public enum MfaMethod { email, sms, authenticator }
 
 

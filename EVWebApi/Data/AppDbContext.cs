@@ -68,7 +68,8 @@ namespace EVWebApi.Data
 
             // User - UserGroups
             modelBuilder.Entity<UserGroup>()
-                .HasKey(ug => new { ug.UserId, ug.GroupId });
+              .HasIndex(ug => ug.UserId)
+                 .IsUnique();
 
 
             modelBuilder.Entity<User>()
@@ -121,9 +122,9 @@ namespace EVWebApi.Data
 
 
 
-            //modelBuilder.Entity<Group>()
-            //   .Property(r => r.Description)
-            //   .HasColumnType("jsonb");
+            modelBuilder.Entity<Group>()
+               .Property(r => r.Description)
+               .HasColumnType("jsonb");
 
             // -------------------
             // Timestamps

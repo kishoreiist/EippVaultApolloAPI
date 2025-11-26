@@ -19,8 +19,10 @@ namespace EVWebApi.DTOs.User
 
         [Required]
         public int RoleId { get; set; }
-        public List<int>? GroupIds { get; set; }
 
+        public List<int>? GroupIds { get; set; } = new();
+
+        public bool Status { get; set; } = true;
         public bool MfaEnabled { get; set; }
         public string? PhoneNumber { get; set; }
     }

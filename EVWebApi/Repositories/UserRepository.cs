@@ -25,15 +25,19 @@ namespace EVWebApi.Repositories
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
-
-        //public async Task<IEnumerable<User>> GetAllAsync()
-        //{
-        //    return await _context.Users.ToListAsync();
-        //}
+        public override async Task<User?> GetByIdAsync(int id)
+        { 
+            return await Query()
+                .FirstOrDefaultAsync(u => u.UserId == id);
+        }
 
         public IQueryable<User> Query()
         {
-            return _context.Users.Include(u => u.Role).AsQueryable();
+            return _context.Users
+                .Include(u => u.Role)
+                .Include(u => u.UserGroups)
+                    .ThenInclude(ug => ug.Group)
+                .AsQueryable();
         }
 
         public async Task<int> SaveChangesAsync()
@@ -41,13 +45,5 @@ namespace EVWebApi.Repositories
             return await _context.SaveChangesAsync();
         }
 
-        //public override async Task<IEnumerable<User>> GetAllAsync()
-        //{
-        //    return await _dbSet
-        //        .Include(u => u.Role)
-        //        .Include(u => u.UserGroups)
-        //            .ThenInclude(ug => ug.Group)
-        //        .ToListAsync();
-        //}
     }
 }

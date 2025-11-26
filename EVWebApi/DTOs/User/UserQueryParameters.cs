@@ -1,19 +1,29 @@
 ﻿using EVWebApi.DTOs.Pagination;
 using EVWebApi.Models;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.DTOs.User
 {
     public class UserQueryParameters : QueryParameters
     {
-        public int? RoleId { get; set; }
 
-        public UserStatus? Status { get; set; }
+        [FromQuery(Name = "user_name")]
+        public string? Username { get; set; }
 
-        public bool? MfaEnabled { get; set; }
+        [FromQuery(Name = "email")]
+        public string? Email { get; set; }
 
-        public bool? EmailVerified { get; set; }
+        [FromQuery(Name = "phone_number")]
+        public string? PhoneNumber { get; set; }
 
-        public MfaMethod? MfaMethod { get; set; }
+        [FromQuery(Name = "role_name")]
+        public string? RoleName { get; set; }
+
+        [FromQuery(Name = "group_name")]
+        public string? GroupName { get; set; }
+
+        //[FromQuery(Name = "status")]
+        //public UserStatus? Status { get; set; }
 
 
     }

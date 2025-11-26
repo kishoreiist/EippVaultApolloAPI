@@ -34,8 +34,7 @@ namespace EVWebApi.Repositories
         public IQueryable<User> Query()
         {
             return _context.Users
-                .Include(u => u.Role)
-                .Include(u => u.UserGroups)
+                .Include(u => u.UserGroup)
                     .ThenInclude(ug => ug.Group)
                 .AsQueryable();
         }

@@ -8,8 +8,8 @@ namespace EVWebApi.Interfaces.Services
     {
         Task<PagedResponse<GroupDto>> GetAllAsync(GroupQueryParameters query);
         Task<GroupDto> GetByIdAsync(int id);
-        Task<GroupDto> CreateAsync(GroupDto dto);
-        Task<GroupDto> UpdateAsync(GroupDto dto);
+        Task<GroupDto> CreateAsync(CreateGroupDto dto);
+        Task<GroupDto> UpdateAsync(UpdateGroupDto dto);
         Task DeleteAsync(int id);
     }
 }

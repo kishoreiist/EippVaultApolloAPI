@@ -16,16 +16,16 @@ namespace EVWebApi.Repositories
         public async Task<Group> GetByGroupnameAsync(string groupname)
         {
             return await _context.Groups
-                .FirstOrDefaultAsync(u => u.GroupName == groupname);
+                .FirstOrDefaultAsync(u => u.GroupName.ToLower() == groupname.ToLower());
         }
-        //public async Task<IEnumerable<Group>> GetAllAsync()
-        //{
-        //    return await _context.Groups.ToListAsync();
-        //}
+
 
         public IQueryable<Group> Query()
         {
-            return _context.Groups.AsQueryable();
+            return _context.Groups
+                .Include(g => g.UserGroups)
+            .ThenInclude(ug => ug.User)
+                .AsQueryable();
         }
 
     }

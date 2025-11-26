@@ -9,7 +9,7 @@ namespace EVWebApi.Data
 
         // DbSets
         public DbSet<User> Users { get; set; }
-        public DbSet<Role> Roles { get; set; }
+
         public DbSet<Group> Groups { get; set; }
         public DbSet<UserGroup> UserGroups { get; set; }
 
@@ -33,7 +33,6 @@ namespace EVWebApi.Data
             // Table Names
             // -------------------
             modelBuilder.Entity<User>().ToTable("users");
-            modelBuilder.Entity<Role>().ToTable("roles");
             modelBuilder.Entity<Group>().ToTable("groups");
             modelBuilder.Entity<Document>().ToTable("documents");
             modelBuilder.Entity<Metadata>().ToTable("metadata");
@@ -47,7 +46,6 @@ namespace EVWebApi.Data
             // Primary Keys
             // -------------------
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
-            modelBuilder.Entity<Role>().HasKey(r => r.RoleId);
             modelBuilder.Entity<Group>().HasKey(g => g.GroupId);
 
             modelBuilder.Entity<UserGroup>()
@@ -62,22 +60,17 @@ namespace EVWebApi.Data
             // -------------------
             // User Relationships
             // -------------------
-            modelBuilder.Entity<User>()
-                .HasOne(u => u.Role)
-                .WithMany(r => r.Users)
-                .HasForeignKey(u => u.RoleId)
-                .OnDelete(DeleteBehavior.Restrict);
+            //modelBuilder.Entity<User>()
+            //    .HasOne(u => u.Group)
+            //    .WithMany(r => r.Users)
+            //    .HasForeignKey(u => u.RoleId)
+            //    .OnDelete(DeleteBehavior.Restrict);
 
             // User - UserGroups
             modelBuilder.Entity<UserGroup>()
-                .HasOne(ug => ug.User)
-                .WithMany(u => u.UserGroups)
-                .HasForeignKey(ug => ug.UserId);
+              .HasIndex(ug => ug.UserId)
+                 .IsUnique();
 
-            modelBuilder.Entity<UserGroup>()
-                .HasOne(ug => ug.Group)
-                .WithMany(g => g.UserGroups)
-                .HasForeignKey(ug => ug.GroupId);
 
             modelBuilder.Entity<User>()
                 .Property(u => u.UserId)
@@ -86,6 +79,18 @@ namespace EVWebApi.Data
             modelBuilder.Entity<User>()
                 .Property(u => u.PasswordHash)
                 .HasColumnName("password_hash");
+
+            // One user can have only one UserGroup
+            modelBuilder.Entity<User>()
+                .HasOne(u => u.UserGroup)
+                .WithOne(ug => ug.User)
+                .HasForeignKey<UserGroup>(ug => ug.UserId);
+
+            // One group can have many UserGroups
+            modelBuilder.Entity<UserGroup>()
+                .HasOne(ug => ug.Group)
+                .WithMany(g => g.UserGroups)
+                .HasForeignKey(ug => ug.GroupId);
 
             // -------------------
             // Auth Entities
@@ -115,18 +120,16 @@ namespace EVWebApi.Data
                 .Property(u => u.MfaMethod)
                 .HasConversion<string>();
 
-            // -------------------
-            // JSONB Permissions
-            // -------------------
-            modelBuilder.Entity<Role>()
-                .Property(r => r.Permissions)
-                .HasColumnType("jsonb");
+
+
+            modelBuilder.Entity<Group>()
+               .Property(r => r.Description)
+               .HasColumnType("jsonb");
 
             // -------------------
             // Timestamps
             // -------------------
-            modelBuilder.Entity<Role>().Property(r => r.CreatedAt).HasColumnName("created_at");
-            modelBuilder.Entity<Role>().Property(r => r.UpdatedAt).HasColumnName("updated_at");
+
 
             modelBuilder.Entity<User>().Property(u => u.CreatedAt).HasColumnName("created_at");
             modelBuilder.Entity<User>().Property(u => u.UpdatedAt).HasColumnName("updated_at");
@@ -162,7 +165,6 @@ namespace EVWebApi.Data
             // -------------------
             modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique();
             modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
-            modelBuilder.Entity<Role>().HasIndex(r => r.RoleName).IsUnique();
             modelBuilder.Entity<Group>().HasIndex(g => g.GroupName).IsUnique();
             modelBuilder.Entity<UserMfaToken>().HasIndex(t => new { t.UserId, t.Token });
 

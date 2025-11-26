@@ -1,6 +1,5 @@
 ﻿using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.User;
-using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +10,7 @@ namespace EVWebApi.Controllers
     [Authorize]
     [ApiController]
     [Route("api/[controller]")]
-    [RequiresPermission("manage_users")]
+
     public class GroupController : BaseController
     {
         private readonly IGroupService _groupService;
@@ -42,7 +41,7 @@ namespace EVWebApi.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] GroupDto dto)
+        public async Task<IActionResult> Create([FromBody] CreateGroupDto dto)
         {
             var created = await _groupService.CreateAsync(dto);
             await _auditlogservice.LogAsync(CurrentUserId, "Group", "Create", created.GroupId);
@@ -51,7 +50,7 @@ namespace EVWebApi.Controllers
 
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] GroupDto dto)
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateGroupDto dto)
         {
             if (id != dto.GroupId) return BadRequest();
             await _auditlogservice.LogAsync(CurrentUserId, "Group", "Update", id);

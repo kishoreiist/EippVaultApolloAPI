@@ -44,7 +44,7 @@ builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 // 3. Add Repositories
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IMfaRepository, MfaRepository>();
@@ -57,12 +57,11 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // 5. Add Services
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IRoleService, RoleService>();
+
 builder.Services.AddScoped<IGroupService, GroupService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMfaService, MfaService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
-builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

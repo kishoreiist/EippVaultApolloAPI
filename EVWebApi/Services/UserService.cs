@@ -38,11 +38,10 @@ namespace EVWebApi.Services
             if (!string.IsNullOrWhiteSpace(query.PhoneNumber))
                 usersQuery = usersQuery.Where(u => u.PhoneNumber.Contains(query.PhoneNumber));
 
-            if (!string.IsNullOrWhiteSpace(query.RoleName))
-                usersQuery = usersQuery.Where(u => u.Role.RoleName.ToLower().Contains(query.RoleName));
 
             if (!string.IsNullOrWhiteSpace(query.GroupName))
-                usersQuery = usersQuery.Where(u => u.UserGroups.Any(g => g.Group.GroupName.ToLower().Contains(query.GroupName)));
+                usersQuery = usersQuery.Where(u => u.UserGroup != null &&
+                             u.UserGroup.Group.GroupName.ToLower().Contains(query.GroupName.ToLower()));
 
             //  TOTAL count BEFORE pagination
             var totalRecords = usersQuery.Count();
@@ -89,16 +88,15 @@ namespace EVWebApi.Services
                 Username = dto.Username,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Email = dto.Email,
-                RoleId = dto.RoleId,
                 MfaEnabled = dto.MfaEnabled,
                 Status = dto.Status ? UserStatus.active : UserStatus.inactive,
                 PhoneNumber = dto.PhoneNumber,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                UserGroups = dto.GroupIds.Select(gid => new UserGroup
+                UserGroup = new UserGroup
                 {
-                    GroupId = gid
-                }).ToList()
+                    GroupId = dto.GroupId
+                }
             };
 
             await _uow.Users.AddAsync(user);
@@ -119,7 +117,6 @@ namespace EVWebApi.Services
 
             if (!string.IsNullOrWhiteSpace(dto.Username)) user.Username = dto.Username;
             if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email;
-            if (dto.RoleId.HasValue) user.RoleId = dto.RoleId.Value;
             if (dto.MfaEnabled.HasValue) user.MfaEnabled = dto.MfaEnabled.Value;
             if (dto.MfaMethod.HasValue) user.MfaMethod = dto.MfaMethod;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PhoneNumber = dto.PhoneNumber;

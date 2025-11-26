@@ -1,6 +1,5 @@
 ﻿using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
-using EVWebApi.Filters;
 using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -12,7 +11,6 @@ namespace EVWebApi.Controllers
     [Authorize]
     [ApiController]
     [Route("api/[controller]")]
-    [RequiresPermission("manage_users")]
 
     public class UserController : BaseController
     {

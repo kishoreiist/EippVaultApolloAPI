@@ -9,8 +9,8 @@ namespace EVWebApi.DTOs.User
         public int UserId { get; set; }
         public required string Username { get; set; }
         public required string Email { get; set; }
-        public int? RoleId { get; set; }
-        public List<int>? GroupIds { get; set; }
+
+        public int GroupId { get; set; }
 
         public bool Status { get; set; }
 

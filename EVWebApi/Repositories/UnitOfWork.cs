@@ -9,16 +9,13 @@ namespace EVWebApi.Repositories
 
 
         public IUserRepository Users { get; }
-        public IRoleRepository Roles { get; }
         public IGroupRepository Groups { get; }
         public UnitOfWork(AppDbContext context,
         IUserRepository users,
-        IRoleRepository roles,
         IGroupRepository groups)
         {
             _context = context;
             Users = users;
-            Roles = roles;
             Groups = groups;
         }
 

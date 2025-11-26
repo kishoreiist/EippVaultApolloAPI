@@ -25,14 +25,13 @@ namespace EVWebApi.Services
         {
 
             var groupsQuery = _uow.Groups.Query();
+            //group name
 
-            // search (name + description)
-            if (!string.IsNullOrWhiteSpace(query.Search))
+            if (!string.IsNullOrWhiteSpace(query.Groupname))
             {
-                string search = query.Search.ToLower();
+                string groupname = query.Groupname.ToLower();
                 groupsQuery = groupsQuery.Where(g =>
-                    g.GroupName.ToLower().Contains(search) ||
-                    (g.Description != null && g.Description.ToLower().Contains(search))
+                    g.GroupName.ToLower().Contains(groupname)
                 );
             }
 
@@ -74,7 +73,7 @@ namespace EVWebApi.Services
             return _mapper.Map<GroupDto>(group);
         }
 
-        public async Task<GroupDto> CreateAsync(GroupDto dto)
+        public async Task<GroupDto> CreateAsync(CreateGroupDto dto)
         {
             var exists = await _uow.Groups.GetByGroupnameAsync(dto.GroupName);
             if (exists != null) 
@@ -86,7 +85,7 @@ namespace EVWebApi.Services
                 GroupName = dto.GroupName,
                 Description = dto.Description,
                 CreatedAt = DateTime.UtcNow,
-                //UpdatedAt = DateTime.UtcNow
+
             };
             await _uow.Groups.AddAsync(group);
             await _uow.CompleteAsync();
@@ -95,7 +94,7 @@ namespace EVWebApi.Services
             return _mapper.Map<GroupDto>(group);
         }
 
-        public async Task<GroupDto> UpdateAsync(GroupDto dto)
+        public async Task<GroupDto> UpdateAsync(UpdateGroupDto dto)
         {
             var group = await _uow.Groups.GetByIdAsync(dto.GroupId);
             if (group == null) 
@@ -103,9 +102,9 @@ namespace EVWebApi.Services
 
 
             if (!string.IsNullOrWhiteSpace(dto.GroupName)) group.GroupName = dto.GroupName;
-            if (dto.Description!=null)
-                group.Description = dto.Description; 
-            //group.UpdatedAt = DateTime.UtcNow;
+            if (dto.Description != null)
+                group.Description = dto.Description;
+
 
 
             _uow.Groups.Update(group);

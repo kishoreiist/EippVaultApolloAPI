@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.User;
 using EVWebApi.Models;
@@ -9,12 +10,10 @@ namespace EVWebApi.Mapping
     {
         public AutoMapperProfile()
         {
+            //USER
             CreateMap<User, UserDto>()
-            
-                .ForMember(dest => dest.Status,
+             .ForMember(dest => dest.Status,
                opt => opt.MapFrom(src => src.Status == UserStatus.active))
-
-
             .ForMember(dest => dest.GroupId,
                opt => opt.MapFrom(src => src.UserGroup != null ? src.UserGroup.GroupId : (int?)null))
             .ForMember(dest => dest.GroupName,
@@ -28,7 +27,9 @@ namespace EVWebApi.Mapping
                 .ForMember(dest => dest.Status,
                     opt => opt.MapFrom(src => src.Status
                      ? UserStatus.active
-                     : UserStatus.inactive));
+                     : UserStatus.inactive))
+                .ForAllMembers(opt => opt.Condition(
+                (src, dest, srcValue) => srcValue != null));
 
             CreateMap<CreateUserDto, User>()
             .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
@@ -38,17 +39,22 @@ namespace EVWebApi.Mapping
             .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore());
 
 
-            CreateMap<UpdateUserDto, User>();
-
-
+            //GROUP
             CreateMap<Group, GroupDto>();
             CreateMap<CreateGroupDto, Group>()
                  .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow));
 
             CreateMap<UpdateGroupDto, Group>()
-                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore()); 
-
-
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForAllMembers(opt => opt.Condition((src, dest, srcValue) => srcValue != null));
+           
+            //CABINET
+            CreateMap<Cabinet, CabinetDto>();
+            CreateMap<CreateCabinetDto, Cabinet>()
+                .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow));
+            CreateMap<UpdateCabinetDto, Cabinet>()
+                .ForAllMembers(opt => opt.Condition(
+                    (src, dest, srcValue) => srcValue != null));
 
         }
     }

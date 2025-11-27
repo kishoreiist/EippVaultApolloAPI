@@ -50,14 +50,14 @@ builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IMfaRepository, MfaRepository>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IMetadataRepository, MetadataRepository>();
-
+builder.Services.AddScoped<ICabinetRepository, CabinetRepository>();
 
 // 4. Add Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // 5. Add Services
 builder.Services.AddScoped<IUserService, UserService>();
-
+builder.Services.AddScoped<ICabinetService, CabinetService>();
 builder.Services.AddScoped<IGroupService, GroupService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMfaService, MfaService>();
@@ -107,6 +107,11 @@ builder.Services.AddCors(options =>
           .AllowAnyMethod()
           .AllowAnyHeader()
           .AllowCredentials();
+
+      // policy.WithOrigins("https://yourfrontenddomain.com", "http://localhost:4200")////need to change before last deplymnt
+      //.AllowAnyMethod()
+      //.AllowAnyHeader()
+      //.AllowCredentials();
     });
 });
 

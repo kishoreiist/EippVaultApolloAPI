@@ -1,5 +1,7 @@
 ﻿using AutoMapper;
+using EVWebApi.DTOs;
 using EVWebApi.DTOs.Cabinet;
+using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.User;
 using EVWebApi.Models;
@@ -21,7 +23,6 @@ namespace EVWebApi.Mapping
                     src.UserGroup != null && src.UserGroup.Group != null
                     ? src.UserGroup.Group.GroupName
                     : null));
-                
 
             CreateMap<UpdateUserDto, User>()
                 .ForMember(dest => dest.Status,
@@ -56,6 +57,10 @@ namespace EVWebApi.Mapping
                 .ForAllMembers(opt => opt.Condition(
                     (src, dest, srcValue) => srcValue != null));
 
+            CreateMap<Document, DocumentResponseDto>();
+            CreateMap<Document, UpdateDocumentDto>()
+                .ForAllMembers(opt => opt.Condition(
+                    (src, dest, srcValue) => srcValue != null));
         }
     }
 }

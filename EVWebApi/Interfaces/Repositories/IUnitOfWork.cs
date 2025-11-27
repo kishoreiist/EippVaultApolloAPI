@@ -1,5 +1,7 @@
 ﻿
 
+using EVWebApi.Models;
+
 namespace EVWebApi.Interfaces.Repositories
 {
     public interface IUnitOfWork
@@ -7,6 +9,7 @@ namespace EVWebApi.Interfaces.Repositories
         IUserRepository Users { get; }
         IGroupRepository Groups { get; }
         ICabinetRepository Cabinets { get; }
+        IDocumentRepository Documents { get; }
         Task<int> CompleteAsync();
     }
 }

@@ -20,13 +20,13 @@ namespace EVWebApi.Controllers
         }
 
         // Upload Document
-        [HttpPost("upload")]
-        public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
-        {
-            var result = await _documentService.UploadDocument(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Upload", result.DocumentId);
-            return Ok(result);
-        }
+        //[HttpPost("upload")]
+        //public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
+        //{
+        //    var result = await _documentService.UploadDocument(dto);
+        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Upload", result.DocumentId);
+        //    return Ok(result);
+        //}
 
         // Get document metadata
         [HttpGet("{id}")]
@@ -37,42 +37,66 @@ namespace EVWebApi.Controllers
             return Ok(doc);
         }
 
-        // PDF Preview (stream)
-        [HttpGet("{id}/preview")]
-        public async Task<IActionResult> PreviewDocument(int id)
+        // Get all documents by CabinetId
+        [HttpGet("cabinet/{cabinetId}")]
+        public async Task<IActionResult> GetDocumentsByCabinetId(int cabinetId, [FromQuery] DocumentQueryParameters query)
         {
-            var fileStream = await _documentService.GetDocumentStream(id);
-            if (fileStream == null) return NotFound();
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
-            return File(fileStream, "application/pdf");
+            var docs = await _documentService.GetDocumentsByCabinetId(cabinetId, query);
+
+            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", cabinetId);
+
+            return Ok(docs);
         }
+
+        // PDF Preview (stream)
+        //[HttpGet("{id}/preview")]
+        //public async Task<IActionResult> PreviewDocument(int id)
+        //{
+        //    var fileStream = await _documentService.GetDocumentStream(id);
+        //    if (fileStream == null) return NotFound();
+        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
+        //    return File(fileStream, "application/pdf");
+        //}
 
         // Download
-        [HttpGet("{id}/download")]
-        public async Task<IActionResult> DownloadDocument(int id)
-        {
-            var download = await _documentService.GetDocumentForDownload(id);
-            if (download == null) return NotFound();
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
-            return File(download.Stream, "application/octet-stream", download.FileName);
-        }
+        //[HttpGet("{id}/download")]
+        //public async Task<IActionResult> DownloadDocument(int id)
+        //{
+        //    var download = await _documentService.GetDocumentForDownload(id);
+        //    if (download == null) return NotFound();
+        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
+        //    return File(download.Stream, "application/octet-stream", download.FileName);
+        //}
 
-        // Archive
-        [HttpPut("{id}/archive")]
-        public async Task<IActionResult> ArchiveDocument(int id)
-        {
-            await _documentService.ArchiveDocument(id);
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
-            return Ok(new { message = "Document archived" });
-        }
+        //// Archive
+        //[HttpPut("{id}/archive")]
+        //public async Task<IActionResult> ArchiveDocument(int id)
+        //{
+        //    await _documentService.ArchiveDocument(id);
+        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
+        //    return Ok(new { message = "Document archived" });
+        //}
 
-        // Restore
-        [HttpPut("{id}/restore")]
-        public async Task<IActionResult> RestoreDocument(int id)
+        //// Restore
+        //[HttpPut("{id}/restore")]
+        //public async Task<IActionResult> RestoreDocument(int id)
+        //{
+        //    await _documentService.RestoreDocument(id);
+        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
+        //    return Ok(new { message = "Document restored" });
+        //}
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateDocument(int id, [FromBody] UpdateDocumentDto dto)
         {
-            await _documentService.RestoreDocument(id);
+            var updated = await _documentService.UpdateDocumentAsync(id, dto);
+
+            if (updated == null)
+                return NotFound(new { message = "Document not found" });
+
             await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
-            return Ok(new { message = "Document restored" });
+
+            return Ok(updated);
         }
 
         [HttpDelete("{id}")]

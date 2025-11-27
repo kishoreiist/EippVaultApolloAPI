@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EVWebApi.Repositories
 {
-    public class DocumentRepository : IDocumentRepository
+    public class DocumentRepository : GenericRepository<Document>, IDocumentRepository
     {
         private readonly AppDbContext _context;
 
-        public DocumentRepository(AppDbContext context)
+        public DocumentRepository(AppDbContext context) : base(context)
         {
             _context = context;
         }
@@ -22,7 +22,7 @@ namespace EVWebApi.Repositories
             return doc;
         }
 
-        // ---------------- GET DOCUMENT ----------------------
+        // ---------------- GET DOCUMENT BY Doc ID----------------------
         public async Task<Document> GetDocument(int id)
         {
             var doc = await _context.Documents
@@ -32,6 +32,11 @@ namespace EVWebApi.Repositories
                 throw new Exception("Document not found");
 
             return doc;
+        }
+        //--------------GET DOCUMENT BY Cabinet ID------------------
+        public IQueryable<Document> Query()
+        {
+            return _context.Documents.AsQueryable();
         }
 
         // ---------------- GET LATEST VERSION -----------------

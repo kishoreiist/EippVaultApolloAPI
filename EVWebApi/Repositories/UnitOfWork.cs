@@ -7,16 +7,18 @@ namespace EVWebApi.Repositories
     {
         private readonly AppDbContext _context;
 
-
+        public ICabinetRepository Cabinets { get; }
         public IUserRepository Users { get; }
         public IGroupRepository Groups { get; }
         public UnitOfWork(AppDbContext context,
         IUserRepository users,
-        IGroupRepository groups)
+        IGroupRepository groups,
+         ICabinetRepository cabinets)
         {
             _context = context;
             Users = users;
             Groups = groups;
+            Cabinets = cabinets;
         }
 
 

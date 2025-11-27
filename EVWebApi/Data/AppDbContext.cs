@@ -38,7 +38,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<Metadata>().ToTable("metadata");
             modelBuilder.Entity<UserGroup>().ToTable("user_groups");
             modelBuilder.Entity<AuditLog>().ToTable("audit_logs");
-
+            modelBuilder.Entity<Cabinet>().ToTable("cabinets");
             modelBuilder.Entity<UserAuthenticator>().ToTable("user_authenticator");
             modelBuilder.Entity<UserMfaToken>().ToTable("user_mfa_tokens");
 
@@ -47,7 +47,7 @@ namespace EVWebApi.Data
             // -------------------
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
             modelBuilder.Entity<Group>().HasKey(g => g.GroupId);
-
+            modelBuilder.Entity<Cabinet>().HasKey(u => u.CabinetId);
             modelBuilder.Entity<UserGroup>()
                 .HasKey(ug => new { ug.UserId, ug.GroupId });
 

@@ -1,5 +1,8 @@
-﻿using EVWebApi.DTOs;
+﻿using AutoMapper;
+using EVWebApi.DTOs;
+using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Pagination;
 using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
@@ -14,81 +17,90 @@ namespace EVWebApi.Services
         private readonly IWebHostEnvironment _env;
         private readonly IMetadataRepository _metadataRepo;
 
-        public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IWebHostEnvironment env)
+        private readonly IUnitOfWork _uow;
+        private readonly IMapper _mapper;
+
+
+        public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
             _env = env;
+            _uow = uow;
+            _mapper = mapper;
         }
 
         // ---------------------- UPLOAD ----------------------
-        public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto)
-        {
-            if (dto.File == null)
-                throw new BadRequestException("File is required");
+        //public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto)
+        //{
+        //    if (dto.File == null)
+        //        throw new BadRequestException("File is required");
 
-            // Create folder if not exist
-            string folderPath = Path.Combine(_env.ContentRootPath, "Uploads", "Documents", dto.CabinetId.ToString());
-            if (!Directory.Exists(folderPath))
-                Directory.CreateDirectory(folderPath);
+        //    // Create folder if not exist
+        //    string folderPath = Path.Combine(_env.ContentRootPath, "Uploads", "Documents", dto.CabinetId.ToString());
+        //    if (!Directory.Exists(folderPath))
+        //        Directory.CreateDirectory(folderPath);
 
-            // Versioning logic
-            int version = await _repo.GetLatestVersion(dto.CabinetId, dto.File.FileName) + 1;
+        //    // Versioning logic
+        //    int version = await _repo.GetLatestVersion(dto.CabinetId, dto.File.FileName) + 1;
 
-            // Create unique filename
-            string fileName = $"{Path.GetFileNameWithoutExtension(dto.File.FileName)}_v{version}{Path.GetExtension(dto.File.FileName)}";
-            string filePath = Path.Combine(folderPath, fileName);
+        //    // Create unique filename
+        //    string fileName = $"{Path.GetFileNameWithoutExtension(dto.File.FileName)}_v{version}{Path.GetExtension(dto.File.FileName)}";
+        //    string filePath = Path.Combine(folderPath, fileName);
 
-            // Save file physically
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await dto.File.CopyToAsync(stream);
-            }
+        //    // Save file physically
+        //    using (var stream = new FileStream(filePath, FileMode.Create))
+        //    {
+        //        await dto.File.CopyToAsync(stream);
+        //    }
 
-            // Save to DB
-            var doc = await _repo.CreateDocument(new Document
-            {
-                CabinetId = dto.CabinetId,
-                FileName = fileName,
-                FilePath = filePath,
-                UploadedBy = dto.UploadedBy,
-                Version = version,
-                Status = "active"
-            });
+        //    // Save to DB
+        //    var doc = await _repo.CreateDocument(new Document
+        //    {
+        //        CabinetId = dto.CabinetId,
+        //        FileName = fileName,
+        //        FilePath = filePath,
+        //        UploadedBy = dto.UploadedBy,
+        //        Version = version,
+        //        Status = "active"
+        //    });
 
-            if (doc == null)
-                throw new ServerException("Failed to save document");
+        //    if (doc == null)
+        //        throw new ServerException("Failed to save document");
 
-            if (dto.Metadata != null)
-            {
-                foreach (var item in dto.Metadata)
-                {
-                    await _metadataRepo.AddMetadata(new Metadata
-                    {
-                        DocumentId = doc.DocumentId,
-                        MetaKey = item.Key,
-                        MetaValue = item.Value
-                    });
-                }
-            }
+        //    if (dto.Metadata != null)
+        //    {
+        //        foreach (var item in dto.Metadata)
+        //        {
+        //            await _metadataRepo.AddMetadata(new Metadata
+        //            {
+        //                DocumentId = doc.DocumentId,
+        //                MetaKey = item.Key,
+        //                MetaValue = item.Value
+        //            });
+        //        }
+        //    }
 
-            return new DocumentResponseDto
-            {
-                DocumentId = doc.DocumentId,
-                FileName = doc.FileName,
-                UploadedAt = doc.UploadedAt,
-                Status = doc.Status,
-                Version = doc.Version,
-                Metadata = dto.Metadata?.Select(x => new MetadataDTO
-                {
-                    Key = x.Key,
-                    Value = x.Value
-                }).ToList()
-            };
+        //    return new DocumentResponseDto
+        //    {
+        //        DocumentId = doc.DocumentId,
+        //        FileName = doc.FileName,
+        //        UploadedAt = doc.UploadedAt,
+        //        Status = doc.Status,
+        //        Version = doc.Version,
+        //        Metadata = dto.Metadata?.Select(x => new MetadataDTO
+        //        {
+        //            Key = x.Key,
+        //            Value = x.Value
+        //        }).ToList()
+        //    };
 
-        }
+        //}
 
-        // ---------------------- GET DOCUMENT ----------------------
+
+
+
+        // ---------------------- GET DOCUMENT BY Doc Id ----------------------
         public async Task<DocumentResponseDto> GetDocument(int id)
         {
             var doc = await _repo.GetDocument(id);
@@ -97,19 +109,63 @@ namespace EVWebApi.Services
                 throw new NotFoundException("Document not found");
 
             var metadata = await _metadataRepo.GetMetadataByDocumentId(id);
+            return _mapper.Map<DocumentResponseDto>(doc);
+            
+            //return new DocumentResponseDto
+            //{
+            //    DocumentId = doc.DocumentId,
+            //    FileName = doc.FileName,
+            //    Version = doc.Version,
+            //    UploadedAt = doc.UploadedAt,
+            //    Status = doc.Status,
+            //    Metadata = metadata.Select(m => new MetadataDTO
+            //    {
+            //        Key = m.MetaKey,
+            //        Value = m.MetaValue
+            //    }).ToList()
+            //};
+        }
+        //--------------------- GET BY Cabinet ID --------------------
+        public async Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId,DocumentQueryParameters query)
+        {
+            var docQuery = _uow.Documents.Query()
+                .Where(d => d.CabinetId == cabinetId);
 
-            return new DocumentResponseDto
+            // FILTER BY FILE NAME
+            //if (!string.IsNullOrWhiteSpace(query.FileName))
+            //{
+            //    string fileName = query.FileName.ToLower();
+            //    docQuery = docQuery.Where(d => d.FileName.ToLower().Contains(fileName));
+            //}
+
+            // FILTER BY DATE RANGE
+            if (query.FromDate.HasValue)
             {
-                DocumentId = doc.DocumentId,
-                FileName = doc.FileName,
-                Version = doc.Version,
-                UploadedAt = doc.UploadedAt,
-                Status = doc.Status,
-                Metadata = metadata.Select(m => new MetadataDTO
-                {
-                    Key = m.MetaKey,
-                    Value = m.MetaValue
-                }).ToList()
+                docQuery = docQuery.Where(d => d.UploadedAt >= query.FromDate.Value);
+            }
+            if (query.ToDate.HasValue)
+            {
+                docQuery = docQuery.Where(d => d.UploadedAt <= query.ToDate.Value);
+            }
+
+            // TOTAL BEFORE PAGINATION
+            var totalRecords = docQuery.Count();
+
+            // APPLY PAGINATION
+            var pagedDocs = docQuery
+                .Skip(query.Offset)
+                .Take(query.Limit)
+                .ToList();
+
+            // MAP TO DTO
+            var docDtos = _mapper.Map<List<DocumentResponseDto>>(pagedDocs);
+
+            return new PagedResponse<DocumentResponseDto>
+            {
+                Data = docDtos,
+                TotalRecords = totalRecords,
+                Offset = query.Offset,
+                Limit = query.Limit
             };
         }
 
@@ -144,16 +200,16 @@ namespace EVWebApi.Services
         }
 
         // ---------------------- ARCHIVE ----------------------
-        public async Task ArchiveDocument(int id)
-        {
-            await _repo.UpdateStatus(id, "archived");
-        }
+        //public async Task ArchiveDocument(int id)
+        //{
+        //    await _repo.UpdateStatus(id, "archived");
+        //}
 
-        // ---------------------- RESTORE ----------------------
-        public async Task RestoreDocument(int id)
-        {
-            await _repo.UpdateStatus(id, "active");
-        }
+        //// ---------------------- RESTORE ----------------------
+        //public async Task RestoreDocument(int id)
+        //{
+        //    await _repo.UpdateStatus(id, "active");
+        //}
         // ------------------DELETE--------------------
         public async Task<bool> DeleteDocument(int id)
         {
@@ -172,6 +228,59 @@ namespace EVWebApi.Services
             await _repo.DeleteDocument(id);
 
             return true;
+        }
+        //--------------------- EDIT ---------------------------------
+
+        public async Task<DocumentResponseDto> UpdateDocumentAsync(int id, UpdateDocumentDto dto)
+        {
+            var document = await _uow.Documents.GetByIdAsync(id);
+
+            if (document == null || document.Status == "inactive")
+                throw new NotFoundException($"Document with id {id} not found");
+
+
+            if (dto.CabinetId != 0)
+                document.CabinetId = dto.CabinetId;
+
+            if (!string.IsNullOrWhiteSpace(dto.FileName))
+                document.FileName = dto.FileName;
+
+            if (!string.IsNullOrWhiteSpace(dto.FilePath))
+                document.FilePath = dto.FilePath;
+
+            // Metadata update (if applicable)---------------------------need to check with sir
+            //if (dto.Metadata != null && dto.Metadata.Any())
+            //{
+            //    // Your own logic here
+            //    // Example: Replace metadata entries
+            //    document.Metadata = dto.Metadata.Select(m => new Metadata
+            //    {
+            //        Key = m.Key,
+            //        Value = m.Value
+            //    }).ToList();
+            //}
+
+            if (dto.InvoiceNumber != null) document.InvoiceNumber = dto.InvoiceNumber;
+            if (dto.PoNumber != null) document.PoNumber = dto.PoNumber;
+            if (dto.VendorNumber != null) document.VendorNumber = dto.VendorNumber;
+            if (dto.EmployeeId != null) document.EmployeeId = dto.EmployeeId;
+            if (dto.Name != null) document.Name = dto.Name;
+            if (dto.ContactNumber != null) document.ContactNumber = dto.ContactNumber;
+            if (dto.Designation != null) document.Designation = dto.Designation;
+            if (dto.Department != null) document.Department = dto.Department;
+            if (dto.Region != null) document.Region = dto.Region;
+            if (dto.InvoiceDate.HasValue) document.InvoiceDate = dto.InvoiceDate.Value;
+            if (dto.StatementDate.HasValue) document.StatementDate = dto.StatementDate.Value;
+            if (dto.DOJ.HasValue) document.DOJ = dto.DOJ.Value;
+            if (dto.DOB.HasValue) document.DOB = dto.DOB.Value;
+            if (dto.Amount.HasValue) document.Amount = dto.Amount.Value;
+            if (dto.GST.HasValue) document.GST = dto.GST.Value;
+            if (dto.CheckNumber != null) document.CheckNumber = dto.CheckNumber;
+            if (dto.PaidAmount.HasValue) document.PaidAmount = dto.PaidAmount.Value;
+
+            _uow.Documents.Update(document);
+            await _uow.CompleteAsync();
+            return _mapper.Map<DocumentResponseDto>(document);
         }
 
 

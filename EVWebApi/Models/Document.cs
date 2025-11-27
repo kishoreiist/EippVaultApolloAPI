@@ -20,5 +20,57 @@ namespace EVWebApi.Models
         public DateTime UploadedAt { get; set; }
         [Column("status")]
         public string Status { get; set; }
+
+        [Column("invoice_number")]
+        public string? InvoiceNumber { get; set; }
+
+        [Column("po_number")]
+        public string? PoNumber { get; set; }
+
+        [Column("vendor_number")]
+        public string? VendorNumber { get; set; }
+
+        [Column("employee_id")]
+        public string? EmployeeId { get; set; }
+
+        [Column("name")]
+        public string? Name { get; set; }
+
+        [Column("contact_number")]
+        public string? ContactNumber { get; set; }
+
+        [Column("designation")]
+        public string? Designation { get; set; }
+
+        [Column("department")]
+        public string? Department { get; set; }
+
+        [Column("region")]
+        public string? Region { get; set; }
+
+        [Column("invoice_date")]
+        public DateTime? InvoiceDate { get; set; }
+
+        [Column("statement_date")]
+        public DateTime? StatementDate { get; set; }
+
+        [Column("doj")]
+        public DateTime? DOJ { get; set; }     // Date of Joining
+
+        [Column("dob")]
+        public DateTime? DOB { get; set; }     // Date of Birth
+
+        [Column("amount")]
+        public decimal? Amount { get; set; }
+
+        [Column("gst")]
+        public decimal? GST { get; set; }
+
+        [Column("check_number")]
+        public string? CheckNumber { get; set; }
+
+        [Column("paid_amount")]
+        public decimal? PaidAmount { get; set; }
+
     }
 }

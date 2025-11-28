@@ -22,7 +22,12 @@ namespace EVWebApi.Mapping
                opt => opt.MapFrom(src =>
                     src.UserGroup != null && src.UserGroup.Group != null
                     ? src.UserGroup.Group.GroupName
-                    : null));
+                    : null))
+            .ForMember(dest => dest.Description,
+        opt => opt.MapFrom(src =>
+            src.UserGroup != null && src.UserGroup.Group != null
+            ? src.UserGroup.Group.Description
+            : null));
 
             CreateMap<UpdateUserDto, User>()
                 .ForMember(dest => dest.Status,

@@ -92,7 +92,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 // 6. Add Controllers
-builder.Services.AddControllers();
+//builder.Services.AddControllers();
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter(
+                null, // keep original names
+                false // do not allow integers
+            )
+        );
+    });
 
 // 7. Enable CORS (allow frontend)
 builder.Services.AddCors(options =>

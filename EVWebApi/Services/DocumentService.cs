@@ -98,8 +98,6 @@ namespace EVWebApi.Services
         //}
 
 
-
-
         // ---------------------- GET DOCUMENT BY Doc Id ----------------------
         public async Task<DocumentResponseDto> GetDocument(int id)
         {
@@ -131,22 +129,186 @@ namespace EVWebApi.Services
             var docQuery = _uow.Documents.Query()
                 .Where(d => d.CabinetId == cabinetId);
 
-            // FILTER BY FILE NAME
-            //if (!string.IsNullOrWhiteSpace(query.FileName))
-            //{
-            //    string fileName = query.FileName.ToLower();
-            //    docQuery = docQuery.Where(d => d.FileName.ToLower().Contains(fileName));
-            //}
+            // name
+            if (!string.IsNullOrWhiteSpace(query.Name))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.Name.StartsWith(query.Name));
+                else
+                    docQuery = docQuery.Where(d => d.Name.Contains(query.Name));
+            }
+            //InvoiceNumber
+            if (!string.IsNullOrWhiteSpace(query.InvoiceNumber))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.InvoiceNumber.StartsWith(query.InvoiceNumber));
+                else
+                    docQuery = docQuery.Where(d => d.InvoiceNumber.Contains(query.InvoiceNumber));
+            }
+            //VendorNumber
+            if (!string.IsNullOrWhiteSpace(query.VendorNumber))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.VendorNumber.StartsWith(query.VendorNumber));
+                else
+                    docQuery = docQuery.Where(d => d.VendorNumber.Contains(query.VendorNumber));
+            }
+            //Check number
+            if (!string.IsNullOrWhiteSpace(query.CheckNumber))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.CheckNumber.StartsWith(query.CheckNumber));
+                else
+                    docQuery = docQuery.Where(d => d.CheckNumber.Contains(query.CheckNumber));
+            }
+            //GST
+            if (query.GST.HasValue)
+            {
+                var gstStr = query.GST.Value.ToString();
 
-            // FILTER BY DATE RANGE
-            if (query.FromDate.HasValue)
-            {
-                docQuery = docQuery.Where(d => d.UploadedAt >= query.FromDate.Value);
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                {
+                    docQuery = docQuery.Where(d => d.GST.ToString().StartsWith(gstStr));
+                }
+                else
+                {
+                    docQuery = docQuery.Where(d => d.GST.ToString().Contains(gstStr));
+                }
             }
-            if (query.ToDate.HasValue)
+            //PO NUMBER
+            if (!string.IsNullOrWhiteSpace(query.PoNumber))
             {
-                docQuery = docQuery.Where(d => d.UploadedAt <= query.ToDate.Value);
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.PoNumber.StartsWith(query.PoNumber));
+                else
+                    docQuery = docQuery.Where(d => d.PoNumber.Contains(query.PoNumber));
             }
+            //EMP ID
+            if (!string.IsNullOrWhiteSpace(query.EmployeeId))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.EmployeeId.StartsWith(query.EmployeeId));
+                else
+                    docQuery = docQuery.Where(d => d.EmployeeId.Contains(query.EmployeeId));
+            }
+            //designation 
+            if (!string.IsNullOrWhiteSpace(query.Designation))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.Designation.StartsWith(query.Designation));
+                else
+                    docQuery = docQuery.Where(d => d.Designation.Contains(query.Designation));
+            }
+            //CONTACT NO
+            if (!string.IsNullOrWhiteSpace(query.ContactNumber))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                    docQuery = docQuery.Where(d => d.ContactNumber.StartsWith(query.ContactNumber));
+                else
+                    docQuery = docQuery.Where(d => d.ContactNumber.Contains(query.ContactNumber));
+            }
+
+            // AMOUNT 
+        
+            if (query.Amount.HasValue || !string.IsNullOrWhiteSpace(query.AmountFrom))
+            {
+                switch (query.SearchType)
+                {
+                    case SearchType.Greater:
+                        docQuery = docQuery.Where(d => d.Amount > query.Amount.Value);
+                        break;
+                    case SearchType.Less:
+                        docQuery = docQuery.Where(d => d.Amount < query.Amount.Value);
+                        break;
+                    case SearchType.Between:
+                        if (decimal.TryParse(query.AmountFrom, out var min) &&
+                            decimal.TryParse(query.AmountTo, out var max))
+                        {
+                            docQuery = docQuery.Where(d => d.Amount >= min && d.Amount <= max);
+                        }
+                        break;
+                    case SearchType.Equals:
+                    default:
+                        docQuery = docQuery.Where(d => d.Amount == query.Amount.Value);
+                        break;
+                }
+            }
+            //PaidAmount
+            if (query.PaidAmount.HasValue || !string.IsNullOrWhiteSpace(query.PaidAmountFrom))
+            {
+                switch (query.SearchType)
+                {
+                    case SearchType.Greater:
+                        docQuery = docQuery.Where(d => d.PaidAmount > query.PaidAmount.Value);
+                        break;
+                    case SearchType.Less:
+                        docQuery = docQuery.Where(d => d.PaidAmount < query.PaidAmount.Value);
+                        break;
+                    case SearchType.Between:
+                        if (decimal.TryParse(query.PaidAmountFrom, out var min) &&
+                            decimal.TryParse(query.PaidAmountTo, out var max))
+                        {
+                            docQuery = docQuery.Where(d => d.PaidAmount >= min && d.PaidAmount <= max);
+                        }
+                        break;
+                    case SearchType.Equals:
+                    default:
+                        docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
+                        break;
+                }
+            }
+
+
+            // InvoiceDate
+
+            if (query.InvoiceDate.HasValue || !string.IsNullOrWhiteSpace(query.DateFrom))
+            {
+                switch (query.SearchType)
+                {
+                    case SearchType.After:
+                        docQuery = docQuery.Where(d => d.InvoiceDate >= query.InvoiceDate.Value);
+                        break;
+                    case SearchType.Before:
+                        docQuery = docQuery.Where(d => d.InvoiceDate <= query.InvoiceDate.Value);
+                        break;
+                    case SearchType.Between:
+                        if (DateTime.TryParse(query.DateFrom, out var d1) &&
+                            DateTime.TryParse(query.DateTo, out var d2))
+                        {
+                            docQuery = docQuery.Where(d => d.InvoiceDate >= d1 && d.InvoiceDate <= d2);
+                        }
+                        break;
+                    case SearchType.On:
+                    default:
+                        docQuery = docQuery.Where(d => d.InvoiceDate == query.InvoiceDate.Value);
+                        break;
+                }
+            }
+            //DOJ
+            if (query.DOJ.HasValue || !string.IsNullOrWhiteSpace(query.DOJDateFrom))
+            {
+                switch (query.SearchType)
+                {
+                    case SearchType.After:
+                        docQuery = docQuery.Where(d => d.DOJ >= query.DOJ.Value);
+                        break;
+                    case SearchType.Before:
+                        docQuery = docQuery.Where(d => d.DOJ <= query.DOJ.Value);
+                        break;
+                    case SearchType.Between:
+                        if (DateTime.TryParse(query.DOJDateFrom, out var d1) &&
+                            DateTime.TryParse(query.DOJDateTo, out var d2))
+                        {
+                            docQuery = docQuery.Where(d => d.DOJ >= d1 && d.DOJ <= d2);
+                        }
+                        break;
+                    case SearchType.On:
+                    default:
+                        docQuery = docQuery.Where(d => d.DOJ == query.DOJ.Value);
+                        break;
+                }
+            }
+
 
             // TOTAL BEFORE PAGINATION
             var totalRecords = docQuery.Count();

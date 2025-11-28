@@ -3,6 +3,7 @@ using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
+using EVWebApi.Services;
 using EVWebAPI.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
@@ -18,9 +19,10 @@ namespace EVWebAPI.Controllers
         private readonly IAuthService _authService;
         private readonly IMfaService _mfaService;
         private readonly IUserRepository _userRepo;
+        private readonly IUserService _userService;
 
         private readonly ILogger<AuthController> _logger;
-        public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger)
+        public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger, IUserService userService)
         {
             ArgumentNullException.ThrowIfNull(authService);
             ArgumentNullException.ThrowIfNull(mfaService);
@@ -31,6 +33,7 @@ namespace EVWebAPI.Controllers
             _mfaService = mfaService;
             _userRepo = userRepo;
             _logger = logger;
+            _userService = userService;
         }
 
         [HttpPost("login")]
@@ -174,9 +177,10 @@ namespace EVWebAPI.Controllers
                 }
 
             var jwt = await _authService.GenerateJwtAfterMfaAsync(request.Email);
+            var userDto = await _userService.GetByIdAsync(user.UserId);
             _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
 
-            return Ok(new { token = jwt });
+            return Ok(new { token = jwt, user = userDto });
            
         }        
 

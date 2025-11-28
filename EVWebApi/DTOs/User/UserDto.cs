@@ -1,4 +1,5 @@
-﻿using EVWebApi.Models;
+﻿using EVWebApi.DTOs.Group;
+using EVWebApi.Models;
 
 namespace EVWebApi.DTOs.User
 {
@@ -12,6 +13,7 @@ namespace EVWebApi.DTOs.User
 
 
         public int GroupId { get; set; }
+        public GroupDescriptionDTO? Description { get; set; }
         public string GroupName { get; set; }
 
         public bool Status { get; set; }

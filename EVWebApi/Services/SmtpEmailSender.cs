@@ -18,11 +18,12 @@ namespace EVWebApi.Services
             string toEmail,
             string subject,
             string htmlBody,
+            IEnumerable<string>? ccEmails = null,
             IEnumerable<string>? attachmentFilePaths = null,
             CancellationToken ct = default)
         {
             using var message = new MailMessage();
-
+      
             var from = string.IsNullOrWhiteSpace(_settings.DisplayName)
                 ? new MailAddress(_settings.From)
                 : new MailAddress(_settings.From, _settings.DisplayName);
@@ -32,6 +33,11 @@ namespace EVWebApi.Services
             message.Subject = subject;
             message.Body = htmlBody;
             message.IsBodyHtml = true;
+            if (ccEmails != null)
+            {
+                foreach (var cc in ccEmails)
+                    message.CC.Add(cc);
+            }
 
             if (attachmentFilePaths != null)
             {

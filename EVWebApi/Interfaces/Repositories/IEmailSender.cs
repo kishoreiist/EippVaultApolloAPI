@@ -6,6 +6,7 @@
                 string toEmail,
                 string subject,
                 string htmlBody,
+                IEnumerable<string>? ccEmails = null,
                 IEnumerable<string>? attachmentFilePaths = null,
                 CancellationToken ct = default);
     }

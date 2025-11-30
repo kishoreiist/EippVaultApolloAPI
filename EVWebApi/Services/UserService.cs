@@ -128,7 +128,7 @@ namespace EVWebApi.Services
                     : UserStatus.inactive;
             }
 
-
+            if (dto.GroupId != 0) user.UserGroup.GroupId = dto.GroupId;
             user.UpdatedAt = DateTime.UtcNow;
 
 

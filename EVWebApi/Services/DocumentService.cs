@@ -132,7 +132,7 @@ namespace EVWebApi.Services
             // name
             if (!string.IsNullOrWhiteSpace(query.Name))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.Name.StartsWith(query.Name));
                 else
                     docQuery = docQuery.Where(d => d.Name.Contains(query.Name));
@@ -140,7 +140,7 @@ namespace EVWebApi.Services
             //InvoiceNumber
             if (!string.IsNullOrWhiteSpace(query.InvoiceNumber))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.InvoiceNumber.StartsWith(query.InvoiceNumber));
                 else
                     docQuery = docQuery.Where(d => d.InvoiceNumber.Contains(query.InvoiceNumber));
@@ -148,7 +148,7 @@ namespace EVWebApi.Services
             //VendorNumber
             if (!string.IsNullOrWhiteSpace(query.VendorNumber))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.VendorNumber.StartsWith(query.VendorNumber));
                 else
                     docQuery = docQuery.Where(d => d.VendorNumber.Contains(query.VendorNumber));
@@ -156,7 +156,7 @@ namespace EVWebApi.Services
             //Check number
             if (!string.IsNullOrWhiteSpace(query.CheckNumber))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.CheckNumber.StartsWith(query.CheckNumber));
                 else
                     docQuery = docQuery.Where(d => d.CheckNumber.Contains(query.CheckNumber));
@@ -166,7 +166,7 @@ namespace EVWebApi.Services
             {
                 var gstStr = query.GST.Value.ToString();
 
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                 {
                     docQuery = docQuery.Where(d => d.GST.ToString().StartsWith(gstStr));
                 }
@@ -178,7 +178,7 @@ namespace EVWebApi.Services
             //PO NUMBER
             if (!string.IsNullOrWhiteSpace(query.PoNumber))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.PoNumber.StartsWith(query.PoNumber));
                 else
                     docQuery = docQuery.Where(d => d.PoNumber.Contains(query.PoNumber));
@@ -186,7 +186,7 @@ namespace EVWebApi.Services
             //EMP ID
             if (!string.IsNullOrWhiteSpace(query.EmployeeId))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.EmployeeId.StartsWith(query.EmployeeId));
                 else
                     docQuery = docQuery.Where(d => d.EmployeeId.Contains(query.EmployeeId));
@@ -194,7 +194,7 @@ namespace EVWebApi.Services
             //designation 
             if (!string.IsNullOrWhiteSpace(query.Designation))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.Designation.StartsWith(query.Designation));
                 else
                     docQuery = docQuery.Where(d => d.Designation.Contains(query.Designation));
@@ -202,7 +202,7 @@ namespace EVWebApi.Services
             //CONTACT NO
             if (!string.IsNullOrWhiteSpace(query.ContactNumber))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.StartsWith)
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                     docQuery = docQuery.Where(d => d.ContactNumber.StartsWith(query.ContactNumber));
                 else
                     docQuery = docQuery.Where(d => d.ContactNumber.Contains(query.ContactNumber));
@@ -214,20 +214,20 @@ namespace EVWebApi.Services
             {
                 switch (query.SearchType)
                 {
-                    case SearchType.Greater:
+                    case SearchType.greater:
                         docQuery = docQuery.Where(d => d.Amount > query.Amount.Value);
                         break;
-                    case SearchType.Less:
+                    case SearchType.less:
                         docQuery = docQuery.Where(d => d.Amount < query.Amount.Value);
                         break;
-                    case SearchType.Between:
+                    case SearchType.between:
                         if (decimal.TryParse(query.AmountFrom, out var min) &&
                             decimal.TryParse(query.AmountTo, out var max))
                         {
                             docQuery = docQuery.Where(d => d.Amount >= min && d.Amount <= max);
                         }
                         break;
-                    case SearchType.Equals:
+                    case SearchType.equal:
                     default:
                         docQuery = docQuery.Where(d => d.Amount == query.Amount.Value);
                         break;
@@ -238,20 +238,20 @@ namespace EVWebApi.Services
             {
                 switch (query.SearchType)
                 {
-                    case SearchType.Greater:
+                    case SearchType.greater:
                         docQuery = docQuery.Where(d => d.PaidAmount > query.PaidAmount.Value);
                         break;
-                    case SearchType.Less:
+                    case SearchType.less:
                         docQuery = docQuery.Where(d => d.PaidAmount < query.PaidAmount.Value);
                         break;
-                    case SearchType.Between:
+                    case SearchType.between:
                         if (decimal.TryParse(query.PaidAmountFrom, out var min) &&
                             decimal.TryParse(query.PaidAmountTo, out var max))
                         {
                             docQuery = docQuery.Where(d => d.PaidAmount >= min && d.PaidAmount <= max);
                         }
                         break;
-                    case SearchType.Equals:
+                    case SearchType.equal:
                     default:
                         docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
                         break;
@@ -265,20 +265,20 @@ namespace EVWebApi.Services
             {
                 switch (query.SearchType)
                 {
-                    case SearchType.After:
+                    case SearchType.after:
                         docQuery = docQuery.Where(d => d.InvoiceDate >= query.InvoiceDate.Value);
                         break;
-                    case SearchType.Before:
+                    case SearchType.before:
                         docQuery = docQuery.Where(d => d.InvoiceDate <= query.InvoiceDate.Value);
                         break;
-                    case SearchType.Between:
+                    case SearchType.between:
                         if (DateTime.TryParse(query.DateFrom, out var d1) &&
                             DateTime.TryParse(query.DateTo, out var d2))
                         {
                             docQuery = docQuery.Where(d => d.InvoiceDate >= d1 && d.InvoiceDate <= d2);
                         }
                         break;
-                    case SearchType.On:
+                    case SearchType.on:
                     default:
                         docQuery = docQuery.Where(d => d.InvoiceDate == query.InvoiceDate.Value);
                         break;
@@ -289,20 +289,20 @@ namespace EVWebApi.Services
             {
                 switch (query.SearchType)
                 {
-                    case SearchType.After:
+                    case SearchType.after:
                         docQuery = docQuery.Where(d => d.DOJ >= query.DOJ.Value);
                         break;
-                    case SearchType.Before:
+                    case SearchType.before:
                         docQuery = docQuery.Where(d => d.DOJ <= query.DOJ.Value);
                         break;
-                    case SearchType.Between:
+                    case SearchType.between:
                         if (DateTime.TryParse(query.DOJDateFrom, out var d1) &&
                             DateTime.TryParse(query.DOJDateTo, out var d2))
                         {
                             docQuery = docQuery.Where(d => d.DOJ >= d1 && d.DOJ <= d2);
                         }
                         break;
-                    case SearchType.On:
+                    case SearchType.on:
                     default:
                         docQuery = docQuery.Where(d => d.DOJ == query.DOJ.Value);
                         break;

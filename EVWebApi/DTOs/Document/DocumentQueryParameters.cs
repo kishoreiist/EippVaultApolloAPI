@@ -6,24 +6,16 @@ namespace EVWebApi.DTOs.Document
 {
     public enum SearchType
     {
-        [EnumMember(Value = "starts_with")]
-        StartsWith,
-        [EnumMember(Value = "anywhere")]
-        AnyWhere,
-        [EnumMember(Value = "equal")]
-        Equals,
-        [EnumMember(Value = "greater")]
-        Greater,
-        [EnumMember(Value = "less")]
-        Less,
-        [EnumMember(Value = "between")]
-        Between,
-        [EnumMember(Value = "before")]
-        Before,
-        [EnumMember(Value = "after")]
-        After,
-        [EnumMember(Value = "on")]
-        On
+  
+        starts_with,
+        anywhere,
+        equal,
+        greater,
+        less,
+        between,
+        before,
+        after,
+        on
     }
 
     public class DocumentQueryParameters 
@@ -31,13 +23,13 @@ namespace EVWebApi.DTOs.Document
         public int Offset { get; set; } = 0;   // number of records to skip
         public int Limit { get; set; } = 100;
 
-        [FromQuery(Name ="vendor_number")]
+        [FromQuery(Name = "vendor")]
         public string? VendorNumber { get; set; }
         [FromQuery(Name = "gst")]
         public decimal? GST { get; set; }
-        [FromQuery(Name = "invoice_number")]
+        [FromQuery(Name = "invoice")]
         public string? InvoiceNumber { get; set; }
-        [FromQuery(Name = "po_number")]
+        [FromQuery(Name = "po")]
         public string? PoNumber { get; set; }
         [FromQuery(Name = "date")]//----------for both inv date and check date
         public DateTime? InvoiceDate { get; set; }

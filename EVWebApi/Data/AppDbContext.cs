@@ -67,9 +67,28 @@ namespace EVWebApi.Data
             //    .OnDelete(DeleteBehavior.Restrict);
 
             // User - UserGroups
+            //modelBuilder.Entity<UserGroup>()
+            //  .HasIndex(ug => ug.UserId)
+            //     .IsUnique();
+            // One group can have many UserGroups
+            //modelBuilder.Entity<UserGroup>()
+            //    .HasOne(ug => ug.Group)
+            //    .WithMany(g => g.UserGroups)
+            //    .HasForeignKey(ug => ug.GroupId);
+
             modelBuilder.Entity<UserGroup>()
-              .HasIndex(ug => ug.UserId)
-                 .IsUnique();
+            .HasKey(ug => ug.UserId); // Primary Key is UserId (NOT composite)
+
+            modelBuilder.Entity<UserGroup>()
+                .HasOne(ug => ug.User)
+                .WithOne(u => u.UserGroup)
+                .HasForeignKey<UserGroup>(ug => ug.UserId);
+
+            modelBuilder.Entity<UserGroup>()
+                .HasOne(ug => ug.Group)
+                .WithMany(g => g.UserGroups)
+                .HasForeignKey(ug => ug.GroupId);
+
 
 
             modelBuilder.Entity<User>()
@@ -86,11 +105,7 @@ namespace EVWebApi.Data
                 .WithOne(ug => ug.User)
                 .HasForeignKey<UserGroup>(ug => ug.UserId);
 
-            // One group can have many UserGroups
-            modelBuilder.Entity<UserGroup>()
-                .HasOne(ug => ug.Group)
-                .WithMany(g => g.UserGroups)
-                .HasForeignKey(ug => ug.GroupId);
+
 
             // -------------------
             // Auth Entities

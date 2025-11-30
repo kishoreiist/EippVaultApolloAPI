@@ -133,9 +133,9 @@ namespace EVWebApi.Services
             if (!string.IsNullOrWhiteSpace(query.Name))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.Name.StartsWith(query.Name));
+                    docQuery = docQuery.Where(d => d.Name.ToLower().StartsWith(query.Name.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.Name.Contains(query.Name));
+                    docQuery = docQuery.Where(d => d.Name.ToLower().Contains(query.Name.ToLower()));
             }
             //InvoiceNumber
             if (!string.IsNullOrWhiteSpace(query.InvoiceNumber))
@@ -195,9 +195,9 @@ namespace EVWebApi.Services
             if (!string.IsNullOrWhiteSpace(query.Designation))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.Designation.StartsWith(query.Designation));
+                    docQuery = docQuery.Where(d => d.Designation.ToLower().StartsWith(query.Designation.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.Designation.Contains(query.Designation));
+                    docQuery = docQuery.Where(d => d.Designation.ToLower().Contains(query.Designation.ToLower()));
             }
             //CONTACT NO
             if (!string.IsNullOrWhiteSpace(query.ContactNumber))

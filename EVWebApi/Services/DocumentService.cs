@@ -253,7 +253,15 @@ namespace EVWebApi.Services
                         break;
                     case SearchType.equal:
                     default:
-                        docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
+                        if (decimal.TryParse(query.PaidAmountFrom, out var min1) &&
+                           decimal.TryParse(query.PaidAmountTo, out var max2))
+                        {
+                            docQuery = docQuery.Where(d => d.PaidAmount >= min1 && d.PaidAmount <= max2);
+                        }
+                        else
+                        {
+                            docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
+                        }                      
                         break;
                 }
             }
@@ -280,7 +288,16 @@ namespace EVWebApi.Services
                         break;
                     case SearchType.on:
                     default:
-                        docQuery = docQuery.Where(d => d.InvoiceDate == query.InvoiceDate.Value);
+                        if (DateTime.TryParse(query.DateFrom, out var d3) &&
+                            DateTime.TryParse(query.DateTo, out var d4))
+                        {
+                            docQuery = docQuery.Where(d => d.InvoiceDate >= d3 && d.InvoiceDate <= d4);
+                        }
+                        else
+                        {
+                            docQuery = docQuery.Where(d => d.InvoiceDate == query.InvoiceDate.Value);
+                        }
+                            
                         break;
                 }
             }

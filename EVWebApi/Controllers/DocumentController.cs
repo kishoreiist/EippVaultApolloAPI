@@ -42,9 +42,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetDocumentsByCabinetId(int cabinetId, [FromQuery] DocumentQueryParameters query)
         {
             var docs = await _documentService.GetDocumentsByCabinetId(cabinetId, query);
-
             await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", cabinetId);
-
             return Ok(docs);
         }
 

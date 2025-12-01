@@ -64,8 +64,6 @@ namespace EVWebApi.Services
                 _logger?.LogError(ex, "Failed to save audit log: {Action} for User {UserId}", action, userId);
             }
         }
-
-
         //pagination+filter
 
         public async Task<(IEnumerable<AuditLog> Logs, int TotalCount)> GetLogsAsync(
@@ -168,7 +166,6 @@ namespace EVWebApi.Services
                 if (logsChunk.Count() < exportPageSize) break;
                 currentPage++;
             }
-
             return Encoding.UTF8.GetBytes(sb.ToString());
         }
 

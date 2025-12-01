@@ -55,23 +55,28 @@ namespace EVWebApi.Repositories
         }
 
         // ---------------- UPDATE STATUS -------------------
-        public async Task UpdateStatus(int id, string status)
+        public async Task UpdateStatus(int id)
         {
             var doc = await _context.Documents.FindAsync(id);
             if (doc == null)
                 throw new Exception("Document not found");
 
-            doc.Status = status;
+            doc.Status = "inactive";
             await _context.SaveChangesAsync();
         }
         // ---------------- DELETE -------------------
         public async Task DeleteDocument(int documentId)
         {
             var doc = await _context.Documents.FindAsync(documentId);
-            if (doc != null)
+            if (doc == null)
+                throw new Exception("Document not found");
+            else
             {
-                _context.Documents.Remove(doc);
+                //_context.Documents.Remove(doc);
+                doc.Status = "archived";
+                _context.Documents.Update(doc);
                 await _context.SaveChangesAsync();
+
             }
         }
 

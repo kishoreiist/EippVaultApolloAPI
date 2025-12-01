@@ -48,10 +48,10 @@ namespace EVWebApi.DTOs.Document
         public string? ContactNumber { get; set; }
         [FromQuery(Name = "designation")]
         public string? Designation { get; set; }
-
         [FromQuery(Name = "check_number")]
         public string? CheckNumber { get; set; }
-
+        [FromQuery(Name = "status")]
+        public string? Status { get; set; }
 
 
         [FromQuery(Name = "search_type")]

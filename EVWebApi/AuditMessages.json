@@ -1,18 +1,20 @@
 {
   "AuditMessages": {
     "CommonActions": {
-      "Create": "A new record was successfully created. Target ID: {targetId}.",
-      "Get": "Successfully retrieved the details. Target ID: {targetId}.",
-      "GetAll": "Successfully retrieved all details.",
-      "Update": "Details were modified. Target ID: {targetId}.",
-      "Delete": "Record was removed. Target ID: {targetId}."
+      "Create": "{username} created a new record successfully in {module} page. Record ID: {targetId}.",
+      "Get": "{username} successfully retrieved the details from {module} page. Record ID: {targetId}.",
+      "GetAll": "{username} successfully retrieved all details.{filters}",
+      "Update": "{username} updated {module} page, recordId : {targetId}.",
+      "Delete": "{username} removed Record ID: {targetId} from {module} page.",
+      "Document_Get": "{username} successfully retrieved CabinetId : {targetId} in Document Page.{filters}",
+      "Document_Update": "{username} updated {module} page, CabinetId : {targetId} "
     },
     "Auth": {
       "Login": "User successfully logged in.",
       "Logout": "User successfully logged out."
     },
     "Default": {
-      "Message": "Executed action: {action} on module: {module}. Target ID: {targetId}."
+      "Message": "Executed action: {action} on module: {module}. Target ID: {targetId}.{filters}"
     }
   }
 }

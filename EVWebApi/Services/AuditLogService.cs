@@ -1,4 +1,5 @@
 ﻿using EVWebApi.Data;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -23,23 +24,35 @@ namespace EVWebApi.Services
             _logger = logger;
         }
 
-        public async Task LogAsync(int userId, string username,string module, string action, int? targetId = null, string? details = null)
+        public async Task LogAsync(int userId, string username,string module, string action, int? targetId = null, string? details = null, string? filters = null)
         {
             var ip = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
 
             if (string.IsNullOrEmpty(details))
-            {
-                string? messageTemplate = null;
-                messageTemplate = _configuration.GetSection($"AuditMessages:CommonActions:{action}")?.Value;
-                if (string.IsNullOrEmpty(messageTemplate))
-                {
-                    messageTemplate = _configuration.GetSection("AuditMessages:Default:Message").Value;
-                }
-                details = messageTemplate?
-            .Replace("{targetId}", targetId?.ToString() ?? "N/A")
-            .Replace("{module}", module)
-            .Replace("{action}", action);
-            }
+            { 
+                //{
+                //    string? messageTemplate = null;
+                //    messageTemplate = _configuration.GetSection($"AuditMessages:CommonActions:{action}")?.Value;
+                //    if (string.IsNullOrEmpty(messageTemplate))
+                //    {
+                //        messageTemplate = _configuration.GetSection("AuditMessages:Default:Message").Value;
+                //    }
+                //    details = messageTemplate?
+                //.Replace("{targetId}", targetId?.ToString() ?? "N/A")
+                //.Replace("{module}", module)
+                //.Replace("{action}", action);
+                string? messageTemplate = _configuration.GetSection($"AuditMessages:CommonActions:{action}")?.Value
+                                     ?? _configuration.GetSection("AuditMessages:Default:Message")?.Value;
+
+            details = AuditMessageHelper.FormatMessage(
+                messageTemplate,
+                username,
+                module,
+                action,
+                targetId,
+                filters
+            );
+        }
 
             var log = new AuditLog
             {
@@ -51,6 +64,7 @@ namespace EVWebApi.Services
                 Details = details,
                 Timestamp= DateTime.UtcNow,
                 IpAddress = ip
+                //MfaStatus=mfa
             };
 
             _context.AuditLogs.Add(log);
@@ -75,8 +89,10 @@ namespace EVWebApi.Services
             string? module = null,
             string? action = null,
             DateTime? fromDate = null,
-            DateTime? toDate = null,
-            CancellationToken cancellationToken = default
+            DateTime? toDate = null
+            //for user specific logs
+            //int? currentUserId = null,
+            //bool isAdmin = false
         )
         {
             // Bound page size to avoid expensive queries
@@ -87,6 +103,12 @@ namespace EVWebApi.Services
                 //.Include(a => a.UserId)
                 .AsNoTracking()
                 .AsQueryable();
+
+            // for user specific logs
+            //if (!isAdmin && currentUserId.HasValue)
+            //{
+            //    query = query.Where(a => a.UserId == currentUserId.Value);
+            //}
 
             // FILTER: Username
             if (!string.IsNullOrWhiteSpace(userName))

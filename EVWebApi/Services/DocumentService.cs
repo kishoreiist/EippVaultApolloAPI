@@ -128,6 +128,30 @@ namespace EVWebApi.Services
         {
             var docQuery = _uow.Documents.Query()
                 .Where(d => d.CabinetId == cabinetId);
+            //d.Status == "active");
+
+            // status for getting archive or default active
+            if (string.IsNullOrWhiteSpace(query.Status))
+            {
+                docQuery = docQuery.Where(d => d.Status == "active");
+            }
+            else
+            {
+                switch (query.Status.ToLower())
+                {
+                    case "active":
+                        docQuery = docQuery.Where(d => d.Status == "active");
+                        break;
+
+                    case "archived":
+                        docQuery = docQuery.Where(d => d.Status == "archived");
+                        break;
+
+                    default:
+                        docQuery = docQuery.Where(d => d.Status == "active");
+                        break;
+                }
+            }
 
             // name
             if (!string.IsNullOrWhiteSpace(query.Name))
@@ -410,17 +434,17 @@ namespace EVWebApi.Services
                 throw new NotFoundException("Document not found");
 
             // Delete metadata
-            await _metadataRepo.DeleteMetadataByDocumentId(id);
-            string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
-            // Delete physical file
-            if (File.Exists(fullPath))
-                File.Delete(fullPath);
+            //await _metadataRepo.DeleteMetadataByDocumentId(id);
+            //string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
+            //// Delete physical file
+            //if (File.Exists(fullPath))
+            //    File.Delete(fullPath);
 
-            // Delete DB record
             await _repo.DeleteDocument(id);
 
             return true;
         }
+
         //--------------------- EDIT ---------------------------------
 
         public async Task<DocumentResponseDto> UpdateDocumentAsync(int id, UpdateDocumentDto dto)

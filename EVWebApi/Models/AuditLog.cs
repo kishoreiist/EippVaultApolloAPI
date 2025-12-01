@@ -25,7 +25,7 @@ public class AuditLog {
     [Column("module")]
     public string Module { get; set; }
     [Column("username")]
-    public string UserName { get; set; }
+    public string? UserName { get; set; }
     [Column("target_id")]
     public int? TargetId { get; set; }
     [Column("details")]

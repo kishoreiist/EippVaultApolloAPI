@@ -33,7 +33,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetDocument(int id)
         {
             var doc = await _documentService.GetDocument(id);
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Get", id);
             return Ok(doc);
         }
 
@@ -43,7 +43,7 @@ namespace EVWebApi.Controllers
         {
             var docs = await _documentService.GetDocumentsByCabinetId(cabinetId, query);
 
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", cabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Get", cabinetId);
 
             return Ok(docs);
         }
@@ -94,7 +94,7 @@ namespace EVWebApi.Controllers
             if (updated == null)
                 return NotFound(new { message = "Document not found" });
 
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Update", id);
 
             return Ok(updated);
         }
@@ -106,7 +106,7 @@ namespace EVWebApi.Controllers
 
             if (!success)
                 return NotFound(new { message = "Document not found" });
-            await _auditlogservice.LogAsync(CurrentUserId, "Document", "Delete", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Delete", id);
             return Ok(new { message = "Document deleted successfully" });
         }
     }

@@ -14,7 +14,6 @@ namespace EVWebApi.Controllers
             _auditLogService = auditLogService;
         }
 
-
         [HttpGet("logs")]
         public async Task<IActionResult> GetAuditLogs(
             int page = 1,
@@ -23,10 +22,15 @@ namespace EVWebApi.Controllers
             string? module = null,
             string? action = null,
             DateTime? fromDate = null,
-            DateTime? toDate = null
+            DateTime? toDate = null,
+            CancellationToken cancellationToken = default
         )
         {
-            var (logs, totalCount) = await _auditLogService.GetLogsAsync(
+            const int MaxPageSize = 1000;
+            pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
+
+            // Explicitly specify the type for deconstruction and match the method signature (7 arguments)
+            var result = await _auditLogService.GetLogsAsync(
                 page,
                 pageSize,
                 userName,
@@ -35,6 +39,8 @@ namespace EVWebApi.Controllers
                 fromDate,
                 toDate
             );
+            var logs = result.Logs;
+            var totalCount = result.TotalCount;
 
             return Ok(new
             {
@@ -45,7 +51,6 @@ namespace EVWebApi.Controllers
                 data = logs
             });
         }
-
 
         [HttpGet("logs/export")]
         public async Task<IActionResult> ExportCsv(

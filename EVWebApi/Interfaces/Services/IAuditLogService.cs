@@ -8,7 +8,8 @@
                   string module,
                   string action,
                   int? targetId = null,
-                  string? details = null
+                  string? details = null,
+                  string? filters = null
               );
 
         //pagination+filter 

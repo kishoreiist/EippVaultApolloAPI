@@ -40,6 +40,14 @@ namespace EVWebApi.Repositories
                 .AsQueryable();
         }
 
+        public void SoftDelete(User user)
+        {
+            user.Status = UserStatus.inactive ;
+            user.UpdatedAt = DateTime.UtcNow;
+            
+            _dbSet.Update(user);
+        }
+
         public async Task<int> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync();

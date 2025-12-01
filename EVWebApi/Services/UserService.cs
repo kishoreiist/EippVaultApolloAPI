@@ -121,11 +121,19 @@ namespace EVWebApi.Services
             if (dto.MfaMethod.HasValue) user.MfaMethod = dto.MfaMethod;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PhoneNumber = dto.PhoneNumber;
             if (dto.EmailVerified.HasValue) user.EmailVerified = dto.EmailVerified.Value;
+            //if (dto.Status)
+            //{
+            //    user.Status = dto.Status
+            //        ? UserStatus.active
+            //        : UserStatus.inactive;
+            //}
             if (dto.Status)
             {
-                user.Status = dto.Status
-                    ? UserStatus.active
-                    : UserStatus.inactive;
+                user.Status = UserStatus.active;
+            }
+            else
+            {
+                user.Status = UserStatus.inactive;
             }
 
             //if (dto.GroupId != 0) user.UserGroup.GroupId = dto.GroupId;
@@ -163,8 +171,9 @@ namespace EVWebApi.Services
             if (user == null) 
                 throw new NotFoundException("User not found");
 
-
-            _uow.Users.Remove(user);
+            _uow.Users.SoftDelete(user);
+           
+            //_uow.Users.Remove(user);
             await _uow.CompleteAsync();
         }
     }

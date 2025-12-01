@@ -1,4 +1,5 @@
 ﻿using EVWebApi.DTOs.Document;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
@@ -42,8 +43,8 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetDocumentsByCabinetId(int cabinetId, [FromQuery] DocumentQueryParameters query)
         {
             var docs = await _documentService.GetDocumentsByCabinetId(cabinetId, query);
-
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Get", cabinetId);
+            string filterDetails = query.ToFilterLog();
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Get", cabinetId, null, filters: filterDetails);
 
             return Ok(docs);
         }
@@ -94,7 +95,7 @@ namespace EVWebApi.Controllers
             if (updated == null)
                 return NotFound(new { message = "Document not found" });
 
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Update", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Update", id);
 
             return Ok(updated);
         }

@@ -2,6 +2,7 @@
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -29,7 +30,8 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetAll([FromQuery] CabinetQueryParameters query)
         {
             var Cabinets = await _CabinetService.GetAllAsync(query);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "GetAll");
+            string filterDetails = query.ToFilterLog();
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "GetAll", null, filters: filterDetails);
             return Ok(Cabinets);
         }
 

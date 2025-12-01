@@ -29,7 +29,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetAll([FromQuery] CabinetQueryParameters query)
         {
             var Cabinets = await _CabinetService.GetAllAsync(query);
-            await _auditlogservice.LogAsync(CurrentUserId, "Cabinet", "GetAll");
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "GetAll");
             return Ok(Cabinets);
         }
 
@@ -39,7 +39,7 @@ namespace EVWebApi.Controllers
         {
             var Cabinet = await _CabinetService.GetByIdAsync(id);
             if (Cabinet == null) return NotFound();
-            await _auditlogservice.LogAsync(CurrentUserId, "Cabinet", "Get", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Get", id);
             return Ok(Cabinet);
         }
 
@@ -47,7 +47,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Create([FromBody] CreateCabinetDto dto)
         {
             var created = await _CabinetService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, "Cabinet", "Create", created.CabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Create", created.CabinetId);
             return CreatedAtAction(nameof(Get), new { id = created.CabinetId }, created);
         }
 
@@ -58,7 +58,7 @@ namespace EVWebApi.Controllers
             if (id != dto.CabinetId)
                 throw new BadRequestException("Cabinet not exists");
             var updated = await _CabinetService.UpdateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, "Cabinet", "Update", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Update", id);
             return Ok(updated);
         }
 
@@ -67,7 +67,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             await _CabinetService.DeleteAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, "Cabinet", "Delete", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete", id);
             return NoContent();
         }
     }

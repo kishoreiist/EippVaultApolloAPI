@@ -19,7 +19,7 @@ namespace EVWebApi.Services
             _configuration = configuration;
         }
 
-        public async Task LogAsync(int userId, string module, string action, int? targetId = null, string? details = null)
+        public async Task LogAsync(int userId, string username,string module, string action, int? targetId = null, string? details = null)
         {
             var ip = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
 
@@ -40,6 +40,7 @@ namespace EVWebApi.Services
             var log = new AuditLog
             {
                 UserId = userId,
+                UserName = username,
                 Module = module,
                 Action = action,
                 TargetId = targetId,

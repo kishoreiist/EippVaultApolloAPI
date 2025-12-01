@@ -7,7 +7,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<Document> CreateDocument(Document doc);
         Task<Document> GetDocument(int id);
         Task<int> GetLatestVersion(int cabinetId, string fileName);
-        Task UpdateStatus(int id, string status);
+        Task UpdateStatus(int id);
         Task DeleteDocument(int documentId);
 
         IQueryable<Document> Query();

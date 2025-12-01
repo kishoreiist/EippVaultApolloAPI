@@ -9,6 +9,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<User> GetByEmailAsync(string email);
         Task<IEnumerable<User>> GetAllAsync();
         Task<int> SaveChangesAsync(); 
-        IQueryable<User> Query();   
+        IQueryable<User> Query();
+        void SoftDelete(User user);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -29,7 +30,8 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetAll([FromQuery] UserQueryParameters query)
         {
             var users = await _userService.GetAllAsync(query);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User","GetAll");
+            string filterDetails = query.ToFilterLog();
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User","GetAll", null,filters: filterDetails);
             return Ok(users);
         }
 

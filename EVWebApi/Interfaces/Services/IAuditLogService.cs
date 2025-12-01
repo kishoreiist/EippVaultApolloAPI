@@ -4,6 +4,7 @@
     {
         Task LogAsync(
                   int userId,
+                  string username,
                   string module,
                   string action,
                   int? targetId = null,

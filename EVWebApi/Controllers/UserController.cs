@@ -29,7 +29,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetAll([FromQuery] UserQueryParameters query)
         {
             var users = await _userService.GetAllAsync(query);
-            await _auditlogservice.LogAsync(CurrentUserId, "User","GetAll");
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User","GetAll");
             return Ok(users);
         }
 
@@ -39,7 +39,7 @@ namespace EVWebApi.Controllers
         {
             var user = await _userService.GetByIdAsync(id);
             if (user == null) return NotFound();
-            await _auditlogservice.LogAsync(CurrentUserId, "User", "Get", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Get", id);
             return Ok(user);
         }
 
@@ -48,7 +48,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
             var created = await _userService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, "User", "Create", created.UserId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Create", created.UserId);
             return CreatedAtAction(nameof(Get), new { id = created.UserId }, created);
         }
 
@@ -59,7 +59,7 @@ namespace EVWebApi.Controllers
             if (id != dto.UserId)
                 throw new BadRequestException("User not exists");
             var updated = await _userService.UpdateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, "User", "Update", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Update", id);
             return Ok(updated);
         }
 
@@ -68,7 +68,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             await _userService.DeleteAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, "User", "Delete", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Delete", id);
             return NoContent();
         }
     }

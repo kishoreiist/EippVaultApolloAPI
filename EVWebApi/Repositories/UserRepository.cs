@@ -28,6 +28,7 @@ namespace EVWebApi.Repositories
         public override async Task<User?> GetByIdAsync(int id)
         { 
             return await Query()
+                .Include(u => u.UserGroup)
                 .FirstOrDefaultAsync(u => u.UserId == id);
         }
 

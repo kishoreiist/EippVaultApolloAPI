@@ -210,48 +210,52 @@ namespace EVWebApi.Services
 
             // AMOUNT 
         
-            if (query.Amount.HasValue || !string.IsNullOrWhiteSpace(query.AmountFrom))
+            if (query.Amount.HasValue)
             {
-                switch (query.SearchType)
+                switch (query.AmountType)
                 {
-                    case SearchType.greater:
+                    case AmountType.greater:
                         docQuery = docQuery.Where(d => d.Amount > query.Amount.Value);
                         break;
-                    case SearchType.less:
+                    case AmountType.less:
                         docQuery = docQuery.Where(d => d.Amount < query.Amount.Value);
                         break;
-                    case SearchType.between:
-                        if (decimal.TryParse(query.AmountFrom, out var min) &&
-                            decimal.TryParse(query.AmountTo, out var max))
+                    case AmountType.between:
+                        if (query.Amount.HasValue && query.AmountTo.HasValue)
                         {
+                            var min = query.Amount.Value;
+                            var max = query.AmountTo.Value;
+
                             docQuery = docQuery.Where(d => d.Amount >= min && d.Amount <= max);
                         }
                         break;
-                    case SearchType.equal:
+                    case AmountType.equal:
                     default:
                         docQuery = docQuery.Where(d => d.Amount == query.Amount.Value);
                         break;
                 }
             }
             //PaidAmount
-            if (query.PaidAmount.HasValue || !string.IsNullOrWhiteSpace(query.PaidAmountFrom))
+            if (query.PaidAmount.HasValue)
             {
-                switch (query.SearchType)
+                switch (query.AmountType)
                 {
-                    case SearchType.greater:
+                    case AmountType.greater:
                         docQuery = docQuery.Where(d => d.PaidAmount > query.PaidAmount.Value);
                         break;
-                    case SearchType.less:
+                    case AmountType.less:
                         docQuery = docQuery.Where(d => d.PaidAmount < query.PaidAmount.Value);
                         break;
-                    case SearchType.between:
-                        if (decimal.TryParse(query.PaidAmountFrom, out var min) &&
-                            decimal.TryParse(query.PaidAmountTo, out var max))
+                    case AmountType.between:
+                        if (query.PaidAmount.HasValue && query.PaidAmountTo.HasValue)
                         {
+                            var min = query.PaidAmount.Value;
+                            var max = query.PaidAmountTo.Value;
+
                             docQuery = docQuery.Where(d => d.PaidAmount >= min && d.PaidAmount <= max);
                         }
                         break;
-                    case SearchType.equal:
+                    case AmountType.equal:
                     default:
                         if (decimal.TryParse(query.PaidAmountFrom, out var min1) &&
                            decimal.TryParse(query.PaidAmountTo, out var max2))
@@ -269,24 +273,29 @@ namespace EVWebApi.Services
 
             // InvoiceDate
 
-            if (query.InvoiceDate.HasValue || !string.IsNullOrWhiteSpace(query.DateFrom))
+            if (query.InvoiceDate.HasValue)
             {
-                switch (query.SearchType)
+                switch (query.DateType)
                 {
-                    case SearchType.after:
+                    case DateType.after:
                         docQuery = docQuery.Where(d => d.InvoiceDate >= query.InvoiceDate.Value);
                         break;
-                    case SearchType.before:
+                    case DateType.before:
                         docQuery = docQuery.Where(d => d.InvoiceDate <= query.InvoiceDate.Value);
                         break;
-                    case SearchType.between:
-                        if (DateTime.TryParse(query.DateFrom, out var d1) &&
-                            DateTime.TryParse(query.DateTo, out var d2))
+                    case DateType.between:
+                        if (query.InvoiceDate.HasValue && query.InvoiceDateTo.HasValue)
                         {
-                            docQuery = docQuery.Where(d => d.InvoiceDate >= d1 && d.InvoiceDate <= d2);
+                            var d1 = query.InvoiceDate.Value.Date;
+                            var d2 = query.InvoiceDateTo.Value.Date;
+
+                            docQuery = docQuery.Where(d =>
+                                d.InvoiceDate >= d1 && d.InvoiceDate <= d2
+                            );
                         }
                         break;
-                    case SearchType.on:
+
+                    case DateType.on:
                     default:
                         if (DateTime.TryParse(query.DateFrom, out var d3) &&
                             DateTime.TryParse(query.DateTo, out var d4))
@@ -302,24 +311,28 @@ namespace EVWebApi.Services
                 }
             }
             //DOJ
-            if (query.DOJ.HasValue || !string.IsNullOrWhiteSpace(query.DOJDateFrom))
+            if (query.DOJ.HasValue)
             {
-                switch (query.SearchType)
+                switch (query.DateType)
                 {
-                    case SearchType.after:
+                    case DateType.after:
                         docQuery = docQuery.Where(d => d.DOJ >= query.DOJ.Value);
                         break;
-                    case SearchType.before:
+                    case DateType.before:
                         docQuery = docQuery.Where(d => d.DOJ <= query.DOJ.Value);
                         break;
-                    case SearchType.between:
-                        if (DateTime.TryParse(query.DOJDateFrom, out var d1) &&
-                            DateTime.TryParse(query.DOJDateTo, out var d2))
+                    case DateType.between:
+                        if (query.DOJ.HasValue && query.DOJDateTo.HasValue)
                         {
-                            docQuery = docQuery.Where(d => d.DOJ >= d1 && d.DOJ <= d2);
+                            var d1 = query.DOJ.Value.Date;
+                            var d2 = query.DOJDateTo.Value.Date;
+
+                            docQuery = docQuery.Where(d =>
+                                d.DOJ >= d1 && d.DOJ <= d2
+                            );
                         }
                         break;
-                    case SearchType.on:
+                    case DateType.on:
                     default:
                         docQuery = docQuery.Where(d => d.DOJ == query.DOJ.Value);
                         break;

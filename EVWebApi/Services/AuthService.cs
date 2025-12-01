@@ -80,6 +80,7 @@ public class AuthService : IAuthService
         var claims = new [] {
             new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
             new Claim("userId", user.UserId.ToString()),
+            new Claim("username", user.Username),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
        

@@ -8,6 +8,7 @@ using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace EVWebApi.Services
 {
@@ -31,71 +32,79 @@ namespace EVWebApi.Services
         }
 
         // ---------------------- UPLOAD ----------------------
-        //public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto)
-        //{
-        //    if (dto.File == null)
-        //        throw new BadRequestException("File is required");
+        public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int currentuserid)
+        {
+            if (dto.File == null)
+                throw new BadRequestException("File is required");
 
-        //    // Create folder if not exist
-        //    string folderPath = Path.Combine(_env.ContentRootPath, "Uploads", "Documents", dto.CabinetId.ToString());
-        //    if (!Directory.Exists(folderPath))
-        //        Directory.CreateDirectory(folderPath);
+            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
+            if (cabinet == null)
+                throw new Exception("Invalid CabinetId");
+            string folderName = cabinet.CabinetName;
+            string storageRoot = Path.Combine(_env.WebRootPath, "storage");
+            string cabinetFolder = Path.Combine(storageRoot, folderName);
+            if (!Directory.Exists(cabinetFolder))
+                Directory.CreateDirectory(cabinetFolder);
 
-        //    // Versioning logic
-        //    int version = await _repo.GetLatestVersion(dto.CabinetId, dto.File.FileName) + 1;
+            // Versioning logic
+            int version = await _repo.GetLatestVersion(dto.CabinetId, dto.File.FileName) + 1;
 
-        //    // Create unique filename
-        //    string fileName = $"{Path.GetFileNameWithoutExtension(dto.File.FileName)}_v{version}{Path.GetExtension(dto.File.FileName)}";
-        //    string filePath = Path.Combine(folderPath, fileName);
+            // Create unique filename
+            string fileName = $"{Path.GetFileNameWithoutExtension(dto.File.FileName)}_v{version}{Path.GetExtension(dto.File.FileName)}";
+            string fullPath = Path.Combine(cabinetFolder, fileName);
 
-        //    // Save file physically
-        //    using (var stream = new FileStream(filePath, FileMode.Create))
-        //    {
-        //        await dto.File.CopyToAsync(stream);
-        //    }
+            // Save file physically
+            using (var stream = new FileStream(fullPath, FileMode.Create))
+            {
+                await dto.File.CopyToAsync(stream);
+            }
 
-        //    // Save to DB
-        //    var doc = await _repo.CreateDocument(new Document
-        //    {
-        //        CabinetId = dto.CabinetId,
-        //        FileName = fileName,
-        //        FilePath = filePath,
-        //        UploadedBy = dto.UploadedBy,
-        //        Version = version,
-        //        Status = "active"
-        //    });
 
-        //    if (doc == null)
-        //        throw new ServerException("Failed to save document");
+                // Save to DB
+                var doc = await _repo.CreateDocument(new Document
+            {
+                CabinetId = dto.CabinetId,
+                FileName = fileName,
+                FilePath = $"/storage/{folderName}/{fileName}",
+                UploadedBy = currentuserid,
+                Version = version,
+                Status = "active",
+                UploadedAt= DateTime.UtcNow
+            });
 
-        //    if (dto.Metadata != null)
-        //    {
-        //        foreach (var item in dto.Metadata)
-        //        {
-        //            await _metadataRepo.AddMetadata(new Metadata
-        //            {
-        //                DocumentId = doc.DocumentId,
-        //                MetaKey = item.Key,
-        //                MetaValue = item.Value
-        //            });
-        //        }
-        //    }
+            if (doc == null)
+                throw new ServerException("Failed to save document");
 
-        //    return new DocumentResponseDto
-        //    {
-        //        DocumentId = doc.DocumentId,
-        //        FileName = doc.FileName,
-        //        UploadedAt = doc.UploadedAt,
-        //        Status = doc.Status,
-        //        Version = doc.Version,
-        //        Metadata = dto.Metadata?.Select(x => new MetadataDTO
-        //        {
-        //            Key = x.Key,
-        //            Value = x.Value
-        //        }).ToList()
-        //    };
+            if (dto.Metadata != null && dto.Metadata.Any())
+            {
+                var metadataList = dto.Metadata.Select(x => new Metadata
+                {
+                    DocumentId = doc.DocumentId,
+                    MetaKey = x.Key,
+                    MetaValue = x.Value
+                }).ToList();
 
-        //}
+                await _metadataRepo.AddMetadata(metadataList);
+            }
+
+
+            return new DocumentResponseDto
+            {
+                DocumentId = doc.DocumentId,
+                CabinetId=doc.CabinetId,
+                FileName = doc.FileName,
+                FilePath=doc.FilePath,
+                UploadedAt = doc.UploadedAt,
+                Status = doc.Status,
+                Version = doc.Version,
+                Metadata = dto.Metadata?.Select(x => new MetadataDTO
+                {
+                    Key = x.Key,
+                    Value = x.Value
+                }).ToList()
+            };
+
+        }
 
 
         // ---------------------- GET DOCUMENT BY Doc Id ----------------------
@@ -108,20 +117,7 @@ namespace EVWebApi.Services
 
             var metadata = await _metadataRepo.GetMetadataByDocumentId(id);
             return _mapper.Map<DocumentResponseDto>(doc);
-            
-            //return new DocumentResponseDto
-            //{
-            //    DocumentId = doc.DocumentId,
-            //    FileName = doc.FileName,
-            //    Version = doc.Version,
-            //    UploadedAt = doc.UploadedAt,
-            //    Status = doc.Status,
-            //    Metadata = metadata.Select(m => new MetadataDTO
-            //    {
-            //        Key = m.MetaKey,
-            //        Value = m.MetaValue
-            //    }).ToList()
-            //};
+         
         }
         //--------------------- GET BY Cabinet ID --------------------
         public async Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId,DocumentQueryParameters query)
@@ -350,7 +346,8 @@ namespace EVWebApi.Services
 
             // TOTAL BEFORE PAGINATION
             var totalRecords = docQuery.Count();
-
+            docQuery = docQuery
+                .Include(d => d.MetadataList);
             // APPLY PAGINATION
             var pagedDocs = docQuery
                 .Skip(query.Offset)
@@ -358,6 +355,8 @@ namespace EVWebApi.Services
                 .ToList();
 
             // MAP TO DTO
+
+            
             var docDtos = _mapper.Map<List<DocumentResponseDto>>(pagedDocs);
 
             return new PagedResponse<DocumentResponseDto>

@@ -26,6 +26,7 @@ namespace EVWebApi.Repositories
         public async Task<Document> GetDocument(int id)
         {
             var doc = await _context.Documents
+                .Include(d => d.MetadataList)
                 .FirstOrDefaultAsync(d => d.DocumentId == id);
 
             if (doc == null)

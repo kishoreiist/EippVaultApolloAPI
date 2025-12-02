@@ -7,7 +7,7 @@
             string? username,
             string module,
             string action,
-            int? targetId = null,
+            string? target = null,
             int? cabinetId = null,  
             string? filters = null)
         {
@@ -39,7 +39,7 @@
                 .Replace("{username}", username)
                 .Replace("{action}", action)
                 .Replace("{cabinetName}", cabinetName)
-                .Replace("{targetId}", targetId?.ToString() ?? "N/A")
+                .Replace("{target}", target)
                 .Replace("{filters}", string.IsNullOrEmpty(filters) ? string.Empty : filters);
         }
     }

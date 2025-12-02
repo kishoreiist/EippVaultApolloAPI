@@ -41,7 +41,7 @@ namespace EVWebApi.Controllers
         {
             var user = await _userService.GetByIdAsync(id);
             if (user == null) return NotFound();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Get", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Get",user.Username);
             return Ok(user);
         }
 
@@ -50,7 +50,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
             var created = await _userService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Create", created.UserId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Create",created.Username);
             return CreatedAtAction(nameof(Get), new { id = created.UserId }, created);
         }
 
@@ -61,7 +61,7 @@ namespace EVWebApi.Controllers
             if (id != dto.UserId)
                 throw new BadRequestException("User not exists");
             var updated = await _userService.UpdateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Update", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Update", updated.Username);
             return Ok(updated);
         }
 
@@ -70,7 +70,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             await _userService.DeleteAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Delete", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Delete");
             return NoContent();
         }
     }

@@ -8,7 +8,7 @@ public class AuditLog {
     [Column("log_id")]
     public int LogId { get; set; }
     [Column("user_id")]
-    public int? UserId { get; set; }
+    public int UserId { get; set; }
     [Column("action")]
     public string Action { get; set; }
     [Column("mfa_attempt")]
@@ -23,11 +23,11 @@ public class AuditLog {
 
 
     [Column("module")]
-    public string? Module { get; set; }
+    public string Module { get; set; }
     [Column("username")]
     public string? UserName { get; set; }
-    [Column("target_id")]
-    public int? TargetId { get; set; }
+    [Column("target")]
+    public string? Target { get; set; }
     [Column("details")]
     public string? Details { get; set; }
 }

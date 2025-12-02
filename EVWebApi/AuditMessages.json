@@ -1,13 +1,14 @@
 {
   "AuditMessages": {
     "CommonActions": {
-      "Create": "{username} created a new record successfully in {module} page. Record ID: {targetId}.",
-      "Get": "{username} successfully retrieved the details from {module} page. Record ID: {targetId}.",
+      "Create": "{username} created a new record successfully in {module} page. Record: {target}.",
+      "Get": "{username} successfully retrieved the details from {module} page. Record: {target}.",
       "GetAll": "{username} successfully retrieved all details.Search Filters applied - {filters}",
-      "Update": "{username} updated {module} page, Record ID : {targetId}.",
-      "Delete": "{username} removed Record ID: {targetId} from {module} page.",
+      "Update": "{username} updated {module} page, Record : {target}.",
+      "Delete": "{username} removed a record from {module} page.",
       "Document_Get": "{username} successfully retrieved records in {cabinetName} cabinet.Search Filters applied - {filters}",
-      "Document_Update": "{username} updated record in {cabinetName} cabinet. Record ID: {targetId}",
+      "Document_Update": "{username} updated record in {cabinetName} cabinet.",
+      "Document_Upload": "{username} uploaded record in {cabinetName} cabinet. Record Detail - File Name : {target}.",
       "Send_Email": "{username} send an email. Details :{filters}",
 
       "Login": "User authenticated successfully.{filters}",
@@ -16,7 +17,7 @@
       "Logout": "User successfully logged out."
     },
     "Default": {
-      "Message": "Executed action: {action} on module: {module}. Target ID: {targetId}.Details - {filters}"
+      "Message": "Executed action: {action} on module: {module}. Record: {target}.Details - {filters}"
     }
   }
 }

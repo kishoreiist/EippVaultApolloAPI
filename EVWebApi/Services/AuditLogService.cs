@@ -30,7 +30,7 @@ namespace EVWebApi.Services
             _mapper = mapper;
         }
 
-        public async Task LogAsync(int userId, string username,string module, string action, int? targetId = null, int? cabinetId = null,  string? details = null, string? filters = null)
+        public async Task LogAsync(int userId, string username,string module, string action, string? target = null, int? cabinetId = null,  string? details = null, string? filters = null)
         {
             var ip = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
 
@@ -44,7 +44,7 @@ namespace EVWebApi.Services
                 username,
                 module,
                 action,
-                targetId,
+                target,
                 cabinetId,
                 filters
             );
@@ -56,7 +56,7 @@ namespace EVWebApi.Services
                 UserName = username,
                 Module = module,
                 Action = action,
-                TargetId = targetId,
+                Target = target,
                 Details = details,
                 Timestamp= DateTime.UtcNow,
                 IpAddress = ip

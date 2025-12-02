@@ -3,18 +3,20 @@
     "CommonActions": {
       "Create": "{username} created a new record successfully in {module} page. Record ID: {targetId}.",
       "Get": "{username} successfully retrieved the details from {module} page. Record ID: {targetId}.",
-      "GetAll": "{username} successfully retrieved all details.{filters}",
-      "Update": "{username} updated {module} page, recordId : {targetId}.",
+      "GetAll": "{username} successfully retrieved all details.Search Filters applied - {filters}",
+      "Update": "{username} updated {module} page, Record ID : {targetId}.",
       "Delete": "{username} removed Record ID: {targetId} from {module} page.",
-      "Document_Get": "{username} successfully retrieved CabinetId : {targetId} in Document Page.{filters}",
-      "Document_Update": "{username} updated {module} page, CabinetId : {targetId} "
-    },
-    "Auth": {
-      "Login": "User successfully logged in.",
+      "Document_Get": "{username} successfully retrieved records in {cabinetName} cabinet.Search Filters applied - {filters}",
+      "Document_Update": "{username} updated record in {cabinetName} cabinet. Record ID: {targetId}",
+      "Send_Email": "{username} send an email. Details :{filters}",
+
+      "Login": "User authenticated successfully.{filters}",
+      "Enable-MFA": "MFA Enabled Successfully,{filters}",
+      "Verify-MFA": "MFA verified and JWT token issued for {username}. Details - {filters}",
       "Logout": "User successfully logged out."
     },
     "Default": {
-      "Message": "Executed action: {action} on module: {module}. Target ID: {targetId}.{filters}"
+      "Message": "Executed action: {action} on module: {module}. Target ID: {targetId}.Details - {filters}"
     }
   }
 }

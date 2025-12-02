@@ -1,5 +1,6 @@
 ﻿using EVWebApi.DTOs;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -22,7 +23,8 @@ namespace EVWebAPI.Controllers
         private readonly IUserService _userService;
 
         private readonly ILogger<AuthController> _logger;
-        public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger, IUserService userService)
+        private readonly IAuditLogService _auditlogservice;
+        public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger, IUserService userService, IAuditLogService auditlogservice)
         {
             ArgumentNullException.ThrowIfNull(authService);
             ArgumentNullException.ThrowIfNull(mfaService);
@@ -34,6 +36,7 @@ namespace EVWebAPI.Controllers
             _userRepo = userRepo;
             _logger = logger;
             _userService = userService;
+            _auditlogservice = auditlogservice;
         }
 
         [HttpPost("login")]
@@ -49,25 +52,30 @@ namespace EVWebAPI.Controllers
                 throw new ValidationException("Invalid login payload");
 
           
-                var result = await _authService.AuthenticateAsync(request.Email, request.Password);
-                if (result == "MFA_REQUIRED")
-                {
-                    _logger.LogInformation("MFA required for {Email}", request.Email);
-                    // 202 Accepted: MFA flow was started (token generation & sending)
-
-                    return Accepted(new
+            var result = await _authService.AuthenticateAsync(request.Email, request.Password);
+            var Reqfilters = request.ToFilterLog();
+            if (result.MfaRequired)
+            {
+                _logger.LogInformation("MFA required for {Email}", request.Email);
+                // 202 Accepted: MFA flow was started (token generation & sending)
+                await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login", null, null, null, filters: Reqfilters);
+                return Accepted(new
                     {
                         status = "MFA_REQUIRED"
                     });
-                }
+            }
 
-                if (result is null)
-                {
-                    throw new AuthenticationException("Invalid email or password");
-                }
+            if (result is null)
+            {
+                throw new AuthenticationException("Invalid email or password");
+            }
 
-                _logger.LogInformation("User {Email} authenticated successfully", request.Email);
-                return Ok(new { token = result });
+                
+            await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login", null, null, null,filters: Reqfilters);
+
+            _logger.LogInformation("User {Email} authenticated successfully", request.Email);
+            
+            return Ok(new { token = result.Token });
            
         }
 
@@ -113,6 +121,11 @@ namespace EVWebAPI.Controllers
                 // Optional: return a data URL to simplify frontend
                 var dataUrl = $"data:image/png;base64,{base64Png}";
 
+
+                var Reqfilters = request.ToFilterLog();
+                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Enable-MFA", null, null, null, filters: Reqfilters);
+
+
                 return Ok(new
                 {
                     qrCodeBase64 = base64Png,     // raw base64 (PNG)
@@ -128,6 +141,9 @@ namespace EVWebAPI.Controllers
                 user.MfaEnabled = true; // or enable after first successful verification
                 _userRepo.Update(user);
                 await _userRepo.SaveChangesAsync();
+
+                var Reqfilters = request.ToFilterLog();
+                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Enable-MFA", null, null, null,filters: Reqfilters);
 
                 return Ok(new { message = "Email MFA enabled. A verification code has been sent to your email." });
             }
@@ -179,6 +195,9 @@ namespace EVWebAPI.Controllers
             var jwt = await _authService.GenerateJwtAfterMfaAsync(request.Email);
             var userDto = await _userService.GetByIdAsync(user.UserId);
             _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
+
+            var filters = request.ToFilterLog();
+            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Verify-MFA", null, null, null, filters: filters);
 
             return Ok(new { token = jwt, user = userDto });
            

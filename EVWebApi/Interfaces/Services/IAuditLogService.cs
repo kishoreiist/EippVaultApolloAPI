@@ -1,4 +1,7 @@
-﻿namespace EVWebApi.Interfaces.Services
+﻿using EVWebApi.DTOs.Audit;
+using EVWebApi.DTOs.Pagination;
+
+namespace EVWebApi.Interfaces.Services
 {
     public interface IAuditLogService
     {
@@ -8,26 +11,16 @@
                   string module,
                   string action,
                   int? targetId = null,
+                  int? cabinetId = null,
                   string? details = null,
                   string? filters = null
               );
 
-        //pagination+filter 
-
-        Task<(IEnumerable<AuditLog> Logs, int TotalCount)> GetLogsAsync(
-            int page = 1,
-            int pageSize = 20,
-            string? userName = null,
-            string? module = null,
-            string? action = null,
-            DateTime? fromDate = null,
-            DateTime? toDate = null
-        );
+        Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query, CancellationToken cancellationToken = default);
         //export to csv
-        Task<byte[]> ExportLogsToCsvAsync(
-            string? userName = null,
-            string? module = null,
-            string? action = null,
+        Task ExportLogsToCsvAsync(
+            Stream outputStream,
+            string? search = null,
             DateTime? fromDate = null,
             DateTime? toDate = null
         );

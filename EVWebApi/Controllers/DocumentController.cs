@@ -44,7 +44,7 @@ namespace EVWebApi.Controllers
         {
             var docs = await _documentService.GetDocumentsByCabinetId(cabinetId, query);
             string filterDetails = query.ToFilterLog();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Get", cabinetId, null, filters: filterDetails);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Get", null,cabinetId, null, filters: filterDetails);
 
             return Ok(docs);
         }
@@ -95,7 +95,7 @@ namespace EVWebApi.Controllers
             if (updated == null)
                 return NotFound(new { message = "Document not found" });
 
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Update", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Update", id,updated.CabinetId);
 
             return Ok(updated);
         }
@@ -107,7 +107,7 @@ namespace EVWebApi.Controllers
 
             if (!success)
                 return NotFound(new { message = "Document not found" });
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Delete", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete", id);
             return Ok(new { message = "Document deleted successfully" });
         }
     }

@@ -1,4 +1,5 @@
-﻿using EVWebApi.Interfaces.Services;
+﻿using EVWebApi.DTOs.Audit;
+using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
@@ -14,61 +15,38 @@ namespace EVWebApi.Controllers
             _auditLogService = auditLogService;
         }
 
-
         [HttpGet("logs")]
-        public async Task<IActionResult> GetAuditLogs(
-            int page = 1,
-            int pageSize = 20,
-            string? userName = null,
-            string? module = null,
-            string? action = null,
-            DateTime? fromDate = null,
-            DateTime? toDate = null
-        )
+        public async Task<IActionResult> GetAuditLogs([FromQuery] AuditLogQueryParameters query)
         {
-            var (logs, totalCount) = await _auditLogService.GetLogsAsync(
-                page,
-                pageSize,
-                userName,
-                module,
-                action,
-                fromDate,
-                toDate
-            );
-
-            return Ok(new
-            {
-                page,
-                pageSize,
-                totalCount,
-                totalPages = (int)Math.Ceiling((double)totalCount / pageSize),
-                data = logs
-            });
+            var result = await _auditLogService.GetLogsAsync(query);
+            return Ok(result);
         }
 
 
         [HttpGet("logs/export")]
-        public async Task<IActionResult> ExportCsv(
-            string? userName = null,
-            string? module = null,
-            string? action = null,
-            DateTime? fromDate = null,
-            DateTime? toDate = null
+        public async Task ExportCsv(
+            [FromQuery] string? search = null,
+            [FromQuery] DateTime? fromDate = null,
+            [FromQuery] DateTime? toDate = null
         )
         {
-            var csvBytes = await _auditLogService.ExportLogsToCsvAsync(
-                userName,
-                module,
-                action,
+            Response.ContentType = "text/csv";
+            Response.Headers.Add("Content-Disposition", "attachment; filename=audit_logs.csv");
+            await _auditLogService.ExportLogsToCsvAsync(
+                Response.Body,
+                search,
                 fromDate,
                 toDate
-            );
+            
+            //stream.Position = 0;
 
-            return File(
-                csvBytes,
-                "text/csv",
-                "audit_logs.csv"
+            //return File(
+            //    stream,
+            //    "text/csv",
+            //    "audit_logs.csv"
             );
         }
+
     }
+
 }

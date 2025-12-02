@@ -286,7 +286,6 @@ namespace EVWebApi.Services
                 }
             }
 
-
             // InvoiceDate
 
             if (query.InvoiceDate.HasValue)

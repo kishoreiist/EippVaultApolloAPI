@@ -76,7 +76,7 @@ namespace EVWebApi.Services
 
 
         public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,CancellationToken cancellationToken = default)
-        {
+        { 
 
 
             var auditQuery = _context.AuditLogs.AsQueryable();
@@ -197,5 +197,7 @@ namespace EVWebApi.Services
             // Call the main implementation, passing default CancellationToken
              await ExportLogsToCsvAsync(outputStream, search, fromDate, toDate, default);
         }
+
+
     }
 }

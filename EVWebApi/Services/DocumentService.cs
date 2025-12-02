@@ -281,7 +281,7 @@ namespace EVWebApi.Services
                         break;
                     case AmountType.equal:
                     default:
-                        docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
+                            docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
                         break;
                 }
             }
@@ -314,6 +314,7 @@ namespace EVWebApi.Services
                     case DateType.on:
                     default:
                         docQuery = docQuery.Where(d => d.InvoiceDate == query.InvoiceDate.Value);
+                            
                         break;
                 }
             }

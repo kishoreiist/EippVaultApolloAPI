@@ -22,7 +22,6 @@ namespace EVWebApi.Controllers
             return Ok(result);
         }
 
-
         [HttpGet("logs/export")]
         public async Task ExportCsv(
             [FromQuery] string? search = null,

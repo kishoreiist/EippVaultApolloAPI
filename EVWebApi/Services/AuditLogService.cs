@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace EVWebApi.Services
 {
@@ -87,10 +88,11 @@ namespace EVWebApi.Services
             string? module = null,
             string? action = null,
             DateTime? fromDate = null,
-            DateTime? toDate = null
-            //for user specific logs
-            //int? currentUserId = null,
-            //bool isAdmin = false
+            DateTime? toDate = null,
+            CancellationToken cancellationToken = default
+        //for user specific logs
+        //int? currentUserId = null,
+        //bool isAdmin = false
         )
         {
             // Bound page size to avoid expensive queries

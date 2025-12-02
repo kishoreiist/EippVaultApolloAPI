@@ -13,9 +13,9 @@ namespace EVWebApi.Repositories
             _context = context;
         }
 
-        public async Task AddMetadata(Metadata metadata)
+        public async Task AddMetadata(IEnumerable<Metadata> metadata)
         {
-            _context.Metadata.Add(metadata);
+            _context.Metadata.AddRange(metadata);
             await _context.SaveChangesAsync();
         }
 

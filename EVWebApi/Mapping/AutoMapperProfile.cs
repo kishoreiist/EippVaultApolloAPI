@@ -62,7 +62,20 @@ namespace EVWebApi.Mapping
                 .ForAllMembers(opt => opt.Condition(
                     (src, dest, srcValue) => srcValue != null));
 
-            CreateMap<Document, DocumentResponseDto>();
+            CreateMap<Document, DocumentResponseDto>()
+                .ForMember(
+                dest => dest.Metadata,
+                opt => opt.MapFrom(src => src.MetadataList)
+                );
+            CreateMap<Metadata, MetadataDTO>()
+            .ForMember(
+                dest => dest.Key,
+                opt => opt.MapFrom(src => src.MetaKey)
+            )
+            .ForMember(
+                dest => dest.Value,
+                opt => opt.MapFrom(src => src.MetaValue)
+            );
             CreateMap<Document, UpdateDocumentDto>()
                 .ForAllMembers(opt => opt.Condition(
                     (src, dest, srcValue) => srcValue != null));

@@ -10,7 +10,7 @@ namespace EVWebApi.Interfaces.Services
                   string username,
                   string module,
                   string action,
-                  int? targetId = null,
+                  string? target = null,
                   int? cabinetId = null,
                   string? details = null,
                   string? filters = null

@@ -1,10 +1,16 @@
-﻿namespace EVWebApi.DTOs.Document
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace EVWebApi.DTOs.Document
 {
     public class UpdateDocumentDto
     {
         public int CabinetId { get; set; }    
         public string? FileName { get; set; }
         public string? FilePath { get; set; }
+
+        public string? MetadataJson { get; set; }
+
+        [NotMapped]
         public List<MetadataDTO>? Metadata { get; set; }
 
 

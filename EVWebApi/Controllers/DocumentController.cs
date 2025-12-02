@@ -20,21 +20,22 @@ namespace EVWebApi.Controllers
             _auditlogservice = auditLogService;
         }
 
-        // Upload Document
-        //[HttpPost("upload")]
-        //public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
-        //{
-        //    var result = await _documentService.UploadDocument(dto);
-        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Upload", result.DocumentId);
-        //    return Ok(result);
-        //}
+        //Upload Document
+       [HttpPost("upload")]
+        public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
+        {
+            var result = await _documentService.UploadDocument(dto, CurrentUserId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername,"Document", "Document_Upload", result.FileName,result.CabinetId);// need to pass index fileds as filters
+
+            return Ok(result);
+        }
 
         // Get document metadata
         [HttpGet("{id}")]
         public async Task<IActionResult> GetDocument(int id)
         {
             var doc = await _documentService.GetDocument(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Get", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Get", doc.FileName);
             return Ok(doc);
         }
 
@@ -95,7 +96,7 @@ namespace EVWebApi.Controllers
             if (updated == null)
                 return NotFound(new { message = "Document not found" });
 
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Update", id,updated.CabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Update",updated.FileName,updated.CabinetId);
 
             return Ok(updated);
         }
@@ -107,7 +108,7 @@ namespace EVWebApi.Controllers
 
             if (!success)
                 return NotFound(new { message = "Document not found" });
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete");
             return Ok(new { message = "Document deleted successfully" });
         }
     }

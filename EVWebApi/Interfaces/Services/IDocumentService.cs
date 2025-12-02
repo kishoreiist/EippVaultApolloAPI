@@ -6,7 +6,7 @@ namespace EVWebApi.Interfaces.Services
 {
     public interface IDocumentService
     {
-        //Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto);
+        Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int CurrentUserId);
         Task<DocumentResponseDto> GetDocument(int id);
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
         Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto);

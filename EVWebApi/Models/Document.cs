@@ -72,5 +72,7 @@ namespace EVWebApi.Models
         [Column("paid_amount")]
         public decimal? PaidAmount { get; set; }
 
+        public ICollection<Metadata> MetadataList { get; set; }
+
     }
 }

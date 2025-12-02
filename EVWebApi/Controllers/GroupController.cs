@@ -37,7 +37,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Get(int id)
         {
             var group = await _groupService.GetByIdAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Get", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Get", group.GroupName);
             if (group == null) return NotFound();
             return Ok(group);
         }
@@ -46,7 +46,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Create([FromBody] CreateGroupDto dto)
         {
             var created = await _groupService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Create", created.GroupId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Create", created.GroupName);
             return CreatedAtAction(nameof(Get), new { id = created.GroupId }, created);
         }
 
@@ -55,8 +55,8 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Update(int id, [FromBody] UpdateGroupDto dto)
         {
             if (id != dto.GroupId) return BadRequest();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Update", id);
             var updated = await _groupService.UpdateAsync(dto);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Update", updated.GroupName);
             return Ok(updated);
         }
 
@@ -65,7 +65,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             await _groupService.DeleteAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Delete", id);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Delete");
             return NoContent();
         }
 

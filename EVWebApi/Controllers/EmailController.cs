@@ -1,5 +1,7 @@
 ﻿using EVWebApi.DTOs;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
+using EVWebApi.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
@@ -9,10 +11,11 @@ namespace EVWebApi.Controllers
     public class EmailController : BaseController
     {
         private readonly IEmailSender _emailSender;
-
-        public EmailController(IEmailSender emailSender)
+        private readonly IAuditLogService _auditlogservice;
+        public EmailController(IEmailSender emailSender, IAuditLogService auditLogService)
         {
             _emailSender = emailSender;
+            _auditlogservice = auditLogService;
         }
 
         [HttpPost("send")]
@@ -35,7 +38,9 @@ namespace EVWebApi.Controllers
                     attachmentFilePaths: request.AttachmentPaths,
                     ccEmails: request.Cc
                 );
+                var filters = request.ToFilterLog();
 
+                await _auditlogservice.LogAsync( CurrentUserId, CurrentUsername, "Email", "Email_Send", null,null,null,filters: filters);
                 return Ok(new { message = "Email sent successfully." });
             }
             catch (Exception ex)

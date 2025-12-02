@@ -1,5 +1,5 @@
 ﻿using AutoMapper;
-using EVWebApi.DTOs;
+using EVWebApi.DTOs.Audit;
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
@@ -66,6 +66,8 @@ namespace EVWebApi.Mapping
             CreateMap<Document, UpdateDocumentDto>()
                 .ForAllMembers(opt => opt.Condition(
                     (src, dest, srcValue) => srcValue != null));
+
+            CreateMap<AuditLog, AuditLogDTO>();
         }
     }
 }

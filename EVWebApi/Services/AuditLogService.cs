@@ -1,11 +1,15 @@
-﻿using EVWebApi.Data;
+﻿using AutoMapper;
+using EVWebApi.Data;
+using EVWebApi.DTOs.Audit;
+using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.Pagination;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using System.Linq;
+using Org.BouncyCastle.Utilities;
 using System.Text;
+
 
 namespace EVWebApi.Services
 {
@@ -16,31 +20,22 @@ namespace EVWebApi.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuditLogService> _logger;
 
-        public AuditLogService(AppDbContext context, IHttpContextAccessor httpContextAccessor, IConfiguration configuration, ILogger<AuditLogService> logger)
+        private readonly IMapper _mapper;
+        public AuditLogService(AppDbContext context, IHttpContextAccessor httpContextAccessor, IConfiguration configuration, ILogger<AuditLogService> logger,IMapper mapper)
         {
             _context = context;
             _httpContextAccessor = httpContextAccessor;
             _configuration = configuration;
             _logger = logger;
+            _mapper = mapper;
         }
 
-        public async Task LogAsync(int userId, string username,string module, string action, int? targetId = null, string? details = null, string? filters = null)
+        public async Task LogAsync(int userId, string username,string module, string action, int? targetId = null, int? cabinetId = null,  string? details = null, string? filters = null)
         {
             var ip = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
 
             if (string.IsNullOrEmpty(details))
             { 
-                //{
-                //    string? messageTemplate = null;
-                //    messageTemplate = _configuration.GetSection($"AuditMessages:CommonActions:{action}")?.Value;
-                //    if (string.IsNullOrEmpty(messageTemplate))
-                //    {
-                //        messageTemplate = _configuration.GetSection("AuditMessages:Default:Message").Value;
-                //    }
-                //    details = messageTemplate?
-                //.Replace("{targetId}", targetId?.ToString() ?? "N/A")
-                //.Replace("{module}", module)
-                //.Replace("{action}", action);
                 string? messageTemplate = _configuration.GetSection($"AuditMessages:CommonActions:{action}")?.Value
                                      ?? _configuration.GetSection("AuditMessages:Default:Message")?.Value;
 
@@ -50,6 +45,7 @@ namespace EVWebApi.Services
                 module,
                 action,
                 targetId,
+                cabinetId,
                 filters
             );
         }
@@ -64,7 +60,6 @@ namespace EVWebApi.Services
                 Details = details,
                 Timestamp= DateTime.UtcNow,
                 IpAddress = ip
-                //MfaStatus=mfa
             };
 
             _context.AuditLogs.Add(log);
@@ -80,146 +75,129 @@ namespace EVWebApi.Services
         }
 
 
-        //pagination+filter
+        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,CancellationToken cancellationToken = default)
+        { 
 
-        public async Task<(IEnumerable<AuditLog> Logs, int TotalCount)> GetLogsAsync(
-            int page = 1,
-            int pageSize = 20,
-            string? userName = null,
-            string? module = null,
-            string? action = null,
-            DateTime? fromDate = null,
-            DateTime? toDate = null
-            //for user specific logs
-            //int? currentUserId = null,
-            //bool isAdmin = false
-        )
-        {
-            // Bound page size to avoid expensive queries
-            const int MaxPageSize = 1000;
-            pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
 
-            var query = _context.AuditLogs
-                //.Include(a => a.UserId)
-                .AsNoTracking()
-                .AsQueryable();
+            var auditQuery = _context.AuditLogs.AsQueryable();
 
-            // for user specific logs
-            //if (!isAdmin && currentUserId.HasValue)
-            //{
-            //    query = query.Where(a => a.UserId == currentUserId.Value);
-            //}
+            // FILTERS
 
-            // FILTER: Username
-            if (!string.IsNullOrWhiteSpace(userName))
+            if (query.FromDate.HasValue)
+                auditQuery = auditQuery.Where(a => a.Timestamp >= query.FromDate.Value);
+
+            if (query.ToDate.HasValue)
+                auditQuery = auditQuery.Where(a => a.Timestamp <= query.ToDate.Value);
+
+            if (!string.IsNullOrWhiteSpace(query.search))
             {
-                var usernameLower = userName.ToLower();
-                query = query.Where(a => a.UserName != null && a.UserName.ToLower().Contains(usernameLower));
+                string term = query.search.ToLower();
+                auditQuery = auditQuery.Where(a =>
+                    (a.UserName != null && a.UserName.ToLower().Contains(term)) ||
+                    (a.Module != null && a.Module.ToLower().Contains(term)) ||
+                    (a.Action != null && a.Action.ToLower().Contains(term)) ||
+                    (a.Details != null && a.Details.ToLower().Contains(term))
+                );
             }
-
-            // FILTER: Module
-            if (!string.IsNullOrWhiteSpace(module))
-            {
-                var moduleLower = module.ToLower();
-                query = query.Where(a => a.Module != null && a.Module.ToLower() == moduleLower);
-            }
-
-            // FILTER: Action
-            if (!string.IsNullOrWhiteSpace(action))
-            {
-                var actionLower = action.ToLower();
-                query = query.Where(a => a.Action != null && a.Action.ToLower() == actionLower);
-            }
-
-            // FILTER: Date range
-            if (fromDate.HasValue)
-                query = query.Where(a => a.Timestamp >= fromDate.Value);
-
-            if (toDate.HasValue)
-                query = query.Where(a => a.Timestamp <= toDate.Value);
-
             // TOTAL COUNT BEFORE PAGINATION
-            int totalCount = await query.CountAsync(cancellationToken);
+            int totalCount = await auditQuery.CountAsync(cancellationToken);
 
             // APPLY PAGINATION + ORDERING
-            var logs = await query
+            var logs = await auditQuery
                 .OrderByDescending(a => a.Timestamp)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(query.Offset)
+                .Take(query.Limit)
                 .ToListAsync(cancellationToken);
 
-            return (logs, totalCount);
+            var mapped = _mapper.Map<List<AuditLogDTO>>(logs);
+
+            return new PagedResponse<AuditLogDTO>
+            {
+                Data = mapped,
+                TotalRecords = totalCount,
+                Offset = query.Offset,
+                Limit = query.Limit
+            };
+            //return (logs, totalCount);
         }
 
         // EXPORT TO CSV
 
-        public async Task<byte[]> ExportLogsToCsvAsync(
-            string? userName = null,
-            string? module = null,
-            string? action = null,
+        public async Task ExportLogsToCsvAsync(
+            Stream outputStream,
+            string? search = null,
             DateTime? fromDate = null,
-            DateTime? toDate = null
-            , CancellationToken cancellationToken = default
+            DateTime? toDate = null,
+            CancellationToken cancellationToken = default
         )
         {
-            // Stream pages to avoid loading massive datasets into memory at once
-            var sb = new StringBuilder();
-            sb.AppendLine("Timestamp,User,Module,Action,TargetId,Details,IP");
+            //var sb = new StringBuilder();
+            //sb.AppendLine("Timestamp,User,Module,Action,TargetId,Details,IP");
+            using var writer = new StreamWriter(outputStream, Encoding.UTF8, leaveOpen: true);
+            await writer.WriteLineAsync("Timestamp,User,Module,Action,TargetId,Details,IP");
 
-            int currentPage = 1;
-            const int exportPageSize = 1000; // reasonable chunk size
+            int offset = 0;
+            const int limit = 10; // reasonable chunk size
+
             while (true)
             {
-                var (logsChunk, _) = await GetLogsAsync(currentPage, exportPageSize, userName, module, action, fromDate, toDate, cancellationToken);
-                if (logsChunk == null || !logsChunk.Any()) break;
+
+                var query = new AuditLogQueryParameters
+                {
+                    Offset = offset,
+                    Limit = limit,
+                    search = search,
+                    FromDate = fromDate,
+                    ToDate = toDate
+                };
+                var result = await GetLogsAsync(query);
+                var logsChunk = result.Data;
+                if (logsChunk == null || !logsChunk.Any())
+                    break;
+                //var (logsChunk, _) = await GetLogsAsync(offset, limit, userName, module, action, fromDate, toDate, cancellationToken);
+                //if (logsChunk == null || !logsChunk.Any()) break;
 
                 foreach (var log in logsChunk)
                 {
-                    sb.AppendLine(
-                        $"{log.Timestamp:yyyy-MM-dd HH:mm:ss}," +
-                        $"{(log.UserId.HasValue ? log.UserId.Value.ToString() : string.Empty)}," +
-                        $"{(string.IsNullOrEmpty(log.UserName) ? string.Empty : log.UserName.Replace("\"", "\"\""))}," +
-                        $"{(string.IsNullOrEmpty(log.Module) ? string.Empty : log.Module.Replace("\"", "\"\""))}," +
-                        $"{(string.IsNullOrEmpty(log.Action) ? string.Empty : log.Action.Replace("\"", "\"\""))}," +
-                        $"{(log.TargetId.HasValue ? log.TargetId.Value.ToString() : string.Empty)}," +
-                        $"\"{(string.IsNullOrEmpty(log.Details) ? string.Empty : log.Details.Replace("\"", "\"\""))}\"," +
-                        $"{(string.IsNullOrEmpty(log.IpAddress) ? string.Empty : log.IpAddress)}"
+                        await writer.WriteLineAsync(
+                            $"{log.Timestamp:yyyy-MM-dd HH:mm:ss}," +
+                            $"{log.UserId}," + 
+                            $"\"{(log.UserName ?? string.Empty).Replace("\"", "\"\"")}\"," + 
+                            $"\"{(log.Module ?? string.Empty).Replace("\"", "\"\"")}\"," + 
+                            $"\"{(log.Action ?? string.Empty).Replace("\"", "\"\"")}\"," + 
+                            $"{(log.TargetId?.ToString() ?? string.Empty)}," +
+                            $"\"{(log.Details ?? string.Empty).Replace("\"", "\"\"")}\"," +
+                            $"{(log.IpAddress ?? string.Empty)}" 
                     );
                 }
 
-                if (logsChunk.Count() < exportPageSize) break;
-                currentPage++;
+                if (logsChunk.Count() < limit) break;
+                offset += limit;
             }
-
-            return Encoding.UTF8.GetBytes(sb.ToString());
+            //return Encoding.UTF8.GetBytes(sb.ToString());
+            await writer.FlushAsync();
         }
+
 
         // Add explicit interface implementations for missing overloads
 
-        public async Task<(IEnumerable<AuditLog> Logs, int TotalCount)> GetLogsAsync(
-            int page = 1,
-            int pageSize = 20,
-            string? userName = null,
-            string? module = null,
-            string? action = null,
-            DateTime? fromDate = null,
-            DateTime? toDate = null
-        )
+        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query)
         {
             // Call the main implementation, passing default CancellationToken
-            return await GetLogsAsync(page, pageSize, userName, module, action, fromDate, toDate, default);
+            return await GetLogsAsync(query,default);
         }
 
-        public async Task<byte[]> ExportLogsToCsvAsync(
-            string? userName = null,
-            string? module = null,
-            string? action = null,
+        public async Task ExportLogsToCsvAsync(
+            Stream outputStream,
+            string? search = null,
             DateTime? fromDate = null,
             DateTime? toDate = null
         )
         {
             // Call the main implementation, passing default CancellationToken
-            return await ExportLogsToCsvAsync(userName, module, action, fromDate, toDate, default);
+             await ExportLogsToCsvAsync(outputStream, search, fromDate, toDate, default);
         }
+
+
     }
 }

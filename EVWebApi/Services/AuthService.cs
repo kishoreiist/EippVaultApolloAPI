@@ -1,4 +1,5 @@
 using EVWebApi.Data;
+using EVWebApi.DTOs;
 using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
@@ -26,7 +27,7 @@ public class AuthService : IAuthService
         _logger = logger;
     }
 
-    public async Task<string> AuthenticateAsync(string email, string password) {
+    public async Task<AuthResult> AuthenticateAsync(string email, string password) {
         var user = await _userRepo.GetByEmailAsync(email);
         if(user == null)
             throw new NotFoundException("User not found");
@@ -47,11 +48,25 @@ public class AuthService : IAuthService
 
         if (user.MfaEnabled)
         {
-            //await _mfaService.GenerateAndSendTokenAsync(user);
-            return "MFA_REQUIRED";
+            //return "MFA_REQUIRED";
+
+            return new AuthResult
+            {
+                MfaRequired = true,
+                UserId = user.UserId,
+                UserName = user.Username
+            };
         }
-        return GenerateJwtToken(user);
-        
+        //return GenerateJwtToken(user);
+        //normal login
+        return new AuthResult
+        {
+            MfaRequired = false,
+            Token = GenerateJwtToken(user),
+            UserId = user.UserId,
+            UserName = user.Username
+        };
+
     }
 
     public async Task<string> GenerateJwtAfterMfaAsync(string email) {

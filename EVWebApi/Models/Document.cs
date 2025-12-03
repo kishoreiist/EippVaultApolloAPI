@@ -73,6 +73,6 @@ namespace EVWebApi.Models
         public decimal? PaidAmount { get; set; }
 
         public ICollection<Metadata> MetadataList { get; set; }
-
+        public  ICollection<Notes> Notes { get; set; } = new List<Notes>();
     }
 }

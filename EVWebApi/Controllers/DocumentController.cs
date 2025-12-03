@@ -1,9 +1,12 @@
 ﻿using EVWebApi.DTOs.Document;
+using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace EVWebApi.Controllers
 {
@@ -30,7 +33,7 @@ namespace EVWebApi.Controllers
             return Ok(result);
         }
 
-        // Get document metadata
+        // Get document by doc id
         [HttpGet("{id}")]
         public async Task<IActionResult> GetDocument(int id)
         {
@@ -88,6 +91,7 @@ namespace EVWebApi.Controllers
         //    return Ok(new { message = "Document restored" });
         //}
 
+        //edit by doc id
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateDocument(int id, [FromBody] UpdateDocumentDto dto)
         {
@@ -100,7 +104,7 @@ namespace EVWebApi.Controllers
 
             return Ok(updated);
         }
-
+        // DELETE DOC
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDocument(int id)
         {
@@ -110,6 +114,46 @@ namespace EVWebApi.Controllers
                 return NotFound(new { message = "Document not found" });
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete");
             return Ok(new { message = "Document deleted successfully" });
+        }
+
+        //----------------------------NOTES----------------------------------
+
+        //get notes by doc id
+        [HttpGet("{documentId}/notes")]
+        public async Task<IActionResult> GetNotesForDocument(int documentId)
+        {
+            var notes = await _documentService.GetDocumentWithNotesAsync(documentId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Get_Doc");
+            return Ok(notes);
+        }
+
+        //craete note
+        [HttpPost("notes")]
+        public async Task<IActionResult> CreateNote([FromBody] NoteCreateDto noteDto)
+        {
+            var note = await _documentService.CreateNoteAsync(noteDto, CurrentUsername);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Create",note.NoteText);
+            return Ok(note); 
+        }
+
+        //edit note
+
+        [HttpPut("notes/{noteId}")]
+        public async Task<IActionResult> UpdateNote(int noteId, [FromBody] NoteUpdateDto noteDto)
+        {
+            var note = await _documentService.UpdateNoteAsync(noteDto);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Update", note.NoteText);
+            return Ok(note);
+        }
+
+        //delete note
+
+        [HttpDelete("notes/{noteId}")]
+        public async Task<IActionResult> DeleteNote(long noteId)
+        {
+            await _documentService.DeleteNoteAsync(noteId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete");
+            return NoContent();
         }
     }
 }

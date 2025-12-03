@@ -1,4 +1,5 @@
 ﻿using EVWebApi.Data;
+using EVWebApi.DTOs.Document;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,7 @@ namespace EVWebApi.Repositories
         {
             var doc = await _context.Documents
                 .Include(d => d.MetadataList)
+                .Include(d => d.Notes)
                 .FirstOrDefaultAsync(d => d.DocumentId == id);
 
             if (doc == null)
@@ -37,7 +39,8 @@ namespace EVWebApi.Repositories
         //--------------GET DOCUMENT BY Cabinet ID------------------
         public IQueryable<Document> Query()
         {
-            return _context.Documents.AsQueryable();
+            return _context.Documents
+                .Include(d => d.Notes).AsQueryable();
         }
 
         // ---------------- GET LATEST VERSION -----------------
@@ -80,6 +83,63 @@ namespace EVWebApi.Repositories
 
             }
         }
+       //-----------------------------GET NOTES BY DOC ID FROM DB-----------------------------------------
+        public override async Task<Document?> GetByIdAsync(int id)
+        {
+            return await Query()
+                .Include(d => d.Notes)
+                .FirstOrDefaultAsync(d => d.DocumentId == id);
+        }
 
+        //-------------------------NOTES---------------------------------------//
+
+        //-----------CREATE-------------------
+        public async Task<Notes> AddNoteAsync(Notes note)
+        {
+            
+            _context.Notes.Add(note);
+            await _context.SaveChangesAsync();
+            return note;
+        }
+
+        //---------UPDATE------------------
+
+        public async void UpdateNote(Notes note)
+        {
+           _context.Notes.Update(note);
+            //await _context.SaveChangesAsync();
+        }
+
+        //-----------------DELETE-------------
+
+        public async void DeleteNote(Notes note)
+        {
+            _context.Notes.Remove(note);
+            //await _context.SaveChangesAsync();
+        }
+
+        //------------------GET NOTES BY DOC ID FOR NOTES ENDPOINT---------------
+        public async Task<List<NotesDto>> GetDocumentWithNotesAsync(int documentId)
+        {
+            var notes = await _context.Notes
+                    .Where(d => d.DocumentId == documentId)
+                    .OrderByDescending(n => n.CreatedAt)
+                    .Select(n => new NotesDto
+                    {
+                        NoteId = n.NoteId,
+                        DocumentId = n.DocumentId,
+                        NoteText = n.NoteText,
+                        CreatedBy = n.CreatedBy,
+                        CreatedAt = n.CreatedAt
+                    })
+                .ToListAsync();
+
+
+            return notes;
+        }
+        public async Task<Notes> GetNoteByIdAsync(long id)
+        {
+            return await _context.Notes.FindAsync(id);
+        }
     }
 }

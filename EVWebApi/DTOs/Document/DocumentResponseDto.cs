@@ -30,7 +30,7 @@
         public decimal? GST { get; set; }
         public string? CheckNumber { get; set; }
         public decimal? PaidAmount { get; set; }
-
+        public List<NotesDto>?Notes { get; set; }
 
 
 

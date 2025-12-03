@@ -114,15 +114,15 @@ builder.Services.AddCors(options =>
         //      .AllowAnyMethod()
         //      .AllowAnyHeader();
 
-        policy.SetIsOriginAllowed(origin => true) 
+        policy.SetIsOriginAllowed(origin => true)
           .AllowAnyMethod()
           .AllowAnyHeader()
           .AllowCredentials();
 
-      // policy.WithOrigins("https://yourfrontenddomain.com", "http://localhost:4200")////need to change before last deplymnt
-      //.AllowAnyMethod()
-      //.AllowAnyHeader()
-      //.AllowCredentials();
+        // policy.WithOrigins("https://yourfrontenddomain.com", "http://localhost:4200")////need to change before last deplymnt
+        //.AllowAnyMethod()
+        //.AllowAnyHeader()
+        //.AllowCredentials();
     });
 });
 
@@ -149,7 +149,7 @@ builder.Services.AddSwaggerGen(c =>
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer" 
+                    Id = "Bearer"
                 }
             },
             new string[] {}

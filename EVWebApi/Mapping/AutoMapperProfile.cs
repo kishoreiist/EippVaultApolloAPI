@@ -66,7 +66,8 @@ namespace EVWebApi.Mapping
                 .ForMember(
                 dest => dest.Metadata,
                 opt => opt.MapFrom(src => src.MetadataList)
-                );
+                )
+                .ReverseMap();
             CreateMap<Metadata, MetadataDTO>()
             .ForMember(
                 dest => dest.Key,
@@ -80,7 +81,9 @@ namespace EVWebApi.Mapping
                 .ForAllMembers(opt => opt.Condition(
                     (src, dest, srcValue) => srcValue != null));
 
+
             CreateMap<AuditLog, AuditLogDTO>();
+            CreateMap<Notes, NotesDto>();
         }
     }
 }

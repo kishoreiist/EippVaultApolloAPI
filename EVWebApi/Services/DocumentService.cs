@@ -2,6 +2,7 @@
 using EVWebApi.DTOs;
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
@@ -9,6 +10,7 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace EVWebApi.Services
 {
@@ -41,7 +43,7 @@ namespace EVWebApi.Services
             if (cabinet == null)
                 throw new Exception("Invalid CabinetId");
             string folderName = cabinet.CabinetName;
-            string storageRoot = Path.Combine(_env.WebRootPath, "storage");
+            string storageRoot = Path.Combine(_env.WebRootPath, "storage/Uploads");
             string cabinetFolder = Path.Combine(storageRoot, folderName);
             if (!Directory.Exists(cabinetFolder))
                 Directory.CreateDirectory(cabinetFolder);
@@ -59,51 +61,37 @@ namespace EVWebApi.Services
                 await dto.File.CopyToAsync(stream);
             }
 
-
-                // Save to DB
-                var doc = await _repo.CreateDocument(new Document
+            // Save to DB
+            var doc = await _repo.CreateDocument(new Document
             {
                 CabinetId = dto.CabinetId,
                 FileName = fileName,
-                FilePath = $"/storage/{folderName}/{fileName}",
+                FilePath = $"/storage/Uploads/{folderName}/{fileName}",
                 UploadedBy = currentuserid,
                 Version = version,
                 Status = "active",
-                UploadedAt= DateTime.UtcNow
-            });
+                UploadedAt= DateTime.UtcNow,
+
+                InvoiceNumber=dto.InvoiceNumber,
+                VendorNumber=dto.VendorNumber,
+                InvoiceDate=dto.InvoiceDate,
+                Amount=dto.Amount,
+                StatementDate=dto.StatementDate,
+                PaidAmount=dto.PaidAmount,
+                Department=dto.Department,
+                Designation=dto.Designation,
+                Name=dto.Name,
+                EmployeeId=dto.EmployeeId,
+                PoNumber=dto.PoNumber,
+                ContactNumber=dto.ContactNumber,
+                DOB=dto.DOB,
+                DOJ=dto.DOJ,
+                CheckNumber=dto.CheckNumber
+                });
 
             if (doc == null)
                 throw new ServerException("Failed to save document");
-
-            if (dto.Metadata != null && dto.Metadata.Any())
-            {
-                var metadataList = dto.Metadata.Select(x => new Metadata
-                {
-                    DocumentId = doc.DocumentId,
-                    MetaKey = x.Key,
-                    MetaValue = x.Value
-                }).ToList();
-
-                await _metadataRepo.AddMetadata(metadataList);
-            }
-
-
-            return new DocumentResponseDto
-            {
-                DocumentId = doc.DocumentId,
-                CabinetId=doc.CabinetId,
-                FileName = doc.FileName,
-                FilePath=doc.FilePath,
-                UploadedAt = doc.UploadedAt,
-                Status = doc.Status,
-                Version = doc.Version,
-                Metadata = dto.Metadata?.Select(x => new MetadataDTO
-                {
-                    Key = x.Key,
-                    Value = x.Value
-                }).ToList()
-            };
-
+            return _mapper.Map<DocumentResponseDto>(doc);
         }
 
 
@@ -161,25 +149,25 @@ namespace EVWebApi.Services
             if (!string.IsNullOrWhiteSpace(query.InvoiceNumber))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.InvoiceNumber.StartsWith(query.InvoiceNumber));
+                    docQuery = docQuery.Where(d => d.InvoiceNumber.ToLower().StartsWith(query.InvoiceNumber.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.InvoiceNumber.Contains(query.InvoiceNumber));
+                    docQuery = docQuery.Where(d => d.InvoiceNumber.ToLower().Contains(query.InvoiceNumber.ToLower()));
             }
             //VendorNumber
             if (!string.IsNullOrWhiteSpace(query.VendorNumber))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.VendorNumber.StartsWith(query.VendorNumber));
+                    docQuery = docQuery.Where(d => d.VendorNumber.ToLower().StartsWith(query.VendorNumber.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.VendorNumber.Contains(query.VendorNumber));
+                    docQuery = docQuery.Where(d => d.VendorNumber.ToLower().Contains(query.VendorNumber.ToLower()));
             }
             //Check number
             if (!string.IsNullOrWhiteSpace(query.CheckNumber))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.CheckNumber.StartsWith(query.CheckNumber));
+                    docQuery = docQuery.Where(d => d.CheckNumber.ToLower().StartsWith(query.CheckNumber.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.CheckNumber.Contains(query.CheckNumber));
+                    docQuery = docQuery.Where(d => d.CheckNumber.ToLower().Contains(query.CheckNumber.ToLower()));
             }
             //GST
             if (query.GST.HasValue)
@@ -199,17 +187,17 @@ namespace EVWebApi.Services
             if (!string.IsNullOrWhiteSpace(query.PoNumber))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.PoNumber.StartsWith(query.PoNumber));
+                    docQuery = docQuery.Where(d => d.PoNumber.ToLower().StartsWith(query.PoNumber.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.PoNumber.Contains(query.PoNumber));
+                    docQuery = docQuery.Where(d => d.PoNumber.ToLower().Contains(query.PoNumber.ToLower()));
             }
             //EMP ID
             if (!string.IsNullOrWhiteSpace(query.EmployeeId))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.EmployeeId.StartsWith(query.EmployeeId));
+                    docQuery = docQuery.Where(d => d.EmployeeId.ToLower().StartsWith(query.EmployeeId.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.EmployeeId.Contains(query.EmployeeId));
+                    docQuery = docQuery.Where(d => d.EmployeeId.ToLower().Contains(query.EmployeeId.ToLower()));
             }
             //designation 
             if (!string.IsNullOrWhiteSpace(query.Designation))
@@ -483,5 +471,62 @@ namespace EVWebApi.Services
         }
 
 
+        //############################NOTES#################################
+
+
+
+        //--------------------GET NOTES BY DOC ID------------------------
+
+        public async Task<List<NotesDto>> GetDocumentWithNotesAsync(int id)
+        {
+            var document = await _uow.Documents.GetByIdAsync(id);
+
+            if (document == null || document.Status == "inactive")
+                throw new NotFoundException($"Document with id {id} not found");
+
+            var doc = await _repo.GetDocumentWithNotesAsync(id);
+
+
+            return doc;
+        }
+        //create note
+        public async Task<NotesDto> CreateNoteAsync(NoteCreateDto dto, string CurrentUsername)
+        {
+            var note = new Notes
+            {
+                NoteText = dto.NoteText,
+                CreatedAt= DateTime.UtcNow,
+                CreatedBy= CurrentUsername,
+                DocumentId=dto.DocumentId
+            };
+            await _uow.Documents.AddNoteAsync(note);
+            await _uow.CompleteAsync();
+            return _mapper.Map<NotesDto>(note);
+        }
+
+        public async Task<NotesDto> UpdateNoteAsync(NoteUpdateDto dto)
+        {
+
+            var note = await _uow.Documents.GetNoteByIdAsync(dto.NoteId);
+            if (note == null)
+                throw new ConflictException($"Note with id {dto.NoteId}  not found.");
+
+
+            if (!string.IsNullOrWhiteSpace(dto.NoteText)) note.NoteText = dto.NoteText;
+
+            _uow.Documents.UpdateNote(note);
+            await _uow.CompleteAsync();
+            return _mapper.Map<NotesDto>(note);
+        }
+
+        public async Task DeleteNoteAsync(long id)
+        {
+            var note = await _uow.Documents.GetNoteByIdAsync(id);
+            if (note == null)
+                throw new NotFoundException("Note not found");
+
+            _uow.Documents.DeleteNote(note);
+            await _uow.CompleteAsync();
+        }
     }
 }

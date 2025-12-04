@@ -19,6 +19,8 @@ namespace EVWebApi.Interfaces.Services
         Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query, CancellationToken cancellationToken = default);
         //export to csv
         Task ExportLogsToCsvAsync(
+            int pagenumber,
+            int pagesize,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,

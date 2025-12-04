@@ -106,8 +106,8 @@ namespace EVWebApi.Services
             // APPLY PAGINATION + ORDERING
             var logs = await auditQuery
                 .OrderByDescending(a => a.Timestamp)
-                .Skip(query.Offset)
-                .Take(query.Limit)
+                .Skip((query.PageNumber - 1) * query.PageSize)
+                .Take(query.PageSize)
                 .ToListAsync(cancellationToken);
 
             var mapped = _mapper.Map<List<AuditLogDTO>>(logs);
@@ -116,8 +116,8 @@ namespace EVWebApi.Services
             {
                 Data = mapped,
                 TotalRecords = totalCount,
-                Offset = query.Offset,
-                Limit = query.Limit
+                PageNumber = query.PageNumber,
+                PageSize = query.PageSize
             };
             //return (logs, totalCount);
         }
@@ -125,6 +125,8 @@ namespace EVWebApi.Services
         // EXPORT TO CSV
 
         public async Task ExportLogsToCsvAsync(
+            int pagenumber,
+            int pagesize,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,
@@ -137,16 +139,16 @@ namespace EVWebApi.Services
             using var writer = new StreamWriter(outputStream, Encoding.UTF8, leaveOpen: true);
             await writer.WriteLineAsync("Timestamp,User,Module,Action,TargetId,Details,IP");
 
-            int offset = 0;
-            const int limit = 10; // reasonable chunk size
+            //int pagenumber = 0;
+            //const int pagesize = 10; // reasonable chunk size
 
             while (true)
             {
 
                 var query = new AuditLogQueryParameters
                 {
-                    Offset = offset,
-                    Limit = limit,
+                    PageNumber = pagenumber,
+                    PageSize = pagesize,
                     search = search,
                     FromDate = fromDate,
                     ToDate = toDate
@@ -172,8 +174,8 @@ namespace EVWebApi.Services
                     );
                 }
 
-                if (logsChunk.Count() < limit) break;
-                offset += limit;
+                if (logsChunk.Count() < pagesize) break;
+                pagenumber += pagesize;
             }
             //return Encoding.UTF8.GetBytes(sb.ToString());
             await writer.FlushAsync();
@@ -189,6 +191,8 @@ namespace EVWebApi.Services
         }
 
         public async Task ExportLogsToCsvAsync(
+            int pagenumber,
+            int pagesize,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,
@@ -196,7 +200,7 @@ namespace EVWebApi.Services
         )
         {
             // Call the main implementation, passing default CancellationToken
-             await ExportLogsToCsvAsync(outputStream, search, fromDate, toDate, default);
+             await ExportLogsToCsvAsync(pagenumber, pagesize,outputStream, search, fromDate, toDate, default);
         }
 
 

@@ -27,8 +27,12 @@ namespace EVWebApi.DTOs.Document
 
     public class DocumentQueryParameters 
     {
-        public int Offset { get; set; } = 0;   // number of records to skip
-        public int Limit { get; set; } = 100;
+        //public int Offset { get; set; } = 0;   // number of records to skip
+        //public int Limit { get; set; } = 100;
+        [FromQuery(Name = "page_number")]
+        public int PageNumber { get; set; } = 1;
+        [FromQuery(Name = "page_size")]
+        public int PageSize { get; set; } = 10;
 
         [FromQuery(Name = "vendor")]
         public string? VendorNumber { get; set; }

@@ -49,8 +49,8 @@ namespace EVWebApi.Services
             int totalCount =  groupsQuery.Count();
 
             var items = groupsQuery
-                .Skip(query.Offset)
-                .Take(query.Limit)
+                .Skip((query.PageNumber - 1) * query.PageSize)
+                .Take(query.PageSize)
                 .ToList();
 
             var mapped = _mapper.Map<List<GroupDto>>(items);
@@ -59,8 +59,8 @@ namespace EVWebApi.Services
             {
                 Data = mapped,
                 TotalRecords = totalCount,
-                Offset = query.Offset,
-                Limit = query.Limit
+                PageNumber = query.PageNumber,
+                PageSize = query.PageSize
             };
         }
 

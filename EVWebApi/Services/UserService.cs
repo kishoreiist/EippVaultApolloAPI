@@ -48,8 +48,8 @@ namespace EVWebApi.Services
 
             // APPLY PAGINATION
             var pagedUsers = usersQuery
-                .Skip(query.Offset)
-                .Take(query.Limit)
+                .Skip((query.PageNumber - 1) * query.PageSize)
+                .Take(query.PageSize)
                 .ToList();
 
             // MAP TO DTO
@@ -58,8 +58,8 @@ namespace EVWebApi.Services
             {
                 Data = userDtos,
                 TotalRecords = totalRecords,
-                Offset = query.Offset,
-                Limit = query.Limit
+                PageNumber = query.PageNumber,
+                PageSize = query.PageSize
             };
         }
 

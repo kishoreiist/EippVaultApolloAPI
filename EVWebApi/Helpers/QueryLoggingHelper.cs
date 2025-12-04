@@ -23,7 +23,11 @@ namespace EVWebApi.Helpers
             "Password",
             "TwoFactorCode",
             "TwoFactorRecoveryCode",
-            "Code"
+            "Code",
+            "Files",
+            "CabinetId",
+            "PageNumber",
+            "PageSize"
 
         };
 
@@ -49,8 +53,8 @@ namespace EVWebApi.Helpers
             var result = string.Join(", ", props);
 
             return string.IsNullOrEmpty(result)
-                ? "No Filters Applied"
-                : $"{result}";
+                ? ""
+                : $"Search Filters applied - {result}";
         }
     }
 }

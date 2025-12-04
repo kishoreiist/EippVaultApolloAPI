@@ -24,6 +24,8 @@ namespace EVWebApi.Controllers
 
         [HttpGet("logs/export")]
         public async Task ExportCsv(
+            [FromQuery] int pagenumber,
+            [FromQuery] int pagesize,
             [FromQuery] string? search = null,
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null
@@ -32,6 +34,8 @@ namespace EVWebApi.Controllers
             Response.ContentType = "text/csv";
             Response.Headers.Add("Content-Disposition", "attachment; filename=audit_logs.csv");
             await _auditLogService.ExportLogsToCsvAsync(
+                pagenumber,
+                pagesize,
                 Response.Body,
                 search,
                 fromDate,

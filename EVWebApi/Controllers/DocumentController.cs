@@ -27,10 +27,21 @@ namespace EVWebApi.Controllers
        [HttpPost("upload")]
         public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
         {
-            var result = await _documentService.UploadDocument(dto, CurrentUserId);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername,"Document", "Document_Upload", result.FileName,result.CabinetId);// need to pass index fileds as filters
-
-            return Ok(result);
+            try
+            {
+                var result = await _documentService.UploadDocument(dto, CurrentUserId);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Upload", result.FileName, result.CabinetId);// need to pass index fileds as filters
+                return Ok(result);
+            }
+            catch(Exception ex)
+            {
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Upload_Fail",ex.Message,dto.CabinetId);
+                return StatusCode(500, new
+                {
+                    Message = "Document upload failed",
+                    Error = ex.Message
+                });
+            }
         }
 
         // Get document by doc id

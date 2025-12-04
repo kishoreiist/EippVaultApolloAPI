@@ -137,7 +137,7 @@ namespace EVWebAPI.Controllers
             {
                 await _mfaService.GenerateAndSendTokenAsync(user);
 
-                user.MfaMethod = MfaMethod.email;
+                //user.MfaMethod = MfaMethod.email;
                 user.MfaEnabled = true; // or enable after first successful verification
                 _userRepo.Update(user);
                 await _userRepo.SaveChangesAsync();

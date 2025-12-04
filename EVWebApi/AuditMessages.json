@@ -10,10 +10,11 @@
       "Document_Get": "{username} successfully retrieved records in {cabinetName} cabinet.{filters}",
       "Document_Update": "{username} updated record in {cabinetName} cabinet.",
       "Document_Upload": "{username} uploaded record in {cabinetName} cabinet. Record Detail - File Name : {target}.",
+      "Document_Upload_Fail": "{username} tried to upload a record in {cabinetName} cabinet. Status - Failed , Error message - {target}.",
       "Send_Email": "{username} send an email. Details :{filters}",
 
-      "Login": "User authenticated successfully.{filters}",
-      "Enable-MFA": "MFA Enabled Successfully,{filters}",
+      "Login": "User authenticated successfully.Details - {filters}",
+      "Enable-MFA": "MFA Enabled Successfully,Details - {filters}",
       "Verify-MFA": "MFA verified and JWT token issued for {username}. Details - {filters}",
       "Logout": "User successfully logged out."
     },

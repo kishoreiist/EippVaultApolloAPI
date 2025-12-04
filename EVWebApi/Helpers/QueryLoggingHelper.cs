@@ -50,7 +50,7 @@ namespace EVWebApi.Helpers
 
             return string.IsNullOrEmpty(result)
                 ? "No Filters Applied"
-                : $" Search Filters applied - {result}";
+                : $"{result}";
         }
     }
 }

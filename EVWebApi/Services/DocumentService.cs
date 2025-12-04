@@ -17,20 +17,24 @@ namespace EVWebApi.Services
     public class DocumentService : IDocumentService
     {
         private readonly IDocumentRepository _repo;
-        private readonly IWebHostEnvironment _env;
         private readonly IMetadataRepository _metadataRepo;
+
+        private readonly IWebHostEnvironment _env;
+        private readonly string _uploadRoot;
+
 
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
 
 
-        public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper)
+        public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
             _env = env;
             _uow = uow;
             _mapper = mapper;
+            _uploadRoot = config["UploadSettings:RootPath"];
         }
 
         // ---------------------- UPLOAD ----------------------
@@ -42,9 +46,17 @@ namespace EVWebApi.Services
             var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
             if (cabinet == null)
                 throw new Exception("Invalid CabinetId");
+
+
+            // string storageRoot =Path.Combine(_env.WebRootPath, "storage/Uploads");
             string folderName = cabinet.CabinetName;
-            string storageRoot = Path.Combine(_env.WebRootPath, "storage/Uploads");
-            string cabinetFolder = Path.Combine(storageRoot, folderName);
+            string basePath = _uploadRoot;
+            string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            string datePath = Path.Combine(basePath, dateFolder);
+            string cabinetFolder = Path.Combine(datePath, folderName);
+
+
+
             if (!Directory.Exists(cabinetFolder))
                 Directory.CreateDirectory(cabinetFolder);
 
@@ -66,7 +78,7 @@ namespace EVWebApi.Services
             {
                 CabinetId = dto.CabinetId,
                 FileName = fileName,
-                FilePath = $"/storage/Uploads/{folderName}/{fileName}",
+                FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
                 UploadedBy = currentuserid,
                 Version = version,
                 Status = "active",

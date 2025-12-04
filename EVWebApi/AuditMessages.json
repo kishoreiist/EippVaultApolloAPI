@@ -3,10 +3,11 @@
     "CommonActions": {
       "Create": "{username} created a new record successfully in {module} page. Record: {target}.",
       "Get": "{username} successfully retrieved the details from {module} page. Record: {target}.",
+      "Get_Doc": "{username} successfully retrieved the note details",
       "GetAll": "{username} successfully retrieved all details.Search Filters applied - {filters}",
       "Update": "{username} updated {module} page, Record : {target}.",
       "Delete": "{username} removed a record from {module} page.",
-      "Document_Get": "{username} successfully retrieved records in {cabinetName} cabinet.Search Filters applied - {filters}",
+      "Document_Get": "{username} successfully retrieved records in {cabinetName} cabinet.{filters}",
       "Document_Update": "{username} updated record in {cabinetName} cabinet.",
       "Document_Upload": "{username} uploaded record in {cabinetName} cabinet. Record Detail - File Name : {target}.",
       "Send_Email": "{username} send an email. Details :{filters}",

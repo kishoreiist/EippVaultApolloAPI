@@ -1,55 +1,37 @@
-﻿using Swashbuckle.AspNetCore.SwaggerGen;
+﻿using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace EVWebApi.DTOs.Document
-{ 
-public class DocumentUploadDto
 {
+    public class DocumentUploadDto
+    {
         public int CabinetId { get; set; }
         public IFormFile File { get; set; }
+      
+        public string? InvoiceNumber { get; set; }
+        public string? PoNumber { get; set; }
+        public string? VendorNumber { get; set; }
+        public string? EmployeeId { get; set; }
+        public string? Name { get; set; }
+        public string? ContactNumber { get; set; }
+        public string? Designation { get; set; }
+        public string? Department { get; set; }
+        public DateTime? InvoiceDate { get; set; }
+        public DateTime? StatementDate { get; set; }
+        public DateTime? DOJ { get; set; }
+        public DateTime? DOB { get; set; }
+        public decimal? Amount { get; set; }
+        public decimal? GST { get; set; }
+        public string? CheckNumber { get; set; }
+        public decimal? PaidAmount { get; set; }
 
-        //public List<MetadataDTO>? Metadata { get; set; }
+        public string? Region { get; set; }
 
-        public string? MetadataJson { get; set; }
-        [NotMapped]
 
-        public List<MetadataDTO>? Metadata
-        {
-            get
-            {
-                if (string.IsNullOrWhiteSpace(MetadataJson))
-                {
-                    return new List<MetadataDTO>();
-                }
-
-                try
-                {
-                    string trimmedJson = MetadataJson.Trim();
-
-                    if (trimmedJson.StartsWith("["))
-                    {
-                        // Case 1: Client sent an array (Correct format received)
-                        return JsonSerializer.Deserialize<List<MetadataDTO>>(trimmedJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    }
-                    else if (trimmedJson.StartsWith("{"))
-                    {
-                        // Case 2: Client stripped the brackets (What you are seeing)
-                        string arrayWrapperJson = $"[{trimmedJson}]";
-                        return JsonSerializer.Deserialize<List<MetadataDTO>>(arrayWrapperJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    }
-                    else
-                    {
-                        return new List<MetadataDTO>();
-                    }
-                }
-                catch (JsonException ex)
-                {
-                    Console.WriteLine($"JSON Deserialization Error: {ex.Message}"); 
-                    return new List<MetadataDTO>();
-                }
-            }
-        }
     }
 
 }

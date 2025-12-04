@@ -15,7 +15,7 @@ namespace EVWebApi.Data
 
         public DbSet<UserAuthenticator> UserAuthenticators { get; set; }
         public DbSet<UserMfaToken> UserMfaTokens { get; set; }
-
+        public DbSet<Notes> Notes { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<Cabinet> Cabinets { get; set; }
         public DbSet<Metadata> Metadata { get; set; }
@@ -41,7 +41,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<Cabinet>().ToTable("cabinets");
             modelBuilder.Entity<UserAuthenticator>().ToTable("user_authenticator");
             modelBuilder.Entity<UserMfaToken>().ToTable("user_mfa_tokens");
-
+            modelBuilder.Entity<Notes>().ToTable("notes");
             // -------------------
             // Primary Keys
             // -------------------
@@ -56,7 +56,7 @@ namespace EVWebApi.Data
 
             modelBuilder.Entity<UserMfaToken>()
                 .HasKey(t => t.TokenId);
-
+            modelBuilder.Entity<Notes>().HasKey(n => n.NoteId);
             // -------------------
             // User Relationships
             // -------------------

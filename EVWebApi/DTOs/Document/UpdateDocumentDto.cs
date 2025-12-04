@@ -10,8 +10,8 @@ namespace EVWebApi.DTOs.Document
 
         public string? MetadataJson { get; set; }
 
-        [NotMapped]
-        public List<MetadataDTO>? Metadata { get; set; }
+        //[NotMapped]
+        //public List<MetadataDTO>? Metadata { get; set; }
 
 
         public string? InvoiceNumber { get; set; }

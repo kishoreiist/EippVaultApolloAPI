@@ -67,7 +67,15 @@ namespace EVWebApi.Mapping
                 dest => dest.Metadata,
                 opt => opt.MapFrom(src => src.MetadataList)
                 )
+                 .ForMember(dest => dest.NotesCount,
+               opt => opt.MapFrom(src => src.Notes.Count))
                 .ReverseMap();
+
+
+   
+
+
+
             CreateMap<Metadata, MetadataDTO>()
             .ForMember(
                 dest => dest.Key,

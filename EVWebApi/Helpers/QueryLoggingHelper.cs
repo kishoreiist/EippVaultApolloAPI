@@ -53,8 +53,8 @@ namespace EVWebApi.Helpers
             var result = string.Join(", ", props);
 
             return string.IsNullOrEmpty(result)
-                ? ""
-                : $"Search Filters applied - {result}";
+                ? "None"
+                : $"{result}";
         }
     }
 }

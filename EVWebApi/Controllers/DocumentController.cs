@@ -136,7 +136,9 @@ namespace EVWebApi.Controllers
         {
             var notes = await _documentService.GetDocumentWithNotesAsync(documentId);
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Get_Doc");
-            return Ok(notes);
+            //return Ok(notes);
+            return Ok(new { data = notes });
+
         }
 
         //craete note

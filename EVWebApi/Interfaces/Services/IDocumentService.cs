@@ -12,7 +12,7 @@ namespace EVWebApi.Interfaces.Services
         Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto);
         Task<Stream?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
-        Task<bool> DeleteDocument(int id);
+        Task<(int cabinetId, bool status)> DeleteDocument(int id);
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------
@@ -20,6 +20,6 @@ namespace EVWebApi.Interfaces.Services
 
         Task<NotesDto> CreateNoteAsync(NoteCreateDto dto, string CurrentUsername);
         Task<NotesDto> UpdateNoteAsync(NoteUpdateDto dto);
-        Task DeleteNoteAsync(long noteId);
+        Task<string> DeleteNoteAsync(long noteId);
     }
 }

@@ -27,16 +27,16 @@ namespace EVWebApi.Controllers
        [HttpPost("upload")]
         public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
         {
-            string filterDetails = dto.ToFilterLog();
+            string filterDetails = dto.ToFilterLog("Index Details - ");
             try
             {
                 var result = await _documentService.UploadDocument(dto, CurrentUserId);
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Upload", result.FileName, result.CabinetId, filters: filterDetails);// need to pass index fileds as filters
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Uploaded", result.FileName, result.CabinetId, filters: filterDetails);// need to pass index fileds as filters
                 return Ok(result);
             }
             catch(Exception ex)
             {
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Upload_Fail",ex.Message,dto.CabinetId, filters: filterDetails);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Upload Failed", ex.Message,dto.CabinetId, filters: filterDetails);
                 return StatusCode(500, new
                 {
                     Message = "Document upload failed",
@@ -50,7 +50,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetDocument(int id)
         {
             var doc = await _documentService.GetDocument(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Get", doc.FileName);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Viewed Document", doc.FileName,doc.CabinetId);
             return Ok(doc);
         }
 
@@ -60,7 +60,7 @@ namespace EVWebApi.Controllers
         {
             var docs = await _documentService.GetDocumentsByCabinetId(cabinetId, query);
             string filterDetails = query.ToFilterLog();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Get", null,cabinetId, null, filters: filterDetails);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Retrieved", null,cabinetId, null, filters: filterDetails);
 
             return Ok(docs);
         }
@@ -112,7 +112,7 @@ namespace EVWebApi.Controllers
             if (updated == null)
                 return NotFound(new { message = "Document not found" });
 
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document_Update",updated.FileName,updated.CabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Updated", updated.FileName,updated.CabinetId);
 
             return Ok(updated);
         }
@@ -120,11 +120,11 @@ namespace EVWebApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDocument(int id)
         {
-            bool success = await _documentService.DeleteDocument(id);
+            var (cabinetId, isSuccess) = await _documentService.DeleteDocument(id);
 
-            if (!success)
+            if (!isSuccess)
                 return NotFound(new { message = "Document not found" });
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete");
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete", null, cabinetId);
             return Ok(new { message = "Document deleted successfully" });
         }
 
@@ -135,7 +135,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetNotesForDocument(int documentId)
         {
             var notes = await _documentService.GetDocumentWithNotesAsync(documentId);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Get_Doc");
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Retrieved");
             //return Ok(notes);
             return Ok(new { data = notes });
 
@@ -146,7 +146,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> CreateNote([FromBody] NoteCreateDto noteDto)
         {
             var note = await _documentService.CreateNoteAsync(noteDto, CurrentUsername);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Create",note.NoteText);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Created", note.NoteText);
             return Ok(note); 
         }
 
@@ -156,7 +156,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> UpdateNote(int noteId, [FromBody] NoteUpdateDto noteDto)
         {
             var note = await _documentService.UpdateNoteAsync(noteDto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Update", note.NoteText);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Modified", note.NoteText);
             return Ok(note);
         }
 
@@ -165,8 +165,8 @@ namespace EVWebApi.Controllers
         [HttpDelete("notes/{noteId}")]
         public async Task<IActionResult> DeleteNote(long noteId)
         {
-            await _documentService.DeleteNoteAsync(noteId);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Delete");
+            var noteText = await _documentService.DeleteNoteAsync(noteId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Deleted",noteText);
             return NoContent();
         }
     }

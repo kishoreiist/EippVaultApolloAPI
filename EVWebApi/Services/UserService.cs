@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
@@ -44,16 +45,29 @@ namespace EVWebApi.Services
                              u.UserGroup.Group.GroupName.ToLower().Contains(query.GroupName.ToLower()));
 
             //  TOTAL count BEFORE pagination
-            var totalRecords = usersQuery.Count();
+            var totalRecords = await usersQuery.CountAsync();
+            // If pageSize is invalid, normalize it
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
 
+            // Calculate total pages
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+            // Normalize pageNumber
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
             // APPLY PAGINATION
             var pagedUsers = usersQuery
                 .Skip((query.PageNumber - 1) * query.PageSize)
                 .Take(query.PageSize)
                 .ToList();
 
-            // MAP TO DTO
-            var userDtos = _mapper.Map<List<UserDto>>(pagedUsers);
+        
+        // MAP TO DTO
+        var userDtos = _mapper.Map<List<UserDto>>(pagedUsers);
             return new PagedResponse<UserDto>
             {
                 Data = userDtos,

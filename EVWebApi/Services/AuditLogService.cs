@@ -88,7 +88,11 @@ namespace EVWebApi.Services
                 auditQuery = auditQuery.Where(a => a.Timestamp >= query.FromDate.Value);
 
             if (query.ToDate.HasValue)
-                auditQuery = auditQuery.Where(a => a.Timestamp <= query.ToDate.Value);
+            {
+                //auditQuery = auditQuery.Where(a => a.Timestamp <= query.ToDate.Value);
+                var toDateEnd = query.ToDate.Value.Date.AddDays(1).AddTicks(-1);
+                auditQuery = auditQuery.Where(a => a.Timestamp <= toDateEnd);
+            }
 
             if (!string.IsNullOrWhiteSpace(query.search))
             {
@@ -101,8 +105,21 @@ namespace EVWebApi.Services
                 );
             }
             // TOTAL COUNT BEFORE PAGINATION
-            int totalCount = await auditQuery.CountAsync(cancellationToken);
+            int totalRecords = await auditQuery.CountAsync(cancellationToken);
 
+            // If pageSize is invalid, normalize it
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
+            // Calculate total pages
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+
+            // Normalize pageNumber
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
             // APPLY PAGINATION + ORDERING
             var logs = await auditQuery
                 .OrderByDescending(a => a.Timestamp)
@@ -115,10 +132,11 @@ namespace EVWebApi.Services
             return new PagedResponse<AuditLogDTO>
             {
                 Data = mapped,
-                TotalRecords = totalCount,
+                TotalRecords = totalRecords,
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             };
+
             //return (logs, totalCount);
         }
 
@@ -137,7 +155,7 @@ namespace EVWebApi.Services
             //var sb = new StringBuilder();
             //sb.AppendLine("Timestamp,User,Module,Action,TargetId,Details,IP");
             using var writer = new StreamWriter(outputStream, Encoding.UTF8, leaveOpen: true);
-            await writer.WriteLineAsync("Timestamp,User,Module,Action,TargetId,Details,IP");
+            await writer.WriteLineAsync("Timestamp,User,Module,Action,Target,Details,IP");
 
             //int pagenumber = 0;
             //const int pagesize = 10; // reasonable chunk size
@@ -168,7 +186,7 @@ namespace EVWebApi.Services
                             $"\"{(log.UserName ?? string.Empty).Replace("\"", "\"\"")}\"," + 
                             $"\"{(log.Module ?? string.Empty).Replace("\"", "\"\"")}\"," + 
                             $"\"{(log.Action ?? string.Empty).Replace("\"", "\"\"")}\"," + 
-                            $"{(log.TargetId?.ToString() ?? string.Empty)}," +
+                            $"{(log.Target?.ToString() ?? string.Empty)}," +
                             $"\"{(log.Details ?? string.Empty).Replace("\"", "\"\"")}\"," +
                             $"{(log.IpAddress ?? string.Empty)}" 
                     );

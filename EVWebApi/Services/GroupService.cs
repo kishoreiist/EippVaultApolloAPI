@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
@@ -46,9 +47,24 @@ namespace EVWebApi.Services
             }
 
             //  Pagination 
-            int totalCount =  groupsQuery.Count();
+            int totalRecords = await groupsQuery.CountAsync();
 
-            var items = groupsQuery
+            // If pageSize is invalid, normalize it
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
+
+            // Calculate total pages
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+            // Normalize pageNumber
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
+
+
+        var items = groupsQuery
                 .Skip((query.PageNumber - 1) * query.PageSize)
                 .Take(query.PageSize)
                 .ToList();
@@ -58,7 +74,7 @@ namespace EVWebApi.Services
             return new PagedResponse<GroupDto>
             {
                 Data = mapped,
-                TotalRecords = totalCount,
+                TotalRecords = totalRecords,
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             };

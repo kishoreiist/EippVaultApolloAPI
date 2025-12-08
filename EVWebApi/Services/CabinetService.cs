@@ -1,11 +1,13 @@
 ﻿using AutoMapper;
 using EVWebApi.DTOs.Cabinet;
+using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
+using Microsoft.EntityFrameworkCore;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace EVWebApi.Services
@@ -42,8 +44,23 @@ namespace EVWebApi.Services
             {
                 cabinetsQuery = cabinetsQuery.Where(g => g.CreatedAt <= query.ToDate.Value);
             }
-            var totalRecords = cabinetsQuery.Count();
 
+
+        var totalRecords = await cabinetsQuery.CountAsync();
+
+        // If pageSize is invalid, normalize it
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
+
+            // Calculate total pages
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+            // Normalize pageNumber
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
             // APPLY PAGINATION
             var pagedCabinets = cabinetsQuery
                 .Skip((query.PageNumber - 1) * query.PageSize)

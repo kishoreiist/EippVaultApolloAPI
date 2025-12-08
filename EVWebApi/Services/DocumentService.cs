@@ -344,18 +344,38 @@ namespace EVWebApi.Services
 
 
             // TOTAL BEFORE PAGINATION
-            var totalRecords = docQuery.Count();
-            docQuery = docQuery
-                .Include(d => d.MetadataList);
-            // APPLY PAGINATION
-            var pagedDocs = docQuery
+            //var totalRecords = docQuery.Count();
+            //docQuery = docQuery
+            //    .Include(d => d.MetadataList);
+            //// APPLY PAGINATION
+            //var pagedDocs = docQuery
+            //    .Skip((query.PageNumber - 1) * query.PageSize)
+            //    .Take(query.PageSize)
+            //    .ToList();
+
+            
+            var totalRecords = await docQuery.CountAsync();
+
+            // If pageSize is invalid, normalize it
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
+
+            // Calculate total pages
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+            // Normalize pageNumber
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
+
+            var pagedDocs = await docQuery
                 .Skip((query.PageNumber - 1) * query.PageSize)
                 .Take(query.PageSize)
-                .ToList();
+                .ToListAsync();
 
             // MAP TO DTO
-            
-           
             var docDtos = _mapper.Map<List<DocumentResponseDto>>(pagedDocs);
 
             return new PagedResponse<DocumentResponseDto>
@@ -409,12 +429,12 @@ namespace EVWebApi.Services
         //    await _repo.UpdateStatus(id, "active");
         //}
         // ------------------DELETE--------------------
-        public async Task<bool> DeleteDocument(int id)
+        public async Task<(int cabinetId, bool status)> DeleteDocument(int id)
         {
             var doc = await _repo.GetDocument(id);
             if (doc == null)
                 throw new NotFoundException("Document not found");
-
+            int cabinetid = doc.CabinetId;
             // Delete metadata
             //await _metadataRepo.DeleteMetadataByDocumentId(id);
             //string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
@@ -424,7 +444,7 @@ namespace EVWebApi.Services
 
             await _repo.DeleteDocument(id);
 
-            return true;
+            return (cabinetid, true);
         }
 
         //--------------------- EDIT ---------------------------------
@@ -530,14 +550,15 @@ namespace EVWebApi.Services
             return _mapper.Map<NotesDto>(note);
         }
 
-        public async Task DeleteNoteAsync(long id)
+        public async Task<string> DeleteNoteAsync(long id)
         {
             var note = await _uow.Documents.GetNoteByIdAsync(id);
             if (note == null)
                 throw new NotFoundException("Note not found");
-
+            string noteText = note.NoteText;
             _uow.Documents.DeleteNote(note);
             await _uow.CompleteAsync();
+            return noteText;
         }
     }
 }

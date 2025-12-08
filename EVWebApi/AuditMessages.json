@@ -1,28 +1,38 @@
 {
   "AuditMessages": {
     "CommonActions": {
-      "Create": "{username} created a new record successfully in {module} page. Record: {target}.",
-      "Get": "{username} successfully retrieved the details from {module} page. Record: {target}.",
-      "Get_Doc": "{username} successfully retrieved the note details",
-
-      "GetAll": "{username} successfully retrieved all details from {module} page.Search Filters applied - {filters}",
-
-      "Update": "{username} updated {module} page, Record : {target}.",
-      "Delete": "{username} removed a record from {module} page.",
+      "Record Created": "{username} created a new record in the {module} page. Record: {target}.",
+      "Record Retrieved": "{username} retrieved record details from {module} page. Record: {target}.",
 
 
-      "Document_Get": "{username} successfully retrieved records in {cabinetName} cabinet.{filters}",
-      "Document_Update": "{username} updated record in {cabinetName} cabinet.",
-      "Document_Upload": "{username} uploaded record in {cabinetName} cabinet. Record Detail - File Name : {target}. Index Details - {filters}",
-      "Document_Upload_Fail": "{username} tried to upload a record in {cabinetName} cabinet. Status - Failed , Error message - {target}.",
+      "All Records Retrieved": "{username} retrieved all records from {module} page. {filters}", //--------GET ALL
+
+      "Record Updated": "{username} updated a record in the {module} page, Record : {target}.",
+      "Record Deleted": "{username} deleted a record from the {module} page.",
 
 
-      "Send_Email": "{username} send an email. Details :{filters}",
+      "Document Retrieved": "{username} accessed documents in the {cabinetName} cabinet. {filters}",
+      "Viewed Document": "{username} accessed document in the {cabinetName} cabinet. File Name : {target}",
+      "Document Updated": "{username} modified a document in the  {cabinetName} cabinet.",
+      "Document Uploaded": "{username} successfully uploaded a document to the {cabinetName} cabinet. {filters} , File Name : '{target}'",
+      "Document Upload Failed": "{username} attempted to upload a document to the {cabinetName} cabinet,the operation failed.  Error details : {target}.",
+      "Document Delete": "{username} deleted a record from the {cabinetName} page.",
 
-      "Login": "User authenticated successfully.Details - {filters}",
-      "Enable-MFA": "MFA Enabled Successfully,Details - {filters}",
-      "Verify-MFA": "MFA verified and JWT token issued for {username}. Details - {filters}",
-      "Logout": "User successfully logged out."
+      "Note Retrieved": "{username} retrieved note details",
+      "Note Created": "{username} created a new note. Note Content - {target}",
+      "Note Modified": "{username} updated a note. Note Content - {target}",
+      "Note Deleted": "{username} deleted a note. Note Content - {target}",
+
+
+      "Email Sent": "{username} send an email.{filters}",
+
+      "Login Successful": "User {username} authenticated successfully. {filters}",
+      "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
+      "MFA Verified": "MFA verified successfully. JWT token issued for {username}. {filters}",
+      "Logout Successful": "User {username} logged out successfully.",
+
+      "Forgot Password": "{username} requested a password reset link. {filters}",
+      "Reset Password": "{username} has successfully reset the account password. {filters}"
     },
     "Default": {
       "Message": "Executed action: {action} on module: {module}. Record: {target}.Details - {filters}"

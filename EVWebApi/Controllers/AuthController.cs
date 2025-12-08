@@ -22,9 +22,13 @@ namespace EVWebAPI.Controllers
         private readonly IUserRepository _userRepo;
         private readonly IUserService _userService;
 
+        private readonly IEmailSender _emailSender;
+        private readonly string _frontendRoot;
+
         private readonly ILogger<AuthController> _logger;
         private readonly IAuditLogService _auditlogservice;
-        public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger, IUserService userService, IAuditLogService auditlogservice)
+        public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger, 
+            IUserService userService, IAuditLogService auditlogservice, IEmailSender emailSender, IConfiguration config)
         {
             ArgumentNullException.ThrowIfNull(authService);
             ArgumentNullException.ThrowIfNull(mfaService);
@@ -37,6 +41,8 @@ namespace EVWebAPI.Controllers
             _logger = logger;
             _userService = userService;
             _auditlogservice = auditlogservice;
+            _emailSender = emailSender;
+            _frontendRoot = config["Frontend:BaseUrl"];
         }
 
         [HttpPost("login")]
@@ -53,12 +59,12 @@ namespace EVWebAPI.Controllers
 
           
             var result = await _authService.AuthenticateAsync(request.Email, request.Password);
-            var Reqfilters = request.ToFilterLog();
+            var Reqfilters = request.ToFilterLog("Details - ");
             if (result.MfaRequired)
             {
                 _logger.LogInformation("MFA required for {Email}", request.Email);
                 // 202 Accepted: MFA flow was started (token generation & sending)
-                await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login", null, null, null, filters: Reqfilters);
+                await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null,null, filters: Reqfilters);
                 return Accepted(new
                     {
                         status = "MFA_REQUIRED"
@@ -71,7 +77,7 @@ namespace EVWebAPI.Controllers
             }
 
                 
-            await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login", null, null, null,filters: Reqfilters);
+            await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null, null,filters: Reqfilters);
 
             _logger.LogInformation("User {Email} authenticated successfully", request.Email);
             
@@ -122,8 +128,8 @@ namespace EVWebAPI.Controllers
                 var dataUrl = $"data:image/png;base64,{base64Png}";
 
 
-                var Reqfilters = request.ToFilterLog();
-                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Enable-MFA", null, null, null, filters: Reqfilters);
+                var Reqfilters = request.ToFilterLog("Details - ");
+                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null, filters: Reqfilters);
 
 
                 return Ok(new
@@ -142,8 +148,8 @@ namespace EVWebAPI.Controllers
                 _userRepo.Update(user);
                 await _userRepo.SaveChangesAsync();
 
-                var Reqfilters = request.ToFilterLog();
-                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Enable-MFA", null, null, null,filters: Reqfilters);
+                var Reqfilters = request.ToFilterLog("Details - ");
+                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null,filters: Reqfilters);
 
                 return Ok(new { message = "Email MFA enabled. A verification code has been sent to your email." });
             }
@@ -196,12 +202,91 @@ namespace EVWebAPI.Controllers
             var userDto = await _userService.GetByIdAsync(user.UserId);
             _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
 
-            var filters = request.ToFilterLog();
-            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Verify-MFA", null, null, null, filters: filters);
+            var filters = request.ToFilterLog("Details - ");
+            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Verified", null, null, null, filters: filters);
 
             return Ok(new { token = jwt, user = userDto });
            
-        }        
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassword request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Email))
+                throw new BadRequestException("Invalid forgot password request");
+
+            var user = await _userRepo.GetByEmailAsync(request.Email);
+            if (user == null)
+                //return Ok(new { message = "If the email exists, a reset link will be sent." });
+                throw new NotFoundException("Invalid Email Id.");
+
+
+            var frontendBase = !string.IsNullOrWhiteSpace(request.RedirectUrl)
+                ? request.RedirectUrl
+                : _frontendRoot;
+            // Generate secure token
+            var token = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
+
+            user.ResetToken = token;
+            user.ResetTokenExpiry = DateTime.UtcNow.AddMinutes(30);
+
+            _userRepo.Update(user);
+            await _userRepo.SaveChangesAsync();
+            var resetUrl = $"{frontendBase}/reset-password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+
+            await _emailSender.SendAsync(
+               toEmail: user.Email, 
+                subject: "Password Reset",
+               htmlBody: $@"
+                    Click the following link to reset your EIPP Vault Account password : <br/><br/>
+                    <a href='{resetUrl}'>{resetUrl}</a><br/><br/>
+                    Regards,<br/>
+                    EIPP Vault Team"
+
+            );
+
+            var filters = request.ToFilterLog("");
+            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Forgot Password", null, null, null, filters: filters);
+
+            return Ok(new { message = "A Password reset link has been sent to your email." });
+        }
+
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            if (request == null ||
+                string.IsNullOrWhiteSpace(request.Email) ||
+                string.IsNullOrWhiteSpace(request.ResetCode) ||
+                string.IsNullOrWhiteSpace(request.NewPassword))
+                throw new BadRequestException("Invalid reset password request.");
+
+            var user = await _userRepo.GetByEmailAsync(request.Email);
+
+            if (user == null ||
+                user.ResetToken != request.ResetCode ||
+                user.ResetTokenExpiry == null ||
+                user.ResetTokenExpiry < DateTime.UtcNow)
+                throw new BadRequestException("Invalid or expired reset token.");
+
+            // Hash new password
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            user.ResetToken = null;
+            user.ResetTokenExpiry = null;
+
+            _userRepo.Update(user);
+            await _userRepo.SaveChangesAsync();
+
+            var filters = request.ToFilterLog("");
+            await _auditlogservice.LogAsync(user.UserId, user.Username,"Login", "Reset Password", null, null, null,filters: filters);
+
+            return Ok(new { message = "Password reset successful." });
+        }
+
+
+
+
+
 
     }
 }

@@ -209,7 +209,7 @@ namespace EVWebAPI.Controllers
            
         }
 
-        [HttpPost("forgot-password")]
+        [HttpPost("forgot_password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassword request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.Email))
@@ -232,7 +232,7 @@ namespace EVWebAPI.Controllers
 
             _userRepo.Update(user);
             await _userRepo.SaveChangesAsync();
-            var resetUrl = $"{frontendBase}/reset-password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+            var resetUrl = $"{frontendBase}/reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
 
             await _emailSender.SendAsync(
                toEmail: user.Email, 
@@ -252,7 +252,7 @@ namespace EVWebAPI.Controllers
         }
 
 
-        [HttpPost("reset-password")]
+        [HttpPost("reset_password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
         {
             if (request == null ||

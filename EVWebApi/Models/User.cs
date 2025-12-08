@@ -37,6 +37,10 @@ namespace EVWebApi.Models
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
+        [Column("reset_token")]
+        public string? ResetToken { get; set; }
+        [Column("reset_token_expiry")]
+        public DateTime? ResetTokenExpiry { get; set; }
 
         // junction table
         public UserGroup? UserGroup { get; set; }

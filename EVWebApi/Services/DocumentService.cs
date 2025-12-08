@@ -409,12 +409,12 @@ namespace EVWebApi.Services
         //    await _repo.UpdateStatus(id, "active");
         //}
         // ------------------DELETE--------------------
-        public async Task<bool> DeleteDocument(int id)
+        public async Task<(int cabinetId, bool status)> DeleteDocument(int id)
         {
             var doc = await _repo.GetDocument(id);
             if (doc == null)
                 throw new NotFoundException("Document not found");
-
+            int cabinetid = doc.CabinetId;
             // Delete metadata
             //await _metadataRepo.DeleteMetadataByDocumentId(id);
             //string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
@@ -424,7 +424,7 @@ namespace EVWebApi.Services
 
             await _repo.DeleteDocument(id);
 
-            return true;
+            return (cabinetid, true);
         }
 
         //--------------------- EDIT ---------------------------------
@@ -530,14 +530,15 @@ namespace EVWebApi.Services
             return _mapper.Map<NotesDto>(note);
         }
 
-        public async Task DeleteNoteAsync(long id)
+        public async Task<string> DeleteNoteAsync(long id)
         {
             var note = await _uow.Documents.GetNoteByIdAsync(id);
             if (note == null)
                 throw new NotFoundException("Note not found");
-
+            string noteText = note.NoteText;
             _uow.Documents.DeleteNote(note);
             await _uow.CompleteAsync();
+            return noteText;
         }
     }
 }

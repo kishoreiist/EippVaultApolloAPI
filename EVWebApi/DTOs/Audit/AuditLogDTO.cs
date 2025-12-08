@@ -11,7 +11,7 @@ namespace EVWebApi.DTOs.Audit
         public string? IpAddress { get; set; }
         public string Module { get; set; }
         public string? UserName { get; set; }
-        public int? TargetId { get; set; }
+        public string? Target { get; set; }
         public string? Details { get; set; }
     }
 }

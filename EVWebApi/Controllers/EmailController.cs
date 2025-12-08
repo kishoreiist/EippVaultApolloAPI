@@ -38,9 +38,9 @@ namespace EVWebApi.Controllers
                     attachmentFilePaths: request.AttachmentPaths,
                     ccEmails: request.Cc
                 );
-                var filters = request.ToFilterLog();
+                var filters = request.ToFilterLog("Details - ");
 
-                await _auditlogservice.LogAsync( CurrentUserId, CurrentUsername, "Email", "Email_Send", null,null,null,filters: filters);
+                await _auditlogservice.LogAsync( CurrentUserId, CurrentUsername, "Email", "Email Sent", null,null,null,filters: filters);
                 return Ok(new { message = "Email sent successfully." });
             }
             catch (Exception ex)

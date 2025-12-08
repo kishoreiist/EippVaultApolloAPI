@@ -29,7 +29,7 @@ namespace EVWebApi.Controllers
         {
             var groups = await _groupService.GetAllAsync(query);
             string filterDetails = query.ToFilterLog();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "GetAll", null, filters: filterDetails);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "All Records Retrieved", null, filters: filterDetails);
             return Ok(groups);
         }
 
@@ -37,7 +37,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Get(int id)
         {
             var group = await _groupService.GetByIdAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Get", group.GroupName);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Retrieved", group.GroupName);
             if (group == null) return NotFound();
             return Ok(group);
         }
@@ -46,7 +46,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Create([FromBody] CreateGroupDto dto)
         {
             var created = await _groupService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Create", created.GroupName);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Created", created.GroupName);
             return CreatedAtAction(nameof(Get), new { id = created.GroupId }, created);
         }
 
@@ -56,7 +56,7 @@ namespace EVWebApi.Controllers
         {
             if (id != dto.GroupId) return BadRequest();
             var updated = await _groupService.UpdateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Update", updated.GroupName);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Updated", updated.GroupName);
             return Ok(updated);
         }
 
@@ -65,7 +65,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             await _groupService.DeleteAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Delete");
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Deleted");
             return NoContent();
         }
 

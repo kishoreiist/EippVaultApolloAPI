@@ -344,18 +344,38 @@ namespace EVWebApi.Services
 
 
             // TOTAL BEFORE PAGINATION
-            var totalRecords = docQuery.Count();
-            docQuery = docQuery
-                .Include(d => d.MetadataList);
-            // APPLY PAGINATION
-            var pagedDocs = docQuery
+            //var totalRecords = docQuery.Count();
+            //docQuery = docQuery
+            //    .Include(d => d.MetadataList);
+            //// APPLY PAGINATION
+            //var pagedDocs = docQuery
+            //    .Skip((query.PageNumber - 1) * query.PageSize)
+            //    .Take(query.PageSize)
+            //    .ToList();
+
+            
+            var totalRecords = await docQuery.CountAsync();
+
+            // If pageSize is invalid, normalize it
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
+
+            // Calculate total pages
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+            // Normalize pageNumber
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
+
+            var pagedDocs = await docQuery
                 .Skip((query.PageNumber - 1) * query.PageSize)
                 .Take(query.PageSize)
-                .ToList();
+                .ToListAsync();
 
             // MAP TO DTO
-            
-           
             var docDtos = _mapper.Map<List<DocumentResponseDto>>(pagedDocs);
 
             return new PagedResponse<DocumentResponseDto>

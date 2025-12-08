@@ -105,8 +105,21 @@ namespace EVWebApi.Services
                 );
             }
             // TOTAL COUNT BEFORE PAGINATION
-            int totalCount = await auditQuery.CountAsync(cancellationToken);
+            int totalRecords = await auditQuery.CountAsync(cancellationToken);
 
+            // If pageSize is invalid, normalize it
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
+            // Calculate total pages
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+
+            // Normalize pageNumber
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
             // APPLY PAGINATION + ORDERING
             var logs = await auditQuery
                 .OrderByDescending(a => a.Timestamp)
@@ -119,10 +132,11 @@ namespace EVWebApi.Services
             return new PagedResponse<AuditLogDTO>
             {
                 Data = mapped,
-                TotalRecords = totalCount,
+                TotalRecords = totalRecords,
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             };
+
             //return (logs, totalCount);
         }
 

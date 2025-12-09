@@ -50,7 +50,7 @@ namespace EVWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status202Accepted)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Login([FromBody] LoginRequestDTO request, CancellationToken cancellationToken = default)
         {
             if (request is null)
                 throw new BadRequestException("Invalid request");
@@ -58,7 +58,7 @@ namespace EVWebAPI.Controllers
                 throw new ValidationException("Invalid login payload");
 
           
-            var result = await _authService.AuthenticateAsync(request.Email, request.Password);
+            var result = await _authService.AuthenticateAsync(request.Username,request.Email, request.Password);
             var Reqfilters = request.ToFilterLog("Details - ");
             if (result.MfaRequired)
             {
@@ -209,83 +209,91 @@ namespace EVWebAPI.Controllers
            
         }
 
-        [HttpPost("forgot_password")]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPassword request)
+        [HttpPost("forgot_details")]
+        public async Task<IActionResult> ForgotAccountDetails([FromBody] ForgotAccountDetailsDTO request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.Email))
-                throw new BadRequestException("Invalid forgot password request");
+                throw new BadRequestException("Invalid request");
 
             var user = await _userRepo.GetByEmailAsync(request.Email);
             if (user == null)
                 //return Ok(new { message = "If the email exists, a reset link will be sent." });
                 throw new NotFoundException("Invalid Email Id.");
+            var action = request.Action.ToLower().Trim();
+            bool usernameSent = false;
+            bool passwordSent = false;
+
+            //forgot username
+
+            if (action == "username")
+            {
+                await _emailSender.SendAsync(
+                            toEmail: user.Email,
+                            subject: "EIPP Vault – Username Recovery",
+                            htmlBody: $@"
+                                    Hello,<br/><br/>
+                                    You requested assistance with retrieving your account User Name.<br/><br/>
+                                    Your User Name is: <strong>{user.Username}</strong><br/><br/>
+                                    <i>If you did not request this information, you can safely ignore this email.</i><br/><br/>
+                                    Regards,<br/>
+                                    EIPP Vault Team");
+            
+                await _auditlogservice.LogAsync( user.UserId,user.Username,"Login","Forgot Username",null, null, null,filters: request.ToFilterLog("Details - "));
+                usernameSent = true;
+
+            }
+            //forgot password
+
+            if (action == "password")
+            {
+                var frontendBase = !string.IsNullOrWhiteSpace(request.RedirectUrl)
+                    ? request.RedirectUrl
+                    : _frontendRoot;
+
+                var token =_authService.GeneratePasswordResetJwtAsync(user);
+                
+                var resetUrl = $"{frontendBase}reset_password/{Uri.EscapeDataString(token)}";
 
 
-            var frontendBase = !string.IsNullOrWhiteSpace(request.RedirectUrl)
-                ? request.RedirectUrl
-                : _frontendRoot;
-            // Generate secure token
-            var token = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
-
-            user.ResetToken = token;
-            user.ResetTokenExpiry = DateTime.UtcNow.AddMinutes(30);
-
-            _userRepo.Update(user);
-            await _userRepo.SaveChangesAsync();
-            var resetUrl = $"{frontendBase}/reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
-
-            await _emailSender.SendAsync(
-               toEmail: user.Email, 
-                subject: "Password Reset",
-               htmlBody: $@"
+                await _emailSender.SendAsync(
+                   toEmail: user.Email,
+                    subject: "EIPP Vault - Password Reset",
+                   htmlBody: $@"
                     Click the following link to reset your EIPP Vault Account password : <br/><br/>
                     <a href='{resetUrl}'>{resetUrl}</a><br/><br/>
                     Regards,<br/>
                     EIPP Vault Team"
 
-            );
+                );
 
-            var filters = request.ToFilterLog("");
-            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Forgot Password", null, null, null, filters: filters);
+                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Forgot Password", null, null, null, filters: request.ToFilterLog("Details - "));
+                passwordSent = true;
+            }
+            if (!usernameSent && !passwordSent)
+                throw new BadRequestException("Invalid action. Use 'username', 'password', or 'both'.");
 
-            return Ok(new { message = "A Password reset link has been sent to your email." });
+            return Ok(new
+            {
+                message = "Requested account details have been sent to your email."
+            });
         }
-
 
         [HttpPost("reset_password")]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDTO request)
         {
             if (request == null ||
-                string.IsNullOrWhiteSpace(request.Email) ||
-                string.IsNullOrWhiteSpace(request.ResetCode) ||
-                string.IsNullOrWhiteSpace(request.NewPassword))
-                throw new BadRequestException("Invalid reset password request.");
+                string.IsNullOrWhiteSpace(request.Token) ||
+                string.IsNullOrWhiteSpace(request.NewPassword) ||
+                request.NewPassword != request.ConfirmPassword)
+            {
+                throw new BadRequestException("Invalid request. Ensure passwords match.");
+            }
 
-            var user = await _userRepo.GetByEmailAsync(request.Email);
 
-            if (user == null ||
-                user.ResetToken != request.ResetCode ||
-                user.ResetTokenExpiry == null ||
-                user.ResetTokenExpiry < DateTime.UtcNow)
-                throw new BadRequestException("Invalid or expired reset token.");
 
-            // Hash new password
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-            user.ResetToken = null;
-            user.ResetTokenExpiry = null;
-
-            _userRepo.Update(user);
-            await _userRepo.SaveChangesAsync();
-
-            var filters = request.ToFilterLog("");
-            await _auditlogservice.LogAsync(user.UserId, user.Username,"Login", "Reset Password", null, null, null,filters: filters);
-
+            await _authService.PasswordResetAsync(request.Token, request.NewPassword);
             return Ok(new { message = "Password reset successful." });
         }
-
-
-
-
 
 
     }

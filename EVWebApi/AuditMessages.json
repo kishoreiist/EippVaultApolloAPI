@@ -28,10 +28,11 @@
 
       "Login Successful": "User {username} authenticated successfully. {filters}",
       "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
-      "MFA Verified": "MFA verified successfully. JWT token issued for {username}. {filters}",
+      "MFA Verified": "MFA verified successfully & authentication token issued for {username}. {filters}",
       "Logout Successful": "User {username} logged out successfully.",
 
       "Forgot Password": "{username} requested a password reset link. {filters}",
+      "Forgot Username": "{username} requested username details via forgot username. {filters}",
       "Reset Password": "{username} has successfully reset the account password. {filters}"
     },
     "Default": {

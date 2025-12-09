@@ -1,9 +1,11 @@
 ﻿using EVWebApi.DTOs.Audit;
 using EVWebApi.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/admin")]
     public class AdminController : ControllerBase

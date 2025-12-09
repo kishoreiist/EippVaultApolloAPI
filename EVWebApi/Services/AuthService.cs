@@ -1,6 +1,7 @@
 using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -27,6 +28,19 @@ public class AuthService : IAuthService
         _mfaService = mfaService;
         _logger = logger;
         _auditlogservice = auditlogservice;
+    }
+    public async Task<AuthResult> AuthenticateAsync(LoginRequestDTO dto)
+    {
+        string userInput = dto.User.Trim();
+        string? username = null;
+        string? email = null;
+
+        if (EmailValidationHelper.IsValidEmail(userInput))
+            email = userInput;
+        else
+            username = userInput;
+
+        return await AuthenticateAsync(username, email, dto.Password);
     }
 
     public async Task<AuthResult> AuthenticateAsync(string? username,string? email, string password) 
@@ -150,10 +164,10 @@ public class AuthService : IAuthService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-    public async Task PasswordResetAsync(string token, string newPassword)
+    public async Task PasswordResetAsync(string token, string password)
     {
        
-        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(newPassword))
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(password))
         {
             throw new BadRequestException("Token and new password are required.");
         }
@@ -214,7 +228,7 @@ public class AuthService : IAuthService
         }
 
         
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
 
         _userRepo.Update(user);
         await _userRepo.SaveChangesAsync();

@@ -26,7 +26,7 @@
 
       "Email Sent": "{username} send an email.{filters}",
 
-      "Login Successful": "User {username} authenticated successfully. {filters}",
+      "Login Successful": "{username} authenticated successfully. {filters}",
       "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
       "MFA Verified": "MFA verified successfully & authentication token issued for {username}. {filters}",
       "Logout Successful": "User {username} logged out successfully.",

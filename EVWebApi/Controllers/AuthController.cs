@@ -67,7 +67,8 @@ namespace EVWebAPI.Controllers
                 await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null,null, filters: Reqfilters);
                 return Accepted(new
                     {
-                        status = "MFA_REQUIRED"
+                        status = "MFA_REQUIRED",
+                        email=result.Email
                     });
             }
 

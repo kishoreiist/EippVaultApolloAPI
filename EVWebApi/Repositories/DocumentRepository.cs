@@ -8,15 +8,15 @@ namespace EVWebApi.Repositories
 {
     public class DocumentRepository : GenericRepository<Document>, IDocumentRepository
     {
-        private readonly AppDbContext _context;
+        private new readonly AppDbContext _context;
 
         public DocumentRepository(AppDbContext context) : base(context)
         {
             _context = context;
         }
 
-        // ---------------- CREATE DOCUMENT -------------------
-        public async Task<Document> CreateDocument(Document doc)
+            // ---------------- CREATE DOCUMENT -------------------
+            public async Task<Document> CreateDocument(Document doc)
         {
             _context.Documents.Add(doc);
             await _context.SaveChangesAsync();
@@ -106,8 +106,8 @@ namespace EVWebApi.Repositories
 
         public async void UpdateNote(Notes note)
         {
-           _context.Notes.Update(note);
-            //await _context.SaveChangesAsync();
+            _context.Notes.Update(note);
+            await _context.SaveChangesAsync();
         }
 
         //-----------------DELETE-------------

@@ -27,9 +27,16 @@ public class AuthService : IAuthService
         _logger = logger;
     }
 
-    public async Task<AuthResult> AuthenticateAsync(string email, string password) {
-        var user = await _userRepo.GetByEmailAsync(email);
-        if(user == null)
+    public async Task<AuthResult> AuthenticateAsync(string? username,string? email, string password) 
+    {
+        if (string.IsNullOrWhiteSpace(username) && string.IsNullOrWhiteSpace(email))
+            throw new ArgumentException("Either username or email must be provided");
+        
+        var user = email is not null
+        ? await _userRepo.GetByEmailAsync(email)
+        : await _userRepo.GetByUsernameAsync(username!);
+
+        if (user == null)
             throw new NotFoundException("User not found");
 
         bool validPassword;

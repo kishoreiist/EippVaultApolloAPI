@@ -58,11 +58,11 @@ namespace EVWebAPI.Controllers
                 throw new ValidationException("Invalid login payload");
 
           
-            var result = await _authService.AuthenticateAsync(request.Username,request.Email, request.Password);
-            var Reqfilters = request.ToFilterLog("Details - ");
+            var result = await _authService.AuthenticateAsync(request);
+            var Reqfilters = request.ToFilterLog("Login Detail :  ");
             if (result.MfaRequired)
             {
-                _logger.LogInformation("MFA required for {Email}", request.Email);
+                _logger.LogInformation("MFA required for {UserName}", result.UserName);
                 // 202 Accepted: MFA flow was started (token generation & sending)
                 await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null,null, filters: Reqfilters);
                 return Accepted(new
@@ -79,7 +79,7 @@ namespace EVWebAPI.Controllers
                 
             await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null, null,filters: Reqfilters);
 
-            _logger.LogInformation("User {Email} authenticated successfully", request.Email);
+            _logger.LogInformation("User {UserName} authenticated successfully", result.UserName);
             
             return Ok(new { token = result.Token });
            
@@ -128,7 +128,7 @@ namespace EVWebAPI.Controllers
                 var dataUrl = $"data:image/png;base64,{base64Png}";
 
 
-                var Reqfilters = request.ToFilterLog("Details - ");
+                var Reqfilters = request.ToFilterLog(" MFA Enabled Details -  ");
                 await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null, filters: Reqfilters);
 
 
@@ -202,7 +202,7 @@ namespace EVWebAPI.Controllers
             var userDto = await _userService.GetByIdAsync(user.UserId);
             _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
 
-            var filters = request.ToFilterLog("Details - ");
+            var filters = request.ToFilterLog(" MFA Details -  ");
             await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Verified", null, null, null, filters: filters);
 
             return Ok(new { token = jwt, user = userDto });
@@ -246,15 +246,12 @@ namespace EVWebAPI.Controllers
 
             if (action == "password")
             {
-                var frontendBase = !string.IsNullOrWhiteSpace(request.RedirectUrl)
-                    ? request.RedirectUrl
-                    : _frontendRoot;
 
                 var token =_authService.GeneratePasswordResetJwtAsync(user);
                 
-                var resetUrl = $"{frontendBase}reset_password/{Uri.EscapeDataString(token)}";
+                var resetUrl = $"{_frontendRoot}reset_password/{Uri.EscapeDataString(token)}";
 
-
+                    
                 await _emailSender.SendAsync(
                    toEmail: user.Email,
                     subject: "EIPP Vault - Password Reset",
@@ -283,15 +280,14 @@ namespace EVWebAPI.Controllers
         {
             if (request == null ||
                 string.IsNullOrWhiteSpace(request.Token) ||
-                string.IsNullOrWhiteSpace(request.NewPassword) ||
-                request.NewPassword != request.ConfirmPassword)
+                string.IsNullOrWhiteSpace(request.Password))
             {
                 throw new BadRequestException("Invalid request. Ensure passwords match.");
             }
 
 
 
-            await _authService.PasswordResetAsync(request.Token, request.NewPassword);
+            await _authService.PasswordResetAsync(request.Token, request.Password);
             return Ok(new { message = "Password reset successful." });
         }
 

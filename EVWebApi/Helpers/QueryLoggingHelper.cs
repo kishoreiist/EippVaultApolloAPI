@@ -29,9 +29,9 @@ namespace EVWebApi.Helpers
             "PageNumber",
             "PageSize",
             "ResetCode",
-            "NewPassword",
-            "RedirectUrl",
-            "Action"
+            "Password",
+            "Action",
+            
 
         };
 

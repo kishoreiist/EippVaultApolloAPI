@@ -232,8 +232,8 @@ namespace EVWebAPI.Controllers
                             subject: "EIPP Vault – Username Recovery",
                             htmlBody: $@"
                                     Hello,<br/><br/>
-                                    You requested assistance with retrieving your account username.<br/><br/>
-                                    Your username is: <strong>{user.Username}</strong><br/><br/>
+                                    You requested assistance with retrieving your account User Name.<br/><br/>
+                                    Your User Name is: <strong>{user.Username}</strong><br/><br/>
                                     <i>If you did not request this information, you can safely ignore this email.</i><br/><br/>
                                     Regards,<br/>
                                     EIPP Vault Team");
@@ -249,16 +249,9 @@ namespace EVWebAPI.Controllers
                 var frontendBase = !string.IsNullOrWhiteSpace(request.RedirectUrl)
                     ? request.RedirectUrl
                     : _frontendRoot;
-                // Generate secure token
-                var token = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
 
-                user.ResetToken = token;
-                user.ResetTokenExpiry = DateTime.UtcNow.AddMinutes(30);
-
-                _userRepo.Update(user);
-                await _userRepo.SaveChangesAsync();
-                //var resetUrl = $"{frontendBase}/reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
-
+                var token =_authService.GeneratePasswordResetJwtAsync(user);
+                
                 var resetUrl = $"{frontendBase}reset_password/{Uri.EscapeDataString(token)}";
 
 
@@ -286,33 +279,19 @@ namespace EVWebAPI.Controllers
         }
 
         [HttpPost("reset_password")]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDTO request)
         {
             if (request == null ||
-                string.IsNullOrWhiteSpace(request.Email) ||
-                string.IsNullOrWhiteSpace(request.ResetCode) ||
-                string.IsNullOrWhiteSpace(request.NewPassword))
-                throw new BadRequestException("Invalid reset password request.");
+                string.IsNullOrWhiteSpace(request.Token) ||
+                string.IsNullOrWhiteSpace(request.NewPassword) ||
+                request.NewPassword != request.ConfirmPassword)
+            {
+                throw new BadRequestException("Invalid request. Ensure passwords match.");
+            }
 
-            var user = await _userRepo.GetByEmailAsync(request.Email);
 
-            if (user == null ||
-                user.ResetToken != request.ResetCode ||
-                user.ResetTokenExpiry == null ||
-                user.ResetTokenExpiry < DateTime.UtcNow)
-                throw new BadRequestException("Invalid or expired reset token.");
 
-            // Hash new password
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-            user.ResetToken = null;
-            user.ResetTokenExpiry = null;
-
-            _userRepo.Update(user);
-            await _userRepo.SaveChangesAsync();
-
-            var filters = request.ToFilterLog("");
-            await _auditlogservice.LogAsync(user.UserId, user.Username,"Login", "Reset Password", null, null, null,filters: filters);
-
+            await _authService.PasswordResetAsync(request.Token, request.NewPassword);
             return Ok(new { message = "Password reset successful." });
         }
 

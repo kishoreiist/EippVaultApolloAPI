@@ -4,12 +4,14 @@ using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace EVWebApi.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class DocumentController : BaseController

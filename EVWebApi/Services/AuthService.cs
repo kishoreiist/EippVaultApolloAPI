@@ -77,7 +77,8 @@ public class AuthService : IAuthService
             {
                 MfaRequired = true,
                 UserId = user.UserId,
-                UserName = user.Username
+                UserName = user.Username,
+                Email=user.Email
             };
         }
         //return GenerateJwtToken(user);

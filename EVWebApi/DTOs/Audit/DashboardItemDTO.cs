@@ -8,6 +8,8 @@
         public List<UploadPercentageItem> upload_percentage { get; set; }
         public List<CabinetDistributionItem> cabinet_distribution { get; set; }
         public List<double> user_activity_percentage { get; set; }
+        public List<string> recent_document_activity { get; set; }
+
     }
 
     public class KpiData

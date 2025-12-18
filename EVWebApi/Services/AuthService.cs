@@ -88,7 +88,8 @@ public class AuthService : IAuthService
             MfaRequired = false,
             Token = GenerateJwtToken(user),
             UserId = user.UserId,
-            UserName = user.Username
+            UserName = user.Username,
+            Email = user.Email
         };
 
     }

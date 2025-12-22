@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Xml.Linq;
 
 namespace EVWebApi.Data
 {
@@ -17,6 +18,8 @@ namespace EVWebApi.Data
         public DbSet<UserMfaToken> UserMfaTokens { get; set; }
         public DbSet<Notes> Notes { get; set; }
         public DbSet<Document> Documents { get; set; }
+        public DbSet<AccessRights> AccessRights { get; set; }
+        public DbSet<DocumentTypes> DocumentTypes { get; set; }
         public DbSet<Cabinet> Cabinets { get; set; }
         public DbSet<Metadata> Metadata { get; set; }
         public DbSet<Workflow> Workflows { get; set; }
@@ -42,12 +45,16 @@ namespace EVWebApi.Data
             modelBuilder.Entity<UserAuthenticator>().ToTable("user_authenticator");
             modelBuilder.Entity<UserMfaToken>().ToTable("user_mfa_tokens");
             modelBuilder.Entity<Notes>().ToTable("notes");
+            modelBuilder.Entity<AccessRights>().ToTable("accessrights");
+            modelBuilder.Entity<DocumentTypes>().ToTable("document_types");
             // -------------------
             // Primary Keys
             // -------------------
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
             modelBuilder.Entity<Group>().HasKey(g => g.GroupId);
+            modelBuilder.Entity<AccessRights>().HasKey(a => a.Id);
             modelBuilder.Entity<Cabinet>().HasKey(u => u.CabinetId);
+            modelBuilder.Entity<DocumentTypes>().HasKey(d => d.Id);
             modelBuilder.Entity<UserGroup>()
                 .HasKey(ug => new { ug.UserId, ug.GroupId });
 
@@ -105,6 +112,12 @@ namespace EVWebApi.Data
                 .WithOne(ug => ug.User)
                 .HasForeignKey<UserGroup>(ug => ug.UserId);
 
+            modelBuilder.Entity<Document>()
+                .HasOne(d => d.DocumentType)
+                .WithMany(dt => dt.Documents)
+                .HasForeignKey(d => d.DocumentTypeId)
+                .HasConstraintName("documents_doc_type_fk")
+                .OnDelete(DeleteBehavior.Restrict);
 
 
             // -------------------

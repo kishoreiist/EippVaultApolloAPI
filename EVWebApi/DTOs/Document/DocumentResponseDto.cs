@@ -9,6 +9,7 @@
         public int Version { get; set; }
         public string Status { get; set; }
         public DateTime UploadedAt { get; set; }
+        public string? DocumentType { get; set; }
         public List<MetadataDTO>? Metadata { get; set; }
 
         public string? InvoiceNumber { get; set; }

@@ -221,6 +221,29 @@ namespace EVWebApi.Services
              await ExportLogsToCsvAsync(pagenumber, pagesize,outputStream, search, fromDate, toDate, default);
         }
 
+        // Aceslist &cabinetlist
+        public async Task<PrivilegeConfigDto> GetPrivilegeConfigurationAsync()
+        {
+            return new PrivilegeConfigDto
+            {
+
+                AccessList = await _context.AccessRights
+           .Select(x => new ListDto
+           {
+               Id = x.Id,
+               Name = x.AccessName
+           })
+           .ToListAsync(),
+
+                CabinetsList = await _context.Cabinets
+           .Select(x => new ListDto
+           {
+               Id = x.CabinetId,
+               Name = x.CabinetName
+           })
+           .ToListAsync()
+            };
+        }
 
     }
 }

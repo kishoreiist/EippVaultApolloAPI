@@ -28,7 +28,7 @@ namespace EVWebApi.DTOs.Document
         public decimal? GST { get; set; }
         public string? CheckNumber { get; set; }
         public decimal? PaidAmount { get; set; }
-
+        public string? DocumentType { get; set; }
         public string? Region { get; set; }
 
 

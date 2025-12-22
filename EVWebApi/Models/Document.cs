@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Xml.Linq;
 namespace EVWebApi.Models
 {
     public class Document
@@ -12,6 +13,8 @@ namespace EVWebApi.Models
         public string FileName { get; set; }
         [Column("file_path")]
         public string FilePath { get; set; }
+        [Column("doc_type_id")]
+        public int? DocumentTypeId { get; set; }
         [Column("version")]
         public int Version { get; set; }
         [Column("uploaded_by")]
@@ -74,5 +77,6 @@ namespace EVWebApi.Models
 
         public ICollection<Metadata> MetadataList { get; set; }
         public  ICollection<Notes> Notes { get; set; } = new List<Notes>();
+        public DocumentTypes? DocumentType { get; set; }//one to one
     }
 }

@@ -30,6 +30,14 @@ namespace EVWebApi.Controllers
             return Ok(result);
         }
 
+
+        [HttpGet("privileges")]
+        public async Task<IActionResult> GetPrivilegeConfiguration()
+        {
+            var result = await _auditLogService.GetPrivilegeConfigurationAsync();
+            return Ok(result);
+        }
+
         [HttpGet("logs/export")]
         public async Task ExportCsv(
             [FromQuery] int pagenumber,

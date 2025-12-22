@@ -13,6 +13,9 @@ namespace EVWebApi.Interfaces.Services
         Task<Stream?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
         Task<(int cabinetId, bool status)> DeleteDocument(int id);
+        Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
+
+        Task<List<string>> GetDocTypeAsync();
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------

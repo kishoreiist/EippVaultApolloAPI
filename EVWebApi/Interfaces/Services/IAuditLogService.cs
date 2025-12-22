@@ -1,4 +1,5 @@
 ﻿using EVWebApi.DTOs.Audit;
+using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 
 namespace EVWebApi.Interfaces.Services
@@ -26,6 +27,8 @@ namespace EVWebApi.Interfaces.Services
             DateTime? fromDate = null,
             DateTime? toDate = null
         );
+
+        Task<PrivilegeConfigDto> GetPrivilegeConfigurationAsync();
     }
 
 }

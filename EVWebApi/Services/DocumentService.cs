@@ -21,6 +21,7 @@ namespace EVWebApi.Services
 
         private readonly IWebHostEnvironment _env;
         private readonly string _uploadRoot;
+        private readonly string _storageRoot;
 
 
         private readonly IUnitOfWork _uow;
@@ -35,6 +36,7 @@ namespace EVWebApi.Services
             _uow = uow;
             _mapper = mapper;
             _uploadRoot = config["UploadSettings:RootPath"];
+            _storageRoot = config["DocumentSettings:StorageRoot"];
         }
 
         // ---------------------- UPLOAD ----------------------
@@ -47,6 +49,11 @@ namespace EVWebApi.Services
             if (cabinet == null)
                 throw new Exception("Invalid CabinetId");
 
+            DocumentTypes? docType = null;
+            if (!string.IsNullOrWhiteSpace(dto.DocumentType))
+            {
+                docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+            }
 
             // string storageRoot =Path.Combine(_env.WebRootPath, "storage/Uploads");
             string folderName = cabinet.CabinetName;
@@ -83,8 +90,9 @@ namespace EVWebApi.Services
                 Version = version,
                 Status = "active",
                 UploadedAt= DateTime.UtcNow,
-
-                InvoiceNumber=dto.InvoiceNumber,
+                DocumentTypeId = docType?.Id,
+                DocumentType = null,
+                InvoiceNumber =dto.InvoiceNumber,
                 VendorNumber=dto.VendorNumber,
                 InvoiceDate=dto.InvoiceDate,
                 Amount=dto.Amount,
@@ -150,6 +158,13 @@ namespace EVWebApi.Services
                 }
             }
 
+            //Document Type
+            if (!string.IsNullOrWhiteSpace(query.DocType))
+            {
+                var docType = await _uow.Documents.GetOrCreateDocLabelAsync(query.DocType);
+                docQuery = docQuery.Where(d => d.DocumentTypeId == docType.Id);
+
+            }
             // name
             if (!string.IsNullOrWhiteSpace(query.Name))
             {
@@ -395,13 +410,13 @@ namespace EVWebApi.Services
             if (doc == null)
                 throw new NotFoundException("Document not found");
 
-            var rootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-            var fullPath = Path.Combine(rootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
+            var relativePath = doc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var fullPath = Path.Combine(_storageRoot, relativePath);
 
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
 
-            return new FileStream(fullPath, FileMode.Open, FileAccess.Read);
+            return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 64 * 1024, useAsync: true);
         }
 
         // ---------------------- DOWNLOAD ----------------------
@@ -417,6 +432,29 @@ namespace EVWebApi.Services
             var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return new DocumentDownloadDto { Stream = fs, FileName = doc.FileName };
         }
+
+        //--------------------------FILE EXPLORER-------------------
+
+        public async Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id)
+        {
+            var cabinet = await _uow.Cabinets.GetByIdAsync(id);
+
+            if (cabinet == null)
+                throw new NotFoundException("Cabinet not found");
+
+            var files = await _repo.GetFileExplorerAsync(id);
+            if(files==null)
+                throw new NotFoundException("Files not found in storage");
+
+
+            return files.Select(d => new DocumentFileExplorer
+            {
+                DocumentId = d.DocumentId,
+                FilePath = Path.GetDirectoryName(d.FilePath)!.Replace("\\", "/"),
+                FileName = d.FileName
+            }).ToList();
+        }
+
 
         // ---------------------- ARCHIVE ----------------------
         //public async Task ArchiveDocument(int id)
@@ -497,6 +535,14 @@ namespace EVWebApi.Services
             if (dto.CheckNumber != null) document.CheckNumber = dto.CheckNumber;
             if (dto.PaidAmount.HasValue) document.PaidAmount = dto.PaidAmount.Value;
 
+            DocumentTypes? docType = null;
+            if (!string.IsNullOrWhiteSpace(dto.DocumentType))
+            {
+                docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+                document.DocumentTypeId = docType.Id;
+                document.DocumentType = null;
+            }
+
             _uow.Documents.Update(document);
             await _uow.CompleteAsync();
             return _mapper.Map<DocumentResponseDto>(document);
@@ -560,6 +606,16 @@ namespace EVWebApi.Services
             _uow.Documents.DeleteNote(note);
             await _uow.CompleteAsync();
             return noteText;
+        }
+
+        //-----------------GET DOC TYPE------------------------
+
+        public async Task<List<string>> GetDocTypeAsync()
+        {
+            var doctype = await _uow.Documents.GetDocTypesAsync();
+            if (doctype == null)
+                throw new NotFoundException("Document types  not found");
+            return doctype;
         }
     }
 }

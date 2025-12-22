@@ -43,6 +43,8 @@ namespace EVWebApi.DTOs.Document
         [FromQuery(Name = "po")]
         public string? PoNumber { get; set; }
 
+        [FromQuery(Name = "document_type")]
+        public string? DocType { get; set; }
 
         [FromQuery(Name = "employee_id")]
         public string? EmployeeId { get; set; }

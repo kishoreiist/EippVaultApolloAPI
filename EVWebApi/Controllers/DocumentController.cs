@@ -68,42 +68,17 @@ namespace EVWebApi.Controllers
         }
 
         // PDF Preview (stream)
-        //[HttpGet("{id}/preview")]
-        //public async Task<IActionResult> PreviewDocument(int id)
-        //{
-        //    var fileStream = await _documentService.GetDocumentStream(id);
-        //    if (fileStream == null) return NotFound();
-        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
-        //    return File(fileStream, "application/pdf");
-        //}
+        [HttpGet("{id}/preview")]
+        public async Task<IActionResult> PreviewDocument(int id)
+        {
+            var fileStream = await _documentService.GetDocumentStream(id);
+            if (fileStream == null) return NotFound();
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "PDF View");
 
-        // Download
-        //[HttpGet("{id}/download")]
-        //public async Task<IActionResult> DownloadDocument(int id)
-        //{
-        //    var download = await _documentService.GetDocumentForDownload(id);
-        //    if (download == null) return NotFound();
-        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Get", id);
-        //    return File(download.Stream, "application/octet-stream", download.FileName);
-        //}
+            return File(fileStream, "application/pdf", enableRangeProcessing: true);
 
-        //// Archive
-        //[HttpPut("{id}/archive")]
-        //public async Task<IActionResult> ArchiveDocument(int id)
-        //{
-        //    await _documentService.ArchiveDocument(id);
-        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
-        //    return Ok(new { message = "Document archived" });
-        //}
+        }
 
-        //// Restore
-        //[HttpPut("{id}/restore")]
-        //public async Task<IActionResult> RestoreDocument(int id)
-        //{
-        //    await _documentService.RestoreDocument(id);
-        //    await _auditlogservice.LogAsync(CurrentUserId, "Document", "Update", id);
-        //    return Ok(new { message = "Document restored" });
-        //}
 
         //edit by doc id
         [HttpPut("{id}")]
@@ -129,6 +104,16 @@ namespace EVWebApi.Controllers
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete", null, cabinetId);
             return Ok(new { message = "Document deleted successfully" });
         }
+
+        //File explorer 
+        [HttpGet("fileexplorer/{cabinetid}")]
+        public async Task<IActionResult> GetFileExplorerDocument(int cabinetid)
+        {
+            var files=await _documentService.GetFileExplorerDocumentAsync(cabinetid);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "File Explorer Accessed", null, cabinetid);
+            return Ok(new { data = files });
+        }
+
 
         //----------------------------NOTES----------------------------------
 

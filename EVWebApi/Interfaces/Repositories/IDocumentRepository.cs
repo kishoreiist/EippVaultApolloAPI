@@ -1,5 +1,6 @@
 ﻿using EVWebApi.DTOs.Document;
 using EVWebApi.Models;
+using System.Xml.Linq;
 
 namespace EVWebApi.Interfaces.Repositories
 {
@@ -11,7 +12,10 @@ namespace EVWebApi.Interfaces.Repositories
         Task UpdateStatus(int id);
         Task DeleteDocument(int documentId);
         IQueryable<Document> Query();
+        Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId);
 
+        Task<List<string>> GetDocTypesAsync();
+        Task<DocumentTypes> GetOrCreateDocLabelAsync(string label);
 
         //--------NOTES----------------
         Task<List<NotesDto>> GetDocumentWithNotesAsync(int documentId);

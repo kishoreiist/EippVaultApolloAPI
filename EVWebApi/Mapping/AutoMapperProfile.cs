@@ -69,6 +69,11 @@ namespace EVWebApi.Mapping
                 )
                  .ForMember(dest => dest.NotesCount,
                opt => opt.MapFrom(src => src.Notes.Count))
+
+                 .ForMember(type => type.DocumentType,
+                        opt => opt.MapFrom(src => src.DocumentType != null
+                            ? src.DocumentType.Label
+                            : null))
                 .ReverseMap();
 
 

@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Data;
 using EVWebApi.DTOs.Document;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,7 @@ namespace EVWebApi.Repositories
             var doc = await _context.Documents
                 .Include(d => d.MetadataList)
                 .Include(d => d.Notes)
+                 .Include(d => d.DocumentType)
                 .FirstOrDefaultAsync(d => d.DocumentId == id);
 
             if (doc == null)
@@ -36,11 +38,13 @@ namespace EVWebApi.Repositories
 
             return doc;
         }
-        //--------------GET DOCUMENT BY Cabinet ID------------------
+        //--------------GET notes with docs while fetching  BY Cabinet ID------------------
         public IQueryable<Document> Query()
         {
             return _context.Documents
-                .Include(d => d.Notes).AsQueryable();
+                .Include(d => d.Notes)
+                 .Include(d => d.DocumentType)
+                .AsQueryable();
         }
 
         // ---------------- GET LATEST VERSION -----------------
@@ -83,14 +87,68 @@ namespace EVWebApi.Repositories
 
             }
         }
-       //-----------------------------GET NOTES BY DOC ID FROM DB-----------------------------------------
+
+        //---------------------File explorer -----------------------
+        public async Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId)
+        {
+            var files = await _context.Documents
+        .Where(d => d.CabinetId == cabinetId)
+        .Select(d => new DocumentFileExplorer
+        {
+            DocumentId = d.DocumentId,
+            FileName = d.FileName,
+            FilePath = d.FilePath
+        })
+        .ToListAsync();
+
+            return files;
+        }
+
+
+       //-----------GET NOTES BY DOC ID FROM DB------------------
         public override async Task<Document?> GetByIdAsync(int id)
         {
             return await Query()
                 .Include(d => d.Notes)
                 .FirstOrDefaultAsync(d => d.DocumentId == id);
         }
+        //------------  GET DOC TYPES-------------
 
+        public async Task<List<string>> GetDocTypesAsync()
+        {
+            var doctype = await _context.DocumentTypes
+                .Select(d => d.Label)
+                .Distinct()
+                .ToListAsync();
+            if (doctype == null)
+                throw new Exception("Document type not found");
+
+            return doctype;
+        }
+
+        //---------------GET DOC TYPE DETAILS BY doc_type name
+
+        public async Task<DocumentTypes> GetOrCreateDocLabelAsync(string label)
+        {
+            label = label.Trim();
+
+            var existing = await _context.DocumentTypes
+                .FirstOrDefaultAsync(x => x.Label == label);
+
+            if (existing != null)
+                return existing;
+
+            var docType = new DocumentTypes
+            {
+                Key = GenerateDocKeyHelper.GenerateDocKey(label),
+                Label = label,
+                Status = true
+            };
+
+            _context.DocumentTypes.Add(docType);
+            await _context.SaveChangesAsync();
+            return docType;
+        }
         //-------------------------NOTES---------------------------------------//
 
         //-----------CREATE-------------------

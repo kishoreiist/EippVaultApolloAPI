@@ -23,8 +23,8 @@ namespace EVWebApi.DTOs.Document
          public string? Designation { get; set; }
          public string? Department { get; set; }
          public string? Region { get; set; }
-
-         public DateTime? InvoiceDate { get; set; }
+        public string? DocumentType { get; set; }
+        public DateTime? InvoiceDate { get; set; }
          public DateTime? StatementDate { get; set; }
          public DateTime? DOJ { get; set; }
          public DateTime? DOB { get; set; }

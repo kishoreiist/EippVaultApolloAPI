@@ -82,7 +82,7 @@ namespace EVWebAPI.Controllers
 
             _logger.LogInformation("User {UserName} authenticated successfully", result.UserName);
             
-            return Ok(new { token = result.Token });
+            return Ok(new { token = result.Token, email = result.Email });
            
         }
 

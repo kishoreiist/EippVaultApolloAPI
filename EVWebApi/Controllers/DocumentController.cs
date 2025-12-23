@@ -7,6 +7,7 @@ using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using static Microsoft.CodeAnalysis.Host.HostWorkspaceServices;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace EVWebApi.Controllers
@@ -43,6 +44,44 @@ namespace EVWebApi.Controllers
                 {
                     Message = "Document upload failed",
                     Error = ex.Message
+                });
+            }
+        }
+
+
+        //Batch upload
+
+        [HttpPost("batch_upload")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> BatchUploadDocument([FromForm] BatchUploadDTO dto)
+        {
+            try
+            {
+                // validation
+                if (dto.MetadataFile == null || dto.MetadataFile.Length == 0)
+                    return BadRequest("Metadata CSV file is required");
+
+                if (dto.Files == null || dto.Files.Count == 0)
+                    return BadRequest("At least one document file is required");
+
+                if (!dto.MetadataFile.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+                    return BadRequest("Metadata file must be a CSV");
+
+                var result = await _documentService.BatchUploadDocuments(dto, CurrentUserId);
+
+                string filterDetails = result.ToFilterLog("Upload Status - ");
+
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Batch Upload", null, dto.CabinetId, filters: filterDetails);
+                
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Upload Failed", ex.Message, dto.CabinetId);
+                return StatusCode(500, new
+                {
+                    Message = "Document upload failed",
+                    Error = ex.InnerException
                 });
             }
         }

@@ -17,6 +17,8 @@ namespace EVWebApi.Interfaces.Repositories
         Task<List<string>> GetDocTypesAsync();
         Task<DocumentTypes> GetOrCreateDocLabelAsync(string label);
 
+        void AddDocumentRange(Document doc);
+
         //--------NOTES----------------
         Task<List<NotesDto>> GetDocumentWithNotesAsync(int documentId);
         Task<Notes> AddNoteAsync(Notes note);

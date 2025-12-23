@@ -17,11 +17,17 @@ namespace EVWebApi.Repositories
         }
 
             // ---------------- CREATE DOCUMENT -------------------
-            public async Task<Document> CreateDocument(Document doc)
+        public async Task<Document> CreateDocument(Document doc)
         {
             _context.Documents.Add(doc);
             await _context.SaveChangesAsync();
             return doc;
+        }
+
+
+        public void AddDocumentRange(Document doc)
+        {
+            _context.Documents.Add(doc);
         }
 
         // ---------------- GET DOCUMENT BY Doc ID----------------------

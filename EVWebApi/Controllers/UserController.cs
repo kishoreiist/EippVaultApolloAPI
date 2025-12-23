@@ -50,7 +50,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
             var created = await _userService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Record Created", created.Username);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "User created", created.Username);
             return CreatedAtAction(nameof(Get), new { id = created.UserId }, created);
         }
 

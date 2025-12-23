@@ -3,7 +3,7 @@
     "CommonActions": {
       "Record Created": "{username} created a new record in the {module} page. Record: {target}.",
       "Record Retrieved": "{username} retrieved record details from {module} page. Record: {target}.",
-
+      "User created": "{username} created a new user and sent a welcome email with a password reset link. Details: {target}.",
 
       "All Records Retrieved": "{username} retrieved all records from {module} page. {filters}", //--------GET ALL
 

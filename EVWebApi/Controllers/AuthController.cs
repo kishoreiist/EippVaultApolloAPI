@@ -250,15 +250,49 @@ namespace EVWebAPI.Controllers
 
                 var token =_authService.GeneratePasswordResetJwtAsync(user);
                 
-                var resetUrl = $"{_frontendRoot}reset_password/{Uri.EscapeDataString(token)}";
+                var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
 
                     
                 await _emailSender.SendAsync(
                    toEmail: user.Email,
                     subject: "EIPP Vault - Password Reset",
                    htmlBody: $@"
-                    Click the following link to reset your EIPP Vault Account password : <br/><br/>
-                    <a href='{resetUrl}'>{resetUrl}</a><br/><br/>
+                    <p>Dear User,</p>
+                    <p>
+                    We received a request to reset the password for your
+                    <strong>EIPP Vault</strong> account.
+                    </p>
+
+                    <p>
+                    Click the button below to reset your password.
+                    </p>
+
+                    <!-- Button -->
+                    <table width='100%' cellpadding='0' cellspacing='0' style='margin:32px 0;'>
+                      <tr>
+                        <td align='left'>
+                          <a href='{resetUrl}' target='_blank'
+                             style='background:#2563eb;color:#ffffff;
+                                    text-decoration:none;padding:14px 32px;
+                                    border-radius:6px;font-size:16px;
+                                    display:inline-block;'>
+                            Reset Password
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style='font-size:13px;color:#6b7280;'>
+                      This link will expire in <strong>30 minutes</strong>.
+                    </p>
+                    
+                    <hr style='border:none;border-top:1px solid #e5e7eb;margin:24px 0;' />
+
+                    <p style='font-size:13px;color:#6b7280;'>
+                      If you did not request a password reset, you can safely ignore
+                      this email. Your password will not be changed.
+                    </p>
+                    <br/><br/>
                     Regards,<br/>
                     EIPP Vault Team"
 

@@ -7,8 +7,10 @@ using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
+using IEmailSender = EVWebApi.Interfaces.Repositories.IEmailSender;
 
 namespace EVWebApi.Services
 {
@@ -16,13 +18,17 @@ namespace EVWebApi.Services
     {
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
- 
-
-
-        public UserService(IUnitOfWork uow, IMapper mapper)
+        private readonly IAuthService _authService;
+        private readonly string _frontendRoot;
+        private readonly IEmailSender _emailSender;
+        public UserService(IUnitOfWork uow, IMapper mapper, IAuthService authService, IConfiguration config, IEmailSender emailSender)
         {
             _uow = uow;
             _mapper = mapper;
+            _authService = authService;
+            _emailSender = emailSender;
+            _frontendRoot = config["Frontend:BaseUrl"];
+
         }
 
 
@@ -117,6 +123,88 @@ namespace EVWebApi.Services
             await _uow.CompleteAsync();
 
             var updatedUser = await _uow.Users.GetByIdAsync(user.UserId);
+
+            var token = _authService.GeneratePasswordResetJwtAsync(updatedUser);
+
+            var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
+
+
+            await _emailSender.SendAsync(
+               toEmail: user.Email,
+                subject: "Welcome to EIPP Vault",
+                htmlBody: $@"
+                <div style='margin:0;padding:0;background-color:#f4f6f8;font-family:Arial,Helvetica,sans-serif;'>
+                  <table width='100%' cellpadding='0' cellspacing='0'>
+                    <tr>
+                      <td align='center' style='padding:40px 16px;'>
+                
+                        <!-- Card -->
+                        <table width='600' cellpadding='0' cellspacing='0'
+                               style='background:#ffffff;border-radius:8px;
+                                      box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
+                
+                          <!-- Body -->
+                          <tr>
+                            <td style='padding:32px;color:#111827;font-size:15px;line-height:1.6;'>
+                
+                              <p>Dear User,</p>
+                
+                              <p>
+                                Welcome to <strong>EIPP Vault</strong>. Your account has been successfully created.
+                              </p>
+                
+                              <ul style='padding-left:18px;'>
+                                <li><strong>Username:</strong> {user.Username}</li>
+                                <li><strong>Email:</strong> {user.Email}</li>
+                              </ul>
+                
+                              <p>
+                                For security reasons, you must set your password before signing in.
+                              </p>
+                
+                              <!-- Button -->
+                              <table width='100%' cellpadding='0' cellspacing='0' style='margin:32px 0;'>
+                                <tr>
+                                  <td align='center'>
+                                    <a href='{resetUrl}' target='_blank'
+                                       style='background:#2563eb;color:#ffffff;
+                                              text-decoration:none;padding:14px 28px;
+                                              border-radius:6px;font-size:16px;
+                                              display:inline-block;'>
+                                      Set Your Password
+                                    </a>
+                                  </td>
+                                </tr>
+                              </table>
+                
+                              <p style='font-size:13px;color:#6b7280;'>
+                                This link will expire in <strong>30 minutes</strong>.
+                              </p>
+                
+                              <hr style='border:none;border-top:1px solid #e5e7eb;margin:24px 0;' />
+                
+                              <p style='font-size:13px;color:#6b7280;'>
+                                <i>If you did not request this account, please ignore this email
+                                or contact our support team immediately.</i>
+                              </p>
+                
+                              <p style='margin-top:24px;'>
+                                Regards,<br/>
+                                <strong>EIPP Vault Team</strong>
+                              </p>
+                
+                            </td>
+                          </tr>
+                        </table>
+                
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+                "
+
+            );
+
 
             return _mapper.Map<UserDto>(updatedUser);
         }

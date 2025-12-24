@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using CsvHelper;
 using EVWebApi.DTOs;
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
@@ -10,8 +11,11 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Globalization;
 using System.Text.Json;
-
+using CsvHelper.Configuration;
+using System.Linq;
 namespace EVWebApi.Services
 {
     public class DocumentService : IDocumentService
@@ -39,7 +43,7 @@ namespace EVWebApi.Services
             _storageRoot = config["DocumentSettings:StorageRoot"];
         }
 
-        // ---------------------- UPLOAD ----------------------
+        // ---------------------- SINGLE UPLOAD ----------------------
         public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int currentuserid)
         {
             if (dto.File == null)
@@ -617,5 +621,163 @@ namespace EVWebApi.Services
                 throw new NotFoundException("Document types  not found");
             return doctype;
         }
+
+
+        // ----------------- BATCH UPLOAD------------------------
+
+        public async Task<BatchUploadResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid)
+        {
+            if (dto.MetadataFile == null || dto.Files == null || dto.Files.Count == 0)
+                throw new ArgumentException("CSV or PDF files are missing.");
+
+
+            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
+            if (cabinet == null)
+                throw new Exception("Invalid CabinetId");
+           
+           
+            var summary = new BatchUploadResponseDTO();
+            var processedFiles = new List<string>();
+            // 1. Setup CSV Reader
+
+            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                HeaderValidated = null,
+                MissingFieldFound = null,
+                TrimOptions = TrimOptions.Trim,
+                PrepareHeaderForMatch = args => args.Header.ToLower()
+            };
+            using var reader = new StreamReader(dto.MetadataFile.OpenReadStream());
+            using var csv = new CsvReader(reader, config);
+
+            await csv.ReadAsync();
+            csv.ReadHeader();
+            int totalCount = 0;
+
+            while(await csv.ReadAsync())
+            {
+                totalCount++;
+                DocumentCSVdto record = null;
+                try
+                {
+                    record = csv.GetRecord<DocumentCSVdto>();
+                }
+                catch (CsvHelper.TypeConversion.TypeConverterException ex)
+                {
+                    summary.Failed++;
+                    var fieldName = ex.MemberMapData?.Member?.Name ?? "Unknown Field";
+                    var badValue = ex.Text ?? "Empty";
+                    summary.FailedDocDetails.Add($"Row {totalCount}: Invalid value '{badValue}' for field '{fieldName}'.");
+                    continue;
+                }
+
+
+                try
+                {
+                    // 2. Find the physical file in the uploaded list matching the 'FileName' column in CSV
+                    var physicalFile = dto.Files.FirstOrDefault(f =>
+                        f.FileName.Equals(record.FileName, StringComparison.OrdinalIgnoreCase));
+
+                    if (physicalFile == null)
+                    {
+                        summary.FailedDocDetails.Add($"Row {totalCount}:File '{record.FileName}' not found in the uploaded batch.");
+                        summary.Failed++;
+                        continue;
+                    }
+
+                    // 3. Save File to Storage
+
+                    string folderName = cabinet.CabinetName;
+                    string basePath = _uploadRoot;
+                    string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+                    string datePath = Path.Combine(basePath, dateFolder);
+                    string cabinetFolder = Path.Combine(datePath, folderName);
+
+                    if (!Directory.Exists(cabinetFolder))
+                        Directory.CreateDirectory(cabinetFolder);
+
+                    // Versioning logic
+                    int version = await _repo.GetLatestVersion(dto.CabinetId, record.FileName) + 1;
+
+                    // Create unique filename
+                    string fileName = $"{Path.GetFileNameWithoutExtension(record.FileName)}_v{version}{Path.GetExtension(record.FileName)}";
+                    string fullPath = Path.Combine(cabinetFolder, fileName);
+
+                    using (var stream = new FileStream(fullPath, FileMode.Create))
+                    {
+                        await physicalFile.CopyToAsync(stream);
+                        
+                    }
+                    processedFiles.Add(fullPath);
+                    DocumentTypes? docType = null;
+                    if (!string.IsNullOrWhiteSpace(record.DocumentType))
+                    {
+                         docType =await _uow.Documents.GetOrCreateDocLabelAsync(record.DocumentType);
+
+                    }
+
+                    // 4. Map to Database Entity
+                    var document = new Document
+                    {
+                        CabinetId = dto.CabinetId,
+                        FileName = physicalFile.FileName,
+                        FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
+                        Version=version,
+                        // Metadata fields from CSV
+                        InvoiceNumber = record.InvoiceNumber,
+                        PoNumber = record.PoNumber,
+                        VendorNumber = record.VendorNumber,
+                        EmployeeId = record.EmployeeId,
+                        Name = record.Name,
+                        ContactNumber = record.ContactNumber,
+                        Designation = record.Designation,
+                        Department = record.Department,
+                        InvoiceDate = record.InvoiceDate,
+                        StatementDate = record.StatementDate,
+                        DOJ = record.DOJ,
+                        DOB = record.DOB,
+                        Amount = record.Amount,
+                        GST = record.GST,
+                        CheckNumber = record.CheckNumber,
+                        PaidAmount = record.PaidAmount,
+                        DocumentTypeId = docType?.Id,
+                        DocumentType = null,
+                        Region = record.Region,
+                        UploadedBy = currentuserid,
+                        UploadedAt = DateTime.UtcNow
+
+                    };
+
+                    _repo.AddDocumentRange(document);
+                    summary.Success++;
+                }
+                catch (Exception ex)
+                {
+                    summary.FailedDocDetails.Add($"Error processing {record.FileName}: {ex.Message}");
+                    summary.Failed++;
+                }
+            }
+            summary.TotalProcessed =totalCount;
+
+            if (summary.Success > 0)
+            {
+                try
+                {
+                    await _uow.CompleteAsync();
+                }
+                catch (Exception ex)
+                {
+                    foreach (var path in processedFiles)
+                    {
+                        if (File.Exists(path)) File.Delete(path);
+                    }
+
+                    throw new Exception($"Database commit failed. All uploaded files have been rolled back. Error: {ex.Message}");
+                }
+            }
+
+            return summary ;
+        }
     }
+    
 }

@@ -1,6 +1,7 @@
 ﻿using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Pagination;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Interfaces.Services
 {
@@ -14,8 +15,11 @@ namespace EVWebApi.Interfaces.Services
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
         Task<(int cabinetId, bool status)> DeleteDocument(int id);
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
-
         Task<List<string>> GetDocTypeAsync();
+
+        Task<BatchUploadResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid);
+        
+        
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------

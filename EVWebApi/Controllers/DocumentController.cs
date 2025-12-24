@@ -153,7 +153,17 @@ namespace EVWebApi.Controllers
             return Ok(new { data = files });
         }
 
-
+        //GET DOC TYPES
+        [HttpGet("doctype")]
+        public async Task<IActionResult> GetDocType()
+        {
+            var docTypes = await _documentService.GetDocTypeAsync();
+            if (docTypes == null) return NotFound("Document type not found");
+            return Ok(new
+            {
+                data = docTypes
+            });
+        }
         //----------------------------NOTES----------------------------------
 
         //get notes by doc id

@@ -26,7 +26,8 @@ namespace EVWebApi.Data
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Notification> Notifications { get; set; }
 
-
+        public DbSet<GroupAccessRight> GroupAccessRights { get; set; }
+        public DbSet<GroupCabinet> GroupCabinets { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
            
@@ -47,6 +48,10 @@ namespace EVWebApi.Data
             modelBuilder.Entity<Notes>().ToTable("notes");
             modelBuilder.Entity<AccessRights>().ToTable("accessrights");
             modelBuilder.Entity<DocumentTypes>().ToTable("document_types");
+
+            modelBuilder.Entity<GroupCabinet>().ToTable("group_cabinets");
+            modelBuilder.Entity<GroupAccessRight>().ToTable("group_accessrights");
+
             // -------------------
             // Primary Keys
             // -------------------
@@ -64,24 +69,36 @@ namespace EVWebApi.Data
             modelBuilder.Entity<UserMfaToken>()
                 .HasKey(t => t.TokenId);
             modelBuilder.Entity<Notes>().HasKey(n => n.NoteId);
+
+            modelBuilder.Entity<GroupAccessRight>().HasKey(a => new { a.GroupId, a.AccessId });
+            modelBuilder.Entity<GroupCabinet>().HasKey(c => new { c.GroupId, c.CabinetId });
             // -------------------
             // User Relationships
             // -------------------
-            //modelBuilder.Entity<User>()
-            //    .HasOne(u => u.Group)
-            //    .WithMany(r => r.Users)
-            //    .HasForeignKey(u => u.RoleId)
-            //    .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<GroupAccessRight>()
+                .HasOne(e => e.Group)
+                .WithMany(g => g.GroupAccessRights)
+                .HasForeignKey(e => e.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // User - UserGroups
-            //modelBuilder.Entity<UserGroup>()
-            //  .HasIndex(ug => ug.UserId)
-            //     .IsUnique();
-            // One group can have many UserGroups
-            //modelBuilder.Entity<UserGroup>()
-            //    .HasOne(ug => ug.Group)
-            //    .WithMany(g => g.UserGroups)
-            //    .HasForeignKey(ug => ug.GroupId);
+            modelBuilder.Entity<GroupAccessRight>()
+                  .HasOne(e => e.AccessRight)
+                  .WithMany(a => a.GroupAccessRights)
+                  .HasForeignKey(e => e.AccessId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+
+            modelBuilder.Entity<GroupCabinet>()
+                 .HasOne(e => e.Group)
+                 .WithMany(g => g.GroupCabinets)
+                 .HasForeignKey(e => e.GroupId)
+                 .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<GroupCabinet>()
+                  .HasOne(e => e.Cabinet)
+                  .WithMany(c => c.GroupCabinets)
+                  .HasForeignKey(e => e.CabinetId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
 
             modelBuilder.Entity<UserGroup>()
             .HasKey(ug => ug.UserId); // Primary Key is UserId (NOT composite)
@@ -150,9 +167,9 @@ namespace EVWebApi.Data
 
 
 
-            modelBuilder.Entity<Group>()
-               .Property(r => r.Description)
-               .HasColumnType("jsonb");
+            //modelBuilder.Entity<Group>()
+            //   .Property(r => r.Description)
+            //   .HasColumnType("jsonb");
 
             // -------------------
             // Timestamps

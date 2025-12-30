@@ -11,9 +11,13 @@ namespace EVWebApi.Models
         [Column("group_name")]
         public required string GroupName { get; set; }
 
-        [Column("description", TypeName = "jsonb")]
-        public GroupDescriptionDTO? Description { get; set; }
+        //[Column("description", TypeName = "jsonb")]
+        //public GroupDescriptionDTO? Description { get; set; }
+        [Column("user_type")]
+        public string UserType { get; set; }
         public DateTime CreatedAt { get; set; }
         public  ICollection<UserGroup>? UserGroups { get; set; } = new List<UserGroup>();
+        public ICollection<GroupAccessRight> GroupAccessRights { get; set; }
+        public ICollection<GroupCabinet> GroupCabinets { get; set; }
     }
 }

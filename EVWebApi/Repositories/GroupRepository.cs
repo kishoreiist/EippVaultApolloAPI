@@ -19,12 +19,19 @@ namespace EVWebApi.Repositories
                 .FirstOrDefaultAsync(u => u.GroupName.ToLower() == groupname.ToLower());
         }
 
+        public override async Task<Group?> GetByIdAsync(int id)
+        {
+            return await Query()
+                .FirstOrDefaultAsync(g => g.GroupId == id);
+        }
 
         public IQueryable<Group> Query()
         {
             return _context.Groups
-                .Include(g => g.UserGroups)
-            .ThenInclude(ug => ug.User)
+                 .Include(g => g.GroupAccessRights)
+                        .ThenInclude(a => a.AccessRight)
+                .Include(g=>g.GroupCabinets)
+                    .ThenInclude(c=>c.Cabinet)
                 .AsQueryable();
         }
 

@@ -28,7 +28,6 @@ namespace EVWebApi.Repositories
         public override async Task<User?> GetByIdAsync(int id)
         { 
             return await Query()
-                .Include(u => u.UserGroup)
                 .FirstOrDefaultAsync(u => u.UserId == id);
         }
 
@@ -37,6 +36,13 @@ namespace EVWebApi.Repositories
             return _context.Users
                 .Include(u => u.UserGroup)
                     .ThenInclude(ug => ug.Group)
+                        .ThenInclude(g => g.GroupAccessRights)
+                        .ThenInclude(a=>a.AccessRight)
+
+               .Include(u => u.UserGroup)
+                    .ThenInclude(ug => ug.Group)
+                        .ThenInclude(g => g.GroupCabinets)
+                            .ThenInclude(c=>c.Cabinet)
                 .AsQueryable();
         }
 

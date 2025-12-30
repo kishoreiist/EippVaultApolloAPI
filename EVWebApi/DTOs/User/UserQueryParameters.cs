@@ -18,8 +18,8 @@ namespace EVWebApi.DTOs.User
 
 
 
-        [FromQuery(Name = "group_name")]
-        public string? GroupName { get; set; }
+        [FromQuery(Name = "group_id")]
+        public int? GroupId { get; set; }
 
         //[FromQuery(Name = "status")]
         //public UserStatus? Status { get; set; }

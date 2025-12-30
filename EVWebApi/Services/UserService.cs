@@ -46,9 +46,9 @@ namespace EVWebApi.Services
                 usersQuery = usersQuery.Where(u => u.PhoneNumber.Contains(query.PhoneNumber));
 
 
-            if (!string.IsNullOrWhiteSpace(query.GroupName))
+            if (query.GroupId.HasValue)
                 usersQuery = usersQuery.Where(u => u.UserGroup != null &&
-                             u.UserGroup.Group.GroupName.ToLower().Contains(query.GroupName.ToLower()));
+                             u.UserGroup.Group.GroupId==query.GroupId.Value);
 
             //  TOTAL count BEFORE pagination
             var totalRecords = await usersQuery.CountAsync();

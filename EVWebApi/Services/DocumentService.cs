@@ -214,7 +214,7 @@ namespace EVWebApi.Services
                 {
                     docQuery = docQuery.Where(d => d.GST.ToString().Contains(gstStr));
                 }
-            }
+            } 
             //PO NUMBER
             if (!string.IsNullOrWhiteSpace(query.PoNumber))
             {

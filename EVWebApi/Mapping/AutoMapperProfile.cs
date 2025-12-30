@@ -5,6 +5,7 @@ using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.User;
 using EVWebApi.Models;
+using System;
 
 namespace EVWebApi.Mapping
 {
@@ -16,18 +17,44 @@ namespace EVWebApi.Mapping
             CreateMap<User, UserDto>()
              .ForMember(dest => dest.Status,
                opt => opt.MapFrom(src => src.Status == UserStatus.active))
+
             .ForMember(dest => dest.GroupId,
                opt => opt.MapFrom(src => src.UserGroup != null ? src.UserGroup.GroupId : (int?)null))
+
             .ForMember(dest => dest.GroupName,
                opt => opt.MapFrom(src =>
                     src.UserGroup != null && src.UserGroup.Group != null
                     ? src.UserGroup.Group.GroupName
                     : null))
-            .ForMember(dest => dest.Description,
-        opt => opt.MapFrom(src =>
-            src.UserGroup != null && src.UserGroup.Group != null
-            ? src.UserGroup.Group.Description
-            : null));
+
+            .ForMember(dest => dest.UserType,
+                opt => opt.MapFrom(src =>
+                    src.UserGroup != null && src.UserGroup.Group != null
+                    ? src.UserGroup.Group.UserType
+                    : null))
+
+
+            .ForMember(dest => dest.AccessList,
+                opt => opt.MapFrom(src =>
+                    src.UserGroup.Group.GroupAccessRights 
+                     
+                            .Select(x => new ListDto
+                            {
+                                Id=x.AccessRight.Id,
+                                Name=x.AccessRight.AccessName
+                            })
+                            .ToList()
+                       ))
+
+            .ForMember(dest => dest.CabinetsList,
+                opt => opt.MapFrom(src =>
+                    src.UserGroup.Group.GroupCabinets 
+                            .Select(x => new ListDto
+                            {
+                                Id = x.Cabinet.CabinetId,
+                                Name = x.Cabinet.CabinetName
+                            })
+                            .ToList()));
 
             CreateMap<UpdateUserDto, User>()
                 .ForMember(dest => dest.Status,
@@ -46,7 +73,31 @@ namespace EVWebApi.Mapping
 
 
             //GROUP
-            CreateMap<Group, GroupDto>();
+            CreateMap<Group, GroupDto>()
+                .ForMember(dest => dest.AccessList,
+                opt => opt.MapFrom(src =>
+                    src.GroupAccessRights
+
+                            .Select(x => new ListDto
+                            {
+                                Id = x.AccessRight.Id,
+                                Name = x.AccessRight.AccessName
+                            })
+                            .ToList()
+                       ))
+
+            .ForMember(dest => dest.CabinetsList,
+                opt => opt.MapFrom(src =>
+                    src.GroupCabinets
+                            .Select(x => new ListDto
+                            {
+                                Id = x.Cabinet.CabinetId,
+                                Name = x.Cabinet.CabinetName
+                            })
+                            .ToList()));
+
+
+
             CreateMap<CreateGroupDto, Group>()
                  .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow));
 

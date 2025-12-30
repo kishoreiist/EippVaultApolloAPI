@@ -10,6 +10,8 @@ namespace EVWebApi.Models
         public string AccessName { get; set; }
         [Column("status")]
         public Boolean Status { get; set; }
+        public ICollection<GroupAccessRight> GroupAccessRights { get; set; }
     }
 }
+
 

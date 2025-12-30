@@ -57,7 +57,7 @@ namespace EVWebApi.Controllers
             if (id != dto.GroupId) return BadRequest();
             var updated = await _groupService.UpdateAsync(dto);
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Updated", updated.GroupName);
-            return Ok(updated);
+            return Ok(new { data = updated });
         }
 
 

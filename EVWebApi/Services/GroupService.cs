@@ -95,19 +95,47 @@ namespace EVWebApi.Services
             if (exists != null) 
                 throw new ConflictException($"GroupName '{dto.GroupName}' already exists");
 
+            var group = _mapper.Map<Group>(dto);
 
-            var group = new Group
+            group.GroupAccessRights = new List<GroupAccessRight>();
+            group.GroupCabinets = new List<GroupCabinet>();
+
+            if (dto.AccessList?.Any() == true)
             {
-                GroupName = dto.GroupName,
-                Description = dto.Description,
-                CreatedAt = DateTime.UtcNow,
+                foreach (var accessId in dto.AccessList.Distinct())
+                {
+                    group.GroupAccessRights.Add(new GroupAccessRight
+                    {
+                        AccessId = accessId
+                    });
+                }
+            }
 
-            };
+            if (dto.CabinetsList?.Any() == true)
+            {
+                foreach (var cabinetId in dto.CabinetsList.Distinct())
+                {
+                    group.GroupCabinets.Add(new GroupCabinet
+                    {
+                        CabinetId = cabinetId
+                    });
+                }
+            }
+            //var group = new Group
+            //{
+            //    GroupName = dto.GroupName,
+            //    GroupAccessRights = new List<GroupAccessRight>(),
+            //    GroupCabinets = new List<GroupCabinet>(),
+            //    //Description = dto.Description,
+            //    UserType = dto.UserType,
+            //    CreatedAt = DateTime.UtcNow,
+
+            //};
             await _uow.Groups.AddAsync(group);
             await _uow.CompleteAsync();
 
-
-            return _mapper.Map<GroupDto>(group);
+            var savedGroup = await _uow.Groups.GetByIdAsync(group.GroupId);
+            return _mapper.Map<GroupDto>(savedGroup);
         }
 
         public async Task<GroupDto> UpdateAsync(UpdateGroupDto dto)
@@ -118,16 +146,39 @@ namespace EVWebApi.Services
 
 
             if (!string.IsNullOrWhiteSpace(dto.GroupName)) group.GroupName = dto.GroupName;
-            if (dto.Description != null)
-                group.Description = dto.Description;
-
-
+            //if (dto.Description != null)
+            //    group.Description = dto.Description;
+            if (!string.IsNullOrWhiteSpace(dto.UserType)) group.UserType = dto.UserType;
+            if (dto.CabinetsList != null)
+            {
+                group.GroupCabinets.Clear();
+                foreach (var cabinetId in dto.CabinetsList)
+                {
+                    group.GroupCabinets.Add(new GroupCabinet
+                    {
+                        CabinetId = cabinetId,
+                        GroupId = group.GroupId
+                    });
+                }
+            }
+            if(dto.AccessList != null)
+            {
+                group.GroupAccessRights.Clear();
+                foreach (var accessId in dto.AccessList)
+                {
+                    group.GroupAccessRights.Add(new GroupAccessRight
+                    {
+                        AccessId = accessId,
+                        GroupId = group.GroupId
+                    });
+                }
+            }
 
             _uow.Groups.Update(group);
             await _uow.CompleteAsync();
+            var editedGroup = await _uow.Groups.GetByIdAsync(group.GroupId);
 
-
-            return _mapper.Map<GroupDto>(group);
+            return _mapper.Map<GroupDto>(editedGroup);
         }
         public async Task DeleteAsync(int id)
         {

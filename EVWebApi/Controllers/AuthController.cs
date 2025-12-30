@@ -232,7 +232,7 @@ namespace EVWebAPI.Controllers
                             toEmail: user.Email,
                             subject: "EIPP Vault – Username Recovery",
                             htmlBody: $@"
-                                    Hello,<br/><br/>
+                                    Dear User,<br/><br/>
                                     You requested assistance with retrieving your account User Name.<br/><br/>
                                     Your User Name is: <strong>{user.Username}</strong><br/><br/>
                                     <i>If you did not request this information, you can safely ignore this email.</i><br/><br/>

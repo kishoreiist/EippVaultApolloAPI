@@ -137,7 +137,6 @@ namespace EVWebApi.Services
         {
             var docQuery = _uow.Documents.Query()
                 .Where(d => d.CabinetId == cabinetId);
-            //d.Status == "active");
 
             // status for getting archive or default active
             if (string.IsNullOrWhiteSpace(query.Status))
@@ -723,6 +722,7 @@ namespace EVWebApi.Services
                         FileName = physicalFile.FileName,
                         FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
                         Version=version,
+                        Status = "active",
                         // Metadata fields from CSV
                         InvoiceNumber = record.InvoiceNumber,
                         PoNumber = record.PoNumber,

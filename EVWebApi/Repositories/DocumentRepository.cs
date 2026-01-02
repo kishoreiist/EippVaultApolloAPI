@@ -50,6 +50,7 @@ namespace EVWebApi.Repositories
             return _context.Documents
                 .Include(d => d.Notes)
                  .Include(d => d.DocumentType)
+                 .OrderBy(d => d.UploadedAt)
                 .AsQueryable();
         }
 

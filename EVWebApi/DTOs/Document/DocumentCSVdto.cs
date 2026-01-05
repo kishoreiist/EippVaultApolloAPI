@@ -1,6 +1,6 @@
 ﻿namespace EVWebApi.DTOs.Document
 {
-    public class DocumentCSVdto
+    public class DocumentMetadatadto
     {
         public string FileName { get; set; }
         public string? InvoiceNumber { get; set; }

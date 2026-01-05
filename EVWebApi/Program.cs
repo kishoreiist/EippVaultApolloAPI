@@ -2,11 +2,13 @@ using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
+using EVWebApi.Interfaces.Services.MetaDataReaders;
 using EVWebApi.Mapping;
 using EVWebApi.Middleware;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
 using EVWebApi.Services;
+using EVWebApi.Services.MetadataReaders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -15,6 +17,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using System.Reflection.Metadata;
 using System.Text;
 
 
@@ -72,6 +75,12 @@ builder.Services.AddScoped<IMfaService, MfaService>();
 builder.Services.AddTransient<IEmailSender, SmtpEmailSender>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 builder.Services.Configure<MfaSettings>(builder.Configuration.GetSection("Mfa"));
+
+builder.Services.AddScoped<IMetadataReaderService, CsvMetadataReaderService>();
+builder.Services.AddScoped<IMetadataReaderService, ExcelMetadataReaderService>();
+builder.Services.AddScoped<IMetadataReaderService, XmlMetadataReaderService>();
+builder.Services.AddScoped<IMetadataReaderService, TxtMetadataReaderService>();
+builder.Services.AddScoped<IMetadataReaderFactoryService, MetadataReaderFactoryService>();
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

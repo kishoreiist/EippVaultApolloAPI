@@ -16,13 +16,14 @@ using System.Globalization;
 using System.Text.Json;
 using CsvHelper.Configuration;
 using System.Linq;
+using EVWebApi.Interfaces.Services.MetaDataReaders;
 namespace EVWebApi.Services
 {
     public class DocumentService : IDocumentService
     {
         private readonly IDocumentRepository _repo;
         private readonly IMetadataRepository _metadataRepo;
-
+        private readonly IMetadataReaderFactoryService _metadataReaderFactory;
         private readonly IWebHostEnvironment _env;
         private readonly string _uploadRoot;
         private readonly string _storageRoot;
@@ -32,10 +33,12 @@ namespace EVWebApi.Services
         private readonly IMapper _mapper;
 
 
-        public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config)
+        public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IMetadataReaderFactoryService metadataReaderFactory,
+            IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
+            _metadataReaderFactory = metadataReaderFactory;
             _env = env;
             _uow = uow;
             _mapper = mapper;
@@ -137,7 +140,6 @@ namespace EVWebApi.Services
         {
             var docQuery = _uow.Documents.Query()
                 .Where(d => d.CabinetId == cabinetId);
-            //d.Status == "active");
 
             // status for getting archive or default active
             if (string.IsNullOrWhiteSpace(query.Status))
@@ -634,43 +636,24 @@ namespace EVWebApi.Services
             var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
             if (cabinet == null)
                 throw new Exception("Invalid CabinetId");
-           
-           
+
+            var extension = Path.GetExtension(dto.MetadataFile.FileName).ToLower();
+            var reader = _metadataReaderFactory.GetReader(extension);
+
+            var metadataResult = await reader.ReadAsync(dto.MetadataFile);
+            if (metadataResult.TotalRecords == 0 || metadataResult.Records.Count==0)
+                throw new ArgumentException("Unable to read the metadata file");
+
             var summary = new BatchUploadResponseDTO();
+            summary.Failed += metadataResult.Errors.Count;
+            summary.FailedDocDetails.AddRange(metadataResult.Errors);
+
             var processedFiles = new List<string>();
-            // 1. Setup CSV Reader
-
-            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-            {
-                HeaderValidated = null,
-                MissingFieldFound = null,
-                TrimOptions = TrimOptions.Trim,
-                PrepareHeaderForMatch = args => args.Header.ToLower()
-            };
-            using var reader = new StreamReader(dto.MetadataFile.OpenReadStream());
-            using var csv = new CsvReader(reader, config);
-
-            await csv.ReadAsync();
-            csv.ReadHeader();
             int totalCount = 0;
 
-            while(await csv.ReadAsync())
+            foreach (var record in metadataResult.Records)
             {
                 totalCount++;
-                DocumentCSVdto record = null;
-                try
-                {
-                    record = csv.GetRecord<DocumentCSVdto>();
-                }
-                catch (CsvHelper.TypeConversion.TypeConverterException ex)
-                {
-                    summary.Failed++;
-                    var fieldName = ex.MemberMapData?.Member?.Name ?? "Unknown Field";
-                    var badValue = ex.Text ?? "Empty";
-                    summary.FailedDocDetails.Add($"Row {totalCount}: Invalid value '{badValue}' for field '{fieldName}'.");
-                    continue;
-                }
-
 
                 try
                 {
@@ -720,9 +703,11 @@ namespace EVWebApi.Services
                     var document = new Document
                     {
                         CabinetId = dto.CabinetId,
-                        FileName = physicalFile.FileName,
+                        //FileName = physicalFile.FileName,
+                        FileName = fileName,
                         FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
                         Version=version,
+                        Status = "active",
                         // Metadata fields from CSV
                         InvoiceNumber = record.InvoiceNumber,
                         PoNumber = record.PoNumber,
@@ -745,7 +730,6 @@ namespace EVWebApi.Services
                         Region = record.Region,
                         UploadedBy = currentuserid,
                         UploadedAt = DateTime.UtcNow
-
                     };
 
                     _repo.AddDocumentRange(document);
@@ -757,7 +741,7 @@ namespace EVWebApi.Services
                     summary.Failed++;
                 }
             }
-            summary.TotalProcessed =totalCount;
+            summary.TotalProcessed = metadataResult.TotalRecords;
 
             if (summary.Success > 0)
             {

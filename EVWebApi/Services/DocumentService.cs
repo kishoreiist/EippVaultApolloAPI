@@ -1,5 +1,8 @@
 ﻿using AutoMapper;
 using CsvHelper;
+using CsvHelper.Configuration;
+using DocumentFormat.OpenXml.Office2010.Excel;
+using DocumentFormat.OpenXml.Wordprocessing;
 using EVWebApi.DTOs;
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
@@ -8,15 +11,19 @@ using EVWebApi.DTOs.Pagination;
 using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
+using EVWebApi.Interfaces.Services.MetaDataReaders;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
+using Humanizer;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Globalization;
-using System.Text.Json;
-using CsvHelper.Configuration;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
-using EVWebApi.Interfaces.Services.MetaDataReaders;
+using System.Text.Json;
+using static PdfSharpCore.Pdf.PdfDictionary;
+using Document = EVWebApi.Models.Document;
 namespace EVWebApi.Services
 {
     public class DocumentService : IDocumentService
@@ -27,7 +34,6 @@ namespace EVWebApi.Services
         private readonly IWebHostEnvironment _env;
         private readonly string _uploadRoot;
         private readonly string _storageRoot;
-
 
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
@@ -473,23 +479,119 @@ namespace EVWebApi.Services
         //{
         //    await _repo.UpdateStatus(id, "active");
         //}
-        // ------------------DELETE--------------------
+
+
+        // -----------------SINGLE-DELETE--------------------
         public async Task<(int cabinetId, bool status)> DeleteDocument(int id)
         {
             var doc = await _repo.GetDocument(id);
             if (doc == null)
                 throw new NotFoundException("Document not found");
             int cabinetid = doc.CabinetId;
-            // Delete metadata
-            //await _metadataRepo.DeleteMetadataByDocumentId(id);
-            //string fullPath = Path.Combine(_env.WebRootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
-            //// Delete physical file
-            //if (File.Exists(fullPath))
-            //    File.Delete(fullPath);
 
             await _repo.DeleteDocument(id);
-
             return (cabinetid, true);
+        }
+
+        // -----------------MULTI-DELETE--------------------
+        public async Task<BatchResponseDTO> DeleteMultipleDocuments(List<int> ids)
+        {
+            var summary = new BatchResponseDTO();
+            foreach (var id in ids)
+            {
+                summary.TotalProcessed++;
+                try
+                {
+                    var doc = await _repo.GetDocument(id);
+                    if (doc.Status == "archived")
+                        throw new AuthorizationException("Access to archived document is forbidden");
+                    if (doc != null)
+                    {
+
+                        await _repo.DeleteDocument(id);
+                        summary.Success++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    summary.FailedDocDetails.Add($"Error deleting Document ID {id}: {ex.Message}");
+                    summary.Failed++;
+                }
+                
+            }
+            return summary;
+        }
+        //-------------------- Export Merged PDF-----------------------
+
+        public async Task<Stream?> GetMergedDocumentStream(List<int> documentIds)
+        {
+            var outputStream = new MemoryStream();
+
+            using (var outputDocument = new PdfSharpCore.Pdf.PdfDocument())
+            {
+                foreach (var id in documentIds)
+                {
+                    var pdfStream = await GetDocumentStream(id);
+                    if (pdfStream == null)
+                        throw new NotFoundException($"Document not found: {id}");
+
+                    using (pdfStream)
+                    using (var inputDocument = PdfSharpCore.Pdf.IO.PdfReader.Open(
+                        pdfStream,
+                        PdfSharpCore.Pdf.IO.PdfDocumentOpenMode.Import))
+                    {
+                        for (int i = 0; i < inputDocument.PageCount; i++)
+                        {
+                            outputDocument.AddPage(inputDocument.Pages[i]);
+                        }
+                    }
+                }
+
+                outputDocument.Save(outputStream, false);
+            }
+
+            outputStream.Position = 0;
+            return outputStream;
+        }
+
+        //--------------------- EXPORT TO ZIP File-------------------
+
+        public async Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(BatchDocDto dto)
+        {
+            var memoryStream = new MemoryStream();
+
+                using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+                {
+                    foreach (var id in dto.DocumentIds)
+                    {
+                        // Fetch PDF stream for invoice
+                        var pdfStream = await GetDocumentStream(id);
+                        if (pdfStream == null)
+                            throw new NotFoundException($"Document not found: {id}");
+
+                    // Generate file name
+                    var originalFileName = await _repo.GetDocumentName(id); 
+
+                    // Generate unique filename for ZIP: originalname_id.pdf
+                    var fileNameWithoutExt = Path.GetFileNameWithoutExtension(originalFileName);
+                    var extension = Path.GetExtension(originalFileName);
+                    var FileName = $"{fileNameWithoutExt}_{id}{extension}";
+
+                    var zipEntry = archive.CreateEntry(FileName, CompressionLevel.Fastest);
+                        using (var entryStream = zipEntry.Open())
+                        {
+                            await pdfStream.CopyToAsync(entryStream);
+                        }
+                    }
+                }
+
+            memoryStream.Position = 0;
+            var cabinetName = await _uow.Cabinets.GetCabinetNameAsync(dto.CabinetId) ?? "UnknownCabinet";
+            var safeCabinetName = string.Concat(cabinetName.Split(Path.GetInvalidFileNameChars()));
+            var zipFileName = $"{safeCabinetName}_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.zip";
+
+            return (memoryStream, zipFileName);
+            
         }
 
         //--------------------- EDIT ---------------------------------
@@ -627,7 +729,7 @@ namespace EVWebApi.Services
 
         // ----------------- BATCH UPLOAD------------------------
 
-        public async Task<BatchUploadResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid)
+        public async Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid)
         {
             if (dto.MetadataFile == null || dto.Files == null || dto.Files.Count == 0)
                 throw new ArgumentException("CSV or PDF files are missing.");
@@ -644,7 +746,7 @@ namespace EVWebApi.Services
             if (metadataResult.TotalRecords == 0 || metadataResult.Records.Count==0)
                 throw new ArgumentException("Unable to read the metadata file");
 
-            var summary = new BatchUploadResponseDTO();
+            var summary = new BatchResponseDTO();
             summary.Failed += metadataResult.Errors.Count;
             summary.FailedDocDetails.AddRange(metadataResult.Errors);
 

@@ -7,6 +7,7 @@ using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using System.IO.Compression;
 using static Microsoft.CodeAnalysis.Host.HostWorkspaceServices;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
@@ -131,7 +132,7 @@ namespace EVWebApi.Controllers
 
             return Ok(updated);
         }
-        // DELETE DOC
+        // SINGLE DELETE DOC
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDocument(int id)
         {
@@ -139,8 +140,23 @@ namespace EVWebApi.Controllers
 
             if (!isSuccess)
                 return NotFound(new { message = "Document not found" });
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete", null, cabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete",id.ToString(), cabinetId);
             return Ok(new { message = "Document deleted successfully" });
+        }
+
+        // BATCH DELETE DOCS
+        [HttpPost("batch_delete")]
+        public async Task<IActionResult> BatchDeleteDocuments([FromBody] BatchDocDto dto)
+        {
+            var result = await _documentService.DeleteMultipleDocuments(dto.DocumentIds);
+            string filterDetails = result.ToFilterLog("Summary - ");
+
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Batch Document Delete",null,dto.CabinetId, null, filters: filterDetails);
+            
+            if(result.Success == 0)
+                return NotFound(new { message = "No documents were deleted." });
+
+            return Ok(result);
         }
 
         //File explorer 
@@ -163,6 +179,63 @@ namespace EVWebApi.Controllers
                 data = docTypes
             });
         }
+
+        // Merge and Preview Documents
+
+        [HttpPost("merge_pdf")]
+        public async Task<IActionResult> ExportMergedDocuments([FromBody] BatchDocDto dto)
+        {
+            if (dto.DocumentIds == null || !dto.DocumentIds.Any())
+                return BadRequest("No document IDs provided");
+
+            var mergedStream = await _documentService.GetMergedDocumentStream(dto.DocumentIds);
+            if (mergedStream == null)
+                return NotFound();
+
+            await _auditlogservice.LogAsync(
+                CurrentUserId,
+                CurrentUsername,
+                "Document",
+                "Export Merged PDF",null, dto.CabinetId
+            );
+
+            mergedStream.Position = 0;
+
+            return File(
+                mergedStream,
+                "application/pdf",
+                "merged.pdf",
+                enableRangeProcessing: true
+            );
+        }
+
+
+        //Export to zip file
+
+
+        [HttpPost("export_zip")]
+        public async Task<IActionResult> ExportInvoicesZip([FromBody] BatchDocDto dto)
+        {
+            if (dto.DocumentIds == null || !dto.DocumentIds.Any())
+                return BadRequest("No document IDs provided.");
+            var zip_stream = await _documentService.GetZIPFile(dto);
+            if (zip_stream.ZipStream == null)
+                return NotFound();
+
+            await _auditlogservice.LogAsync(
+                CurrentUserId,
+                CurrentUsername,
+                "Document",
+                "Export ZIP File", null, dto.CabinetId
+            );
+
+
+            return File(zip_stream.ZipStream, "application/zip", zip_stream.ZipFileName);
+            
+        }
+
+
+
         //----------------------------NOTES----------------------------------
 
         //get notes by doc id

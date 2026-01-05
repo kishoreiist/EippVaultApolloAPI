@@ -1,6 +1,6 @@
 ﻿namespace EVWebApi.DTOs.Document
 {
-    public class BatchUploadResponseDTO
+    public class BatchResponseDTO
     {
         public int TotalProcessed { get; set; }
         public int Success { get; set; }

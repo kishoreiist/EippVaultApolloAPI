@@ -16,7 +16,7 @@ namespace EVWebApi.Interfaces.Repositories
 
         Task<List<string>> GetDocTypesAsync();
         Task<DocumentTypes> GetOrCreateDocLabelAsync(string label);
-
+        Task<string> GetDocumentName(int id);
         void AddDocumentRange(Document doc);
 
         //--------NOTES----------------

@@ -14,10 +14,13 @@ namespace EVWebApi.Interfaces.Services
         Task<Stream?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
         Task<(int cabinetId, bool status)> DeleteDocument(int id);
+        Task<BatchResponseDTO> DeleteMultipleDocuments(List<int> ids);
+        Task<Stream?> GetMergedDocumentStream(List<int> documentIds);
+        Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(BatchDocDto dto);
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
         Task<List<string>> GetDocTypeAsync();
 
-        Task<BatchUploadResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid);
+        Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid);
         
         
         //Task ArchiveDocument(int id);

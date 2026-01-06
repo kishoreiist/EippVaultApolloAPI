@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Data;
 using EVWebApi.DTOs.Document;
+using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
@@ -36,11 +37,13 @@ namespace EVWebApi.Repositories
             var doc = await _context.Documents
                 .Include(d => d.MetadataList)
                 .Include(d => d.Notes)
-                 .Include(d => d.DocumentType)
+                .Include(d => d.DocumentType)
+                
                 .FirstOrDefaultAsync(d => d.DocumentId == id);
 
             if (doc == null)
                 throw new Exception("Document not found");
+
 
             return doc;
         }
@@ -133,7 +136,7 @@ namespace EVWebApi.Repositories
             return doctype;
         }
 
-        //---------------GET DOC TYPE DETAILS BY doc_type name
+        //---------------GET DOC TYPE DETAILS BY doc_type name---------------
 
         public async Task<DocumentTypes> GetOrCreateDocLabelAsync(string label)
         {
@@ -156,6 +159,22 @@ namespace EVWebApi.Repositories
             await _context.SaveChangesAsync();
             return docType;
         }
+
+        //------------------GET DOC NAME BY DocId--------------
+
+        public async Task<string> GetDocumentName(int id)
+        {
+            var document = await _context.Documents
+                .Where(d => d.DocumentId == id)
+                .Select(d => new { d.FileName })
+                .FirstOrDefaultAsync();
+
+            if (document == null)
+                throw new NotFoundException($"Document not found: {id}");
+
+            return document.FileName;
+        }
+
         //-------------------------NOTES---------------------------------------//
 
         //-----------CREATE-------------------

@@ -18,6 +18,14 @@ namespace EVWebApi.Repositories
             return await _context.Cabinets
                 .FirstOrDefaultAsync(u => u.CabinetName == cabinetname);
         }
+        public async Task<string> GetCabinetNameAsync(int cabinetId)
+        {
+             var cabinet =  await _context.Cabinets
+                        .FirstOrDefaultAsync(u => u.CabinetId == cabinetId);
+            return cabinet != null ? cabinet.CabinetName : "Cabinet not found!";
+
+        }
+
         public override async Task<Cabinet?> GetByIdAsync(int id)
         {
             return await Query()

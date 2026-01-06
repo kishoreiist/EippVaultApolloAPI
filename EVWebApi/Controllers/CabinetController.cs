@@ -31,7 +31,7 @@ namespace EVWebApi.Controllers
         {
             var Cabinets = await _CabinetService.GetAllAsync(query);
             string filterDetails = query.ToFilterLog();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "All Records Retrieved", null, filters: filterDetails);
+            //await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "All Records Retrieved", null, filters: filterDetails);
             return Ok(Cabinets);
         }
 
@@ -41,7 +41,7 @@ namespace EVWebApi.Controllers
         {
             var Cabinet = await _CabinetService.GetByIdAsync(id);
             if (Cabinet == null) return NotFound();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Record Retrieved", Cabinet.CabinetName);
+            //await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Cabinet", "Record Retrieved", Cabinet.CabinetName);
             return Ok(Cabinet);
         }
 

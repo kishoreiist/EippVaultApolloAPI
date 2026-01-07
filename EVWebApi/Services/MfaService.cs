@@ -19,12 +19,12 @@ public class MfaService : IMfaService
     private readonly IEmailSender _emailSender;
     private readonly IOptions<MfaSettings> _mfaOptions;
     private readonly ILogger<MfaService> _logger;
-
+    private readonly string _displayName;
 
     public MfaService(IMfaRepository mfaRepo, IUserRepository userRepo, IUserAuthenticatorRepository authenticatorRepo,
         IEmailSender emailSender,
         IOptions<MfaSettings> mfaOptions,
-        ILogger<MfaService> logger)
+        ILogger<MfaService> logger, IConfiguration _config)
     {
         _mfaRepo = mfaRepo;
         _userRepo = userRepo;
@@ -32,7 +32,7 @@ public class MfaService : IMfaService
         _emailSender = emailSender;
         _mfaOptions = mfaOptions;
         _logger = logger;
-
+        _displayName = _config["Email:DisplayName"];
     }
 
     public async Task GenerateAndSendTokenAsync(User user, CancellationToken ct = default) {
@@ -50,7 +50,7 @@ public class MfaService : IMfaService
 
         // Build email body from template
         var minutes = 5;
-        var subject = _mfaOptions.Value.EmailSubject;
+        var subject = _mfaOptions.Value.EmailSubject.Replace("{DisplayName}", _displayName);
         var body = _mfaOptions.Value.EmailBodyTemplate
             .Replace("{CODE}", token)
             .Replace("{MINUTES}", minutes.ToString());
@@ -187,7 +187,8 @@ public class MfaService : IMfaService
 
         // Build email body from template
         var minutes = 5;
-        var subject = _mfaOptions.Value.EmailSubject;
+        var subject = _mfaOptions.Value.EmailSubject
+            .Replace("{DisplayName}", _displayName);
         var body = _mfaOptions.Value.EmailBodyTemplate
             .Replace("{CODE}", token)
             .Replace("{MINUTES}", minutes.ToString());

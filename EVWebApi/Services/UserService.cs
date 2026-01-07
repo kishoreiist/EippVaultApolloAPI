@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using EVWebApi.DTOs;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
@@ -21,6 +22,7 @@ namespace EVWebApi.Services
         private readonly IAuthService _authService;
         private readonly string _frontendRoot;
         private readonly IEmailSender _emailSender;
+        private readonly string  _displayName;
         public UserService(IUnitOfWork uow, IMapper mapper, IAuthService authService, IConfiguration config, IEmailSender emailSender)
         {
             _uow = uow;
@@ -28,6 +30,7 @@ namespace EVWebApi.Services
             _authService = authService;
             _emailSender = emailSender;
             _frontendRoot = config["Frontend:BaseUrl"];
+            _displayName = config["Email:DisplayName"];
 
         }
 
@@ -131,7 +134,7 @@ namespace EVWebApi.Services
 
             await _emailSender.SendAsync(
                toEmail: user.Email,
-                subject: "Welcome to EIPP Vault",
+                subject: $"Welcome to {_displayName}",
                 htmlBody: $@"
                 <div style='margin:0;padding:0;background-color:#f4f6f8;font-family:Arial,Helvetica,sans-serif;'>
                   <table width='100%' cellpadding='0' cellspacing='0'>
@@ -150,7 +153,7 @@ namespace EVWebApi.Services
                               <p>Dear User,</p>
                 
                               <p>
-                                Welcome to <strong>EIPP Vault</strong>. Your account has been successfully created.
+                                Welcome to <strong>{_displayName}</strong>. Your account has been successfully created.
                               </p>
                 
                               <ul style='padding-left:18px;'>
@@ -187,10 +190,10 @@ namespace EVWebApi.Services
                                 <i>If you did not request this account, please ignore this email
                                 or contact our support team immediately.</i>
                               </p>
-                
+         
                               <p style='margin-top:24px;'>
                                 Regards,<br/>
-                                <strong>EIPP Vault Team</strong>
+                                <strong>{_displayName} Team</strong>
                               </p>
                 
                             </td>

@@ -138,7 +138,7 @@ namespace EVWebApi.Repositories
 
         //---------------GET DOC TYPE DETAILS BY doc_type name---------------
 
-        public async Task<DocumentTypes> GetOrCreateDocLabelAsync(string label)
+        public async Task<DocumentTypes> GetOrCreateDocLabelAsync(string label)//can be used for filtering as it is dropdown
         {
             label = label.Trim();
 

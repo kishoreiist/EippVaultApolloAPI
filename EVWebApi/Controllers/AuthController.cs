@@ -21,7 +21,7 @@ namespace EVWebAPI.Controllers
         private readonly IMfaService _mfaService;
         private readonly IUserRepository _userRepo;
         private readonly IUserService _userService;
-
+        private readonly string _displayName;
         private readonly IEmailSender _emailSender;
         private readonly string _frontendRoot;
 
@@ -43,6 +43,7 @@ namespace EVWebAPI.Controllers
             _auditlogservice = auditlogservice;
             _emailSender = emailSender;
             _frontendRoot = config["Frontend:BaseUrl"];
+            _displayName = config["Email:DisplayName"];
         }
 
         [HttpPost("login")]
@@ -230,14 +231,14 @@ namespace EVWebAPI.Controllers
             {
                 await _emailSender.SendAsync(
                             toEmail: user.Email,
-                            subject: "EIPP Vault – Username Recovery",
+                            subject: $"{_displayName} – Username Recovery",
                             htmlBody: $@"
                                     Dear User,<br/><br/>
                                     You requested assistance with retrieving your account User Name.<br/><br/>
                                     Your User Name is: <strong>{user.Username}</strong><br/><br/>
                                     <i>If you did not request this information, you can safely ignore this email.</i><br/><br/>
                                     Regards,<br/>
-                                    EIPP Vault Team");
+                                    {_displayName} Team");
             
                 await _auditlogservice.LogAsync( user.UserId,user.Username,"Login","Forgot Username",null, null, null,filters: request.ToFilterLog("Details - "));
                 usernameSent = true;
@@ -255,12 +256,12 @@ namespace EVWebAPI.Controllers
                     
                 await _emailSender.SendAsync(
                    toEmail: user.Email,
-                    subject: "EIPP Vault - Password Reset",
+                    subject: $"{_displayName} - Password Reset",
                    htmlBody: $@"
                     <p>Dear User,</p>
                     <p>
                     We received a request to reset the password for your
-                    <strong>EIPP Vault</strong> account.
+                    <strong>{_displayName}</strong> account.
                     </p>
 
                     <p>
@@ -294,7 +295,7 @@ namespace EVWebAPI.Controllers
                     </p>
                     <br/><br/>
                     Regards,<br/>
-                    EIPP Vault Team"
+                    {_displayName} Team"
 
                 );
 

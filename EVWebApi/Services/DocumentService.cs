@@ -598,7 +598,7 @@ namespace EVWebApi.Services
 
         public async Task<DocumentResponseDto> UpdateDocumentAsync(int id, UpdateDocumentDto dto)
         {
-            var document = await _uow.Documents.GetByIdAsync(id);
+            var document = await _uow.Documents.GetDocument(id);
 
             if (document == null || document.Status == "inactive")
                 throw new NotFoundException($"Document with id {id} not found");
@@ -648,7 +648,7 @@ namespace EVWebApi.Services
             {
                 docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
                 document.DocumentTypeId = docType.Id;
-                document.DocumentType = null;
+                //document.DocumentType = null;
             }
 
             _uow.Documents.Update(document);

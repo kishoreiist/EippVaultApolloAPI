@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 
 namespace EVWebApi.Exceptions
 {
@@ -6,6 +7,7 @@ namespace EVWebApi.Exceptions
     {
         public static (int StatusCode, object Response) Handle(Exception ex)
         {
+            var traceId = Activity.Current?.Id;
             return ex switch
             {
                 //built-in .NET exception
@@ -15,6 +17,7 @@ namespace EVWebApi.Exceptions
                     {
                         statusCode = 404,
                         message = "Resource not found",
+                        traceId,
                         timestamp = DateTime.UtcNow
                     }
                 ),
@@ -25,6 +28,7 @@ namespace EVWebApi.Exceptions
                     {
                         statusCode = 400,
                         message = ex.Message,
+                        traceId ,
                         timestamp = DateTime.UtcNow
                     }
                 ),
@@ -36,7 +40,7 @@ namespace EVWebApi.Exceptions
                     {
                         statusCode = 500,
                         message = "Internal server error",
-                        detail = ex.Message, 
+                        traceId ,
                         timestamp = DateTime.UtcNow
                     }
                 )

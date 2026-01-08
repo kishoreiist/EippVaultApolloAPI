@@ -72,7 +72,16 @@ namespace EVWebApi.Controllers
                 string filterDetails = result.ToFilterLog("Upload Status - ");
 
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Batch Upload", null, dto.CabinetId, filters: filterDetails);
-                
+
+                if(result.Success == 0 && result.Failed > 0)
+                {
+                    return UnprocessableEntity(result);
+
+                }
+                if (result.Success > 0 && result.Failed > 0)
+                {
+                    return StatusCode(207, result); // Partial success
+                }
                 return Ok(result);
             }           
             catch (Exception ex)
@@ -233,8 +242,6 @@ namespace EVWebApi.Controllers
             return File(zip_stream.ZipStream, "application/zip", zip_stream.ZipFileName);
             
         }
-
-
 
         //----------------------------NOTES----------------------------------
 

@@ -251,9 +251,9 @@ namespace EVWebAPI.Controllers
 
                 var token =_authService.GeneratePasswordResetJwtAsync(user);
                 
-                var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
+               // var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
+                var resetUrl = $"{_frontendRoot}/reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
 
-                    
                 await _emailSender.SendAsync(
                    toEmail: user.Email,
                     subject: $"{_displayName} - Password Reset",

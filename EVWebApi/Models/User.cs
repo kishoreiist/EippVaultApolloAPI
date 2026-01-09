@@ -1,6 +1,8 @@
-﻿using System;
+﻿using EVWebApi.Helpers;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using static QRCoder.PayloadGenerator;
 
 namespace EVWebApi.Models
 {
@@ -14,11 +16,10 @@ namespace EVWebApi.Models
 
         [Column("username")]
         public required string Username { get; set; }
-        [Column("email")]
-        public required string Email { get; set; }
+        //[Column("email")]
+        //public required string Email { get; set; }
         [Column("password_hash")]
         public required string PasswordHash { get; set; }
-
 
         [Column("status")]
         public UserStatus Status { get; set; } = UserStatus.active;
@@ -36,6 +37,15 @@ namespace EVWebApi.Models
 
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        //email entity level normalization
+        private string _email = string.Empty;
+        [Column("email")]
+        public string Email
+        {
+            get => _email;
+            set => _email = EmailValidationHelper.Normalize(value);
+        }
 
         // junction table
         public UserGroup? UserGroup { get; set; }

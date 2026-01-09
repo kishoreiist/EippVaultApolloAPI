@@ -127,9 +127,11 @@ namespace EVWebApi.Mapping
                             : null))
                 .ReverseMap();
 
+            CreateMap<Document, DocumentChildDDTO>()
+                .ForMember(dest => dest.NotesCount,
+               opt => opt.MapFrom(src => src.Notes.Count));
 
-   
-
+            CreateMap<Document, GroupedDocResponseDTO>();
 
 
             CreateMap<Metadata, MetadataDTO>()

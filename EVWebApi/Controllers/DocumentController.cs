@@ -72,8 +72,7 @@ namespace EVWebApi.Controllers
                 string filterDetails = result.ToFilterLog("Upload Status - ");
 
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Batch Upload", null, dto.CabinetId, filters: filterDetails);
-
-                if(result.Success == 0 && result.Failed > 0)
+                if (result.Success == 0 && result.Failed > 0)
                 {
                     return UnprocessableEntity(result);
 
@@ -82,6 +81,7 @@ namespace EVWebApi.Controllers
                 {
                     return StatusCode(207, result); // Partial success
                 }
+
                 return Ok(result);
             }           
             catch (Exception ex)
@@ -115,6 +115,19 @@ namespace EVWebApi.Controllers
             return Ok(docs);
         }
 
+        //get all document based on cabinetid grouped by doc type
+        [HttpGet("grouped/{cabinetId}")]
+        public async Task<IActionResult> GetGroupedDocumentsByCabinetId(int cabinetId, [FromQuery] DocumentQueryParameters query)
+        {
+            var docs = await _documentService.GetGroupedDocuments(cabinetId, query);
+            string filterDetails = query.ToFilterLog();
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Retrieved", null, cabinetId, null, filters: filterDetails);
+
+            return Ok(docs);
+        }
+
+
+
         // PDF Preview (stream)
         [HttpGet("{id}/preview")]
         public async Task<IActionResult> PreviewDocument(int id)
@@ -126,7 +139,6 @@ namespace EVWebApi.Controllers
             return File(fileStream, "application/pdf", enableRangeProcessing: true);
 
         }
-
 
         //edit by doc id
         [HttpPut("{id}")]

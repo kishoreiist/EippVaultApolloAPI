@@ -97,7 +97,13 @@ namespace EVWebAPI.Controllers
             if (request is null || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Method))
                 throw new BadRequestException("Invalid MFA setup request.");
 
+            //normalizing & validating email
+            var normalizedEmail = EmailValidationHelper.Normalize(request.Email);
+            if (EmailValidationHelper.IsValidEmail(normalizedEmail))
+                request.Email = normalizedEmail;
+
             var user = await _userRepo.GetByEmailAsync(request.Email);
+
             if (user == null)
                 throw new NotFoundException("User not found");
 
@@ -217,6 +223,11 @@ namespace EVWebAPI.Controllers
             if (request == null || string.IsNullOrWhiteSpace(request.Email))
                 throw new BadRequestException("Invalid request");
 
+            //normalizing & validating email
+            var normalizedEmail = EmailValidationHelper.Normalize(request.Email);
+            if (EmailValidationHelper.IsValidEmail(normalizedEmail))
+                 request.Email = normalizedEmail;
+
             var user = await _userRepo.GetByEmailAsync(request.Email);
             if (user == null)
                 //return Ok(new { message = "If the email exists, a reset link will be sent." });
@@ -251,9 +262,9 @@ namespace EVWebAPI.Controllers
 
                 var token =_authService.GeneratePasswordResetJwtAsync(user);
                 
-               // var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
-                var resetUrl = $"{_frontendRoot}/reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+                var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
 
+                    
                 await _emailSender.SendAsync(
                    toEmail: user.Email,
                     subject: $"{_displayName} - Password Reset",

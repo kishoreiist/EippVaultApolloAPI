@@ -28,6 +28,7 @@ namespace EVWebApi.Data
 
         public DbSet<GroupAccessRight> GroupAccessRights { get; set; }
         public DbSet<GroupCabinet> GroupCabinets { get; set; }
+        public DbSet<CabinetGroupingRule> CabinetGroupingRules { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
            
@@ -48,6 +49,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<Notes>().ToTable("notes");
             modelBuilder.Entity<AccessRights>().ToTable("accessrights");
             modelBuilder.Entity<DocumentTypes>().ToTable("document_types");
+            modelBuilder.Entity<CabinetGroupingRule>().ToTable("cabinet_grouping_rules");
 
             modelBuilder.Entity<GroupCabinet>().ToTable("group_cabinets");
             modelBuilder.Entity<GroupAccessRight>().ToTable("group_accessrights");
@@ -60,6 +62,8 @@ namespace EVWebApi.Data
             modelBuilder.Entity<AccessRights>().HasKey(a => a.Id);
             modelBuilder.Entity<Cabinet>().HasKey(u => u.CabinetId);
             modelBuilder.Entity<DocumentTypes>().HasKey(d => d.Id);
+            modelBuilder.Entity<CabinetGroupingRule>().HasKey(d => d.Id);
+
             modelBuilder.Entity<UserGroup>()
                 .HasKey(ug => new { ug.UserId, ug.GroupId });
 

@@ -10,6 +10,7 @@ namespace EVWebApi.Interfaces.Services
         Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int CurrentUserId);
         Task<DocumentResponseDto> GetDocument(int id);
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
+        Task<PagedResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
         Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto);
         Task<Stream?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);

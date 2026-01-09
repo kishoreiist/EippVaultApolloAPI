@@ -4,6 +4,7 @@ using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -97,20 +98,25 @@ namespace EVWebApi.Services
         }
         public async Task<UserDto> CreateAsync(CreateUserDto dto)
         {
+            var normalizedEmail = EmailValidationHelper.Normalize(dto.Email);
+
+            if (!EmailValidationHelper.IsValidEmail(normalizedEmail))
+                throw new ValidationException("Invalid email address format");
+
             var exists = await _uow.Users.GetByUsernameAsync(dto.Username);
             if (exists != null)
                 throw new ConflictException($"Username '{dto.Username}' already exists");
 
 
-            var emailExists = await _uow.Users.GetByEmailAsync(dto.Email);
+            var emailExists = await _uow.Users.GetByEmailAsync(normalizedEmail);
             if (emailExists != null) 
-                throw new ConflictException($"User mail '{dto.Email}' already exists");
+                throw new ConflictException($"User mail '{normalizedEmail}' already exists");
 
             var user = new User
             {
                 Username = dto.Username,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Email = dto.Email,
+                Email = normalizedEmail,
                 MfaEnabled = dto.MfaEnabled,
                 Status = dto.Status ? UserStatus.active : UserStatus.inactive,
                 PhoneNumber = dto.PhoneNumber,
@@ -221,7 +227,16 @@ namespace EVWebApi.Services
 
 
             if (!string.IsNullOrWhiteSpace(dto.Username)) user.Username = dto.Username;
-            if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email;
+
+            if (!string.IsNullOrWhiteSpace(dto.Email))
+            {
+                var normalizedEmail = EmailValidationHelper.Normalize(dto.Email);
+                if (!EmailValidationHelper.IsValidEmail(normalizedEmail))
+                    throw new ValidationException("Invalid email address"); 
+                user.Email = normalizedEmail; 
+            
+            }
+
             if (dto.MfaEnabled.HasValue) user.MfaEnabled = dto.MfaEnabled.Value;
             if (dto.MfaMethod.HasValue) user.MfaMethod = dto.MfaMethod;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PhoneNumber = dto.PhoneNumber;

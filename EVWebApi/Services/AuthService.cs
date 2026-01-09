@@ -34,9 +34,9 @@ public class AuthService : IAuthService
         string userInput = dto.User.Trim();
         string? username = null;
         string? email = null;
-
-        if (EmailValidationHelper.IsValidEmail(userInput))
-            email = userInput;
+        var normalizedEmail = EmailValidationHelper.Normalize(userInput);
+        if (EmailValidationHelper.IsValidEmail(normalizedEmail))
+            email = normalizedEmail;
         else
             username = userInput;
 

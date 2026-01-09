@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using CsvHelper;
 using CsvHelper.Configuration;
+using DocumentFormat.OpenXml.Bibliography;
 using DocumentFormat.OpenXml.Office2010.Excel;
 using DocumentFormat.OpenXml.Wordprocessing;
 using EVWebApi.DTOs;
@@ -15,6 +16,7 @@ using EVWebApi.Interfaces.Services.MetaDataReaders;
 using EVWebApi.Models;
 using EVWebApi.Repositories;
 using Humanizer;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Globalization;
@@ -24,6 +26,10 @@ using System.Linq;
 using System.Text.Json;
 using static PdfSharpCore.Pdf.PdfDictionary;
 using Document = EVWebApi.Models.Document;
+
+
+using System.Linq.Dynamic.Core;
+using System.Reflection;
 namespace EVWebApi.Services
 {
     public class DocumentService : IDocumentService
@@ -31,6 +37,7 @@ namespace EVWebApi.Services
         private readonly IDocumentRepository _repo;
         private readonly IMetadataRepository _metadataRepo;
         private readonly IMetadataReaderFactoryService _metadataReaderFactory;
+        public readonly IDocumentGroupingService _docGrpService;
         private readonly IWebHostEnvironment _env;
         private readonly string _uploadRoot;
         private readonly string _storageRoot;
@@ -40,7 +47,7 @@ namespace EVWebApi.Services
 
 
         public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IMetadataReaderFactoryService metadataReaderFactory,
-            IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config)
+            IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
@@ -50,6 +57,7 @@ namespace EVWebApi.Services
             _mapper = mapper;
             _uploadRoot = config["UploadSettings:RootPath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
+            _docGrpService = docGrpService;
         }
 
         // ---------------------- SINGLE UPLOAD ----------------------
@@ -142,7 +150,9 @@ namespace EVWebApi.Services
          
         }
         //--------------------- GET BY Cabinet ID --------------------
-        public async Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId,DocumentQueryParameters query)
+
+                //-------filter helper method--------//
+        private  IQueryable<Document> FilteredQuery(int cabinetId,DocumentQueryParameters query, int? docTypeId)
         {
             var docQuery = _uow.Documents.Query()
                 .Where(d => d.CabinetId == cabinetId);
@@ -171,11 +181,9 @@ namespace EVWebApi.Services
             }
 
             //Document Type
-            if (!string.IsNullOrWhiteSpace(query.DocType))
+            if (docTypeId.HasValue)
             {
-                var docType = await _uow.Documents.GetOrCreateDocLabelAsync(query.DocType);
-                docQuery = docQuery.Where(d => d.DocumentTypeId == docType.Id);
-
+                docQuery = docQuery.Where(d => d.DocumentTypeId == docTypeId.Value);
             }
             // name
             if (!string.IsNullOrWhiteSpace(query.Name))
@@ -222,7 +230,7 @@ namespace EVWebApi.Services
                 {
                     docQuery = docQuery.Where(d => d.GST.ToString().Contains(gstStr));
                 }
-            } 
+            }
             //PO NUMBER
             if (!string.IsNullOrWhiteSpace(query.PoNumber))
             {
@@ -257,7 +265,7 @@ namespace EVWebApi.Services
             }
 
             // AMOUNT 
-        
+
             if (query.Amount.HasValue)
             {
                 switch (query.AmountType)
@@ -305,7 +313,7 @@ namespace EVWebApi.Services
                         break;
                     case AmountType.equal:
                     default:
-                            docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
+                        docQuery = docQuery.Where(d => d.PaidAmount == query.PaidAmount.Value);
                         break;
                 }
             }
@@ -337,7 +345,7 @@ namespace EVWebApi.Services
                     case DateType.on:
                     default:
                         docQuery = docQuery.Where(d => d.InvoiceDate == query.InvoiceDate.Value);
-                            
+
                         break;
                 }
             }
@@ -369,19 +377,21 @@ namespace EVWebApi.Services
                         break;
                 }
             }
+            return docQuery;
+        }
 
+        public async Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId,DocumentQueryParameters query)
+        {
 
-            // TOTAL BEFORE PAGINATION
-            //var totalRecords = docQuery.Count();
-            //docQuery = docQuery
-            //    .Include(d => d.MetadataList);
-            //// APPLY PAGINATION
-            //var pagedDocs = docQuery
-            //    .Skip((query.PageNumber - 1) * query.PageSize)
-            //    .Take(query.PageSize)
-            //    .ToList();
+            int? docTypeId = null;
 
-            
+            if (!string.IsNullOrWhiteSpace(query.DocType))
+            {
+                var docType = await _uow.Documents.GetOrCreateDocLabelAsync(query.DocType);
+                docTypeId = docType.Id;
+            }
+            var docQuery = FilteredQuery(cabinetId, query, docTypeId);
+
             var totalRecords = await docQuery.CountAsync();
 
             // If pageSize is invalid, normalize it
@@ -410,6 +420,108 @@ namespace EVWebApi.Services
             {
                 Data = docDtos,
                 TotalRecords = totalRecords,
+                PageNumber = query.PageNumber,
+                PageSize = query.PageSize
+            };
+        }
+
+        public async Task<PagedResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query)
+        {
+            int? docTypeId = null;
+
+            if (!string.IsNullOrWhiteSpace(query.DocType))
+            {
+                var docType = await _uow.Documents.GetOrCreateDocLabelAsync(query.DocType);
+                docTypeId = docType.Id;
+            }
+            var docQuery = FilteredQuery(cabinetId, query, docTypeId);
+
+            var documents = await docQuery.ToListAsync();
+
+            if (!documents.Any())
+            {
+                return new PagedResponse<GroupedDocResponseDTO>
+                {
+                    Data = new List<GroupedDocResponseDTO>(),
+                    TotalRecords = 0,
+                    PageNumber = query.PageNumber,
+                    PageSize = query.PageSize
+                };
+            }
+
+           
+            var groupingKey = await _docGrpService.GetDynamicGroupingKeyAsync(cabinetId);
+
+           
+            var result = documents
+                .GroupBy(d =>
+                    string.Join("||", groupingKey.Select(k =>
+                        d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
+                .Select(g =>
+                {
+                    var first = g.First();
+
+                    return new GroupedDocResponseDTO
+                    {
+                        EmployeeId = first.EmployeeId,
+                        Name = first.Name,
+                        ContactNumber = first.ContactNumber,
+                        Designation = first.Designation,
+                        DOB = first.DOB,
+                        DOJ = first.DOJ,
+                        Region = first.Region,
+                        InvoiceNumber = first.InvoiceNumber,
+                        InvoiceDate = first.InvoiceDate,
+                        VendorNumber = first.VendorNumber,
+                        StatementDate = first.StatementDate,
+                        PoNumber = first.PoNumber,
+                        Amount = first.Amount,
+                        PaidAmount = first.PaidAmount,
+                        GST = first.GST,
+                        CheckNumber = first.CheckNumber,
+                        Version = first.Version,
+                        Status = first.Status,
+                        CabinetId = first.CabinetId,
+
+                        DocumentTypes = g.Select(d => new DocumentChildDDTO
+                        {
+                            DocumentId = d.DocumentId,
+                            DocumentType = d.DocumentType?.Label,
+                            NotesCount = d.Notes?.Count ?? 0,
+                            FileName = d.FileName,
+                            FilePath = d.FilePath
+                        }).ToList()
+                    };
+                })
+                .ToList();
+
+           
+            if (query.PageSize <= 0)
+                query.PageSize = 10;
+
+            var totalRecords = documents.Count;
+           
+            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
+
+           
+            if (query.PageNumber <= 0)
+                query.PageNumber = 1;
+
+            if (query.PageNumber > totalPages && totalPages > 0)
+                query.PageNumber = totalPages;
+
+            var pagedDocs = await docQuery
+                .Skip((query.PageNumber - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync();
+
+            
+            var docDtos = _mapper.Map<List<GroupedDocResponseDTO>>(result);
+
+            return new PagedResponse<GroupedDocResponseDTO>
+            {
+                Data = docDtos,
+                TotalRecords = totalRecords, 
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             };

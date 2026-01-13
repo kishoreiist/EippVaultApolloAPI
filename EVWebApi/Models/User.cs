@@ -6,7 +6,7 @@ using static QRCoder.PayloadGenerator;
 
 namespace EVWebApi.Models
 {
-    public enum UserStatus { active, inactive }
+    public enum UserStatus { active, inactive, locked }
     public enum MfaMethod { email, sms, authenticator }
 
 
@@ -16,8 +16,11 @@ namespace EVWebApi.Models
 
         [Column("username")]
         public required string Username { get; set; }
-        //[Column("email")]
-        //public required string Email { get; set; }
+
+        [Column("first_name")]
+        public required string FirstName { get; set; }
+        [Column("last_name")]
+        public required string LastName { get; set; }
         [Column("password_hash")]
         public required string PasswordHash { get; set; }
 
@@ -46,6 +49,8 @@ namespace EVWebApi.Models
             get => _email;
             set => _email = EmailValidationHelper.Normalize(value);
         }
+
+
 
         // junction table
         public UserGroup? UserGroup { get; set; }

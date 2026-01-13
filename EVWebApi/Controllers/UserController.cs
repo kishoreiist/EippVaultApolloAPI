@@ -2,6 +2,7 @@
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
+using Humanizer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -69,9 +70,20 @@ namespace EVWebApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            await _userService.DeleteAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Record Deleted");
-            return NoContent();
+            try
+            {
+                await _userService.DeleteAsync(id);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "Record Deleted");
+                return Ok("User Deleted succesfully");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "User deletion failed",
+                    Error = ex.Message
+                });
+            }
         }
     }
 }

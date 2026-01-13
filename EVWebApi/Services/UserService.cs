@@ -43,8 +43,14 @@ namespace EVWebApi.Services
             if (!string.IsNullOrWhiteSpace(query.Username))
                 usersQuery = usersQuery.Where(u => u.Username.Contains(query.Username));
 
+            if (!string.IsNullOrWhiteSpace(query.FirstName))
+                usersQuery = usersQuery.Where(u => u.FirstName.ToLower().Contains(query.FirstName.ToLower()));
+
+            if (!string.IsNullOrWhiteSpace(query.LastName))
+                usersQuery = usersQuery.Where(u => u.LastName.ToLower().Contains(query.LastName.ToLower()));
+
             if (!string.IsNullOrWhiteSpace(query.Email))
-                usersQuery = usersQuery.Where(u => u.Email.Contains(query.Email));
+                usersQuery = usersQuery.Where(u => u.Email.ToLower().Contains(query.Email.ToLower()));
 
             if (!string.IsNullOrWhiteSpace(query.PhoneNumber))
                 usersQuery = usersQuery.Where(u => u.PhoneNumber.Contains(query.PhoneNumber));
@@ -115,6 +121,8 @@ namespace EVWebApi.Services
             var user = new User
             {
                 Username = dto.Username,
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Email = normalizedEmail,
                 MfaEnabled = dto.MfaEnabled,
@@ -227,6 +235,8 @@ namespace EVWebApi.Services
 
 
             if (!string.IsNullOrWhiteSpace(dto.Username)) user.Username = dto.Username;
+            if (!string.IsNullOrWhiteSpace(dto.FirstName)) user.FirstName = dto.FirstName;
+            if (!string.IsNullOrWhiteSpace(dto.LastName)) user.LastName = dto.LastName;
 
             if (!string.IsNullOrWhiteSpace(dto.Email))
             {
@@ -241,12 +251,6 @@ namespace EVWebApi.Services
             if (dto.MfaMethod.HasValue) user.MfaMethod = dto.MfaMethod;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PhoneNumber = dto.PhoneNumber;
             if (dto.EmailVerified.HasValue) user.EmailVerified = dto.EmailVerified.Value;
-            //if (dto.Status)
-            //{
-            //    user.Status = dto.Status
-            //        ? UserStatus.active
-            //        : UserStatus.inactive;
-            //}
             if (dto.Status)
             {
                 user.Status = UserStatus.active;
@@ -256,7 +260,6 @@ namespace EVWebApi.Services
                 user.Status = UserStatus.inactive;
             }
 
-            //if (dto.GroupId != 0) user.UserGroup.GroupId = dto.GroupId;
 
             if (dto.GroupId != 0)
             {

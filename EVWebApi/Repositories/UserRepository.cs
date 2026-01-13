@@ -43,12 +43,13 @@ namespace EVWebApi.Repositories
                     .ThenInclude(ug => ug.Group)
                         .ThenInclude(g => g.GroupCabinets)
                             .ThenInclude(c=>c.Cabinet)
+                .Where(u => u.Status != UserStatus.locked)
                 .AsQueryable();
         }
 
         public void SoftDelete(User user)
         {
-            user.Status = UserStatus.inactive ;
+            user.Status = UserStatus.locked;
             user.UpdatedAt = DateTime.UtcNow;
             
             _dbSet.Update(user);

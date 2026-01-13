@@ -855,8 +855,8 @@ namespace EVWebApi.Services
             var reader = _metadataReaderFactory.GetReader(extension);
 
             var metadataResult = await reader.ReadAsync(dto.MetadataFile);
-            if (metadataResult.TotalRecords == 0 || metadataResult.Records.Count==0)
-                throw new ArgumentException("Unable to read the metadata file");
+            if (metadataResult.TotalRecords == 0 || metadataResult.Records.Count == 0)
+                throw new ArgumentException("Unable to read the metadata file", string.Join("; ", metadataResult.Errors));
 
             var summary = new BatchResponseDTO();
             summary.Failed += metadataResult.Errors.Count;

@@ -1,4 +1,5 @@
 ﻿using EVWebApi.Data;
+using EVWebApi.DTOs.Group;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +35,21 @@ namespace EVWebApi.Repositories
                     .ThenInclude(c=>c.Cabinet)
                 .AsQueryable();
         }
+        public async Task<List<ListDto>> GetGroupsForDropdownAsync()
+        {
+            return await _context.Groups
+                .AsNoTracking()
+                .Select(g => new ListDto
+                {
+                    Id = g.GroupId,
+                    Name = g.GroupName
+                })
+                .ToListAsync();
+        }
 
+        public async Task<bool> GetUsersAsync(int id)
+        {
+            return await _context.Users.AnyAsync(u => u.UserGroup.GroupId == id);
+        }
     }
 }

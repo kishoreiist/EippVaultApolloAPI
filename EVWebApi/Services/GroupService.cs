@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using DocumentFormat.OpenXml.InkML;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
@@ -9,6 +10,7 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace EVWebApi.Services
 {
@@ -186,9 +188,22 @@ namespace EVWebApi.Services
             if (group == null) 
                 throw new NotFoundException("Group not found");
 
+            var hasUsers = await _uow.Groups.GetUsersAsync(id);
+            if(hasUsers)
+               throw new ConflictException(               
+                    "Cannot delete the group because it is assigned to one or more users."
+                );
+          
+                _uow.Groups.Remove(group);
+                await _uow.CompleteAsync();
+            
+            
+        }
 
-            _uow.Groups.Remove(group);
-            await _uow.CompleteAsync();
+        public async Task<List<ListDto>> GetGroupsForDropdownAsync()
+        {
+            var groups = await _uow.Groups.GetGroupsForDropdownAsync();
+            return groups;
         }
 
     }

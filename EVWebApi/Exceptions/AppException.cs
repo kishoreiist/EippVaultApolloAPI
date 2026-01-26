@@ -56,5 +56,9 @@ namespace EVWebApi.Exceptions
         public ServerException(string message)
             : base(message, 500) { }
     }
-
+    public class LockedException : AppException
+    {
+        public LockedException(string message)
+            : base(message, 423) { }
+    }
 }

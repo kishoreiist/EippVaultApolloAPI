@@ -114,9 +114,16 @@ namespace EVWebApi.Services
                 throw new ConflictException($"Username '{dto.Username}' already exists");
 
 
-            var emailExists = await _uow.Users.GetByEmailAsync(normalizedEmail);
-            if (emailExists != null) 
-                throw new ConflictException($"User mail '{normalizedEmail}' already exists");
+            var userexists = await _uow.Users.GetByEmailAsync(normalizedEmail);
+            if (userexists != null)
+            {
+                if(userexists.Status == UserStatus.locked)
+                    throw new LockedException($"User with email - {normalizedEmail}' exists but is in locked state.");
+            
+                else
+                    throw new ConflictException($"User mail '{normalizedEmail}' already exists");
+            }
+
 
             var user = new User
             {
@@ -143,8 +150,8 @@ namespace EVWebApi.Services
 
             var token = _authService.GeneratePasswordResetJwtAsync(updatedUser);
 
-            var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
-
+            //var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
+            var resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
 
             await _emailSender.SendAsync(
                toEmail: user.Email,

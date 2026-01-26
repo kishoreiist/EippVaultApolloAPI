@@ -1,5 +1,6 @@
 ﻿using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.User;
+using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
@@ -64,10 +65,32 @@ namespace EVWebApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            await _groupService.DeleteAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Deleted");
-            return NoContent();
+            try
+            {
+                await _groupService.DeleteAsync(id);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Deleted");
+                return NoContent();
+            }
+            catch (ConflictException ex)
+            {
+                return Conflict(new { Message = ex.Message }); 
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "group delete failed",
+                    Error = ex.Message
+                });
+            }
         }
 
+        [HttpGet("dropdown")]
+        public async Task<IActionResult> GetGroupsForDropdown()
+        {
+            var groups = await _groupService.GetGroupsForDropdownAsync();
+            
+            return Ok(groups);
+        }
     }
 }

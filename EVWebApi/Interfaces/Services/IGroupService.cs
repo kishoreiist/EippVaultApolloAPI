@@ -11,5 +11,6 @@ namespace EVWebApi.Interfaces.Services
         Task<GroupDto> CreateAsync(CreateGroupDto dto);
         Task<GroupDto> UpdateAsync(UpdateGroupDto dto);
         Task DeleteAsync(int id);
+        Task<List<ListDto>> GetGroupsForDropdownAsync();
     }
 }

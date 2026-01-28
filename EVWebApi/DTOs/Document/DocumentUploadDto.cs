@@ -10,7 +10,7 @@ namespace EVWebApi.DTOs.Document
     public class DocumentUploadDto
     {
         public int CabinetId { get; set; }
-        public IFormFile File { get; set; }
+        public IFormFile File { get; set; } = default;
       
         public string? InvoiceNumber { get; set; }
         public string? PoNumber { get; set; }
@@ -30,6 +30,13 @@ namespace EVWebApi.DTOs.Document
         public decimal? PaidAmount { get; set; }
         public string? DocumentType { get; set; }
         public string? Region { get; set; }
+
+
+        // chunk-related (optional)
+        public string? UploadId { get; set; }
+        public int? ChunkIndex { get; set; }
+        public int? TotalChunks { get; set; }
+        public string OriginalFileName { get; set; } = default!;
 
 
     }

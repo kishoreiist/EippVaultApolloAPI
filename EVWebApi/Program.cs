@@ -10,6 +10,7 @@ using EVWebApi.Repositories;
 using EVWebApi.Services;
 using EVWebApi.Services.MetadataReaders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -82,6 +83,7 @@ builder.Services.AddScoped<IMetadataReaderService, ExcelMetadataReaderService>()
 builder.Services.AddScoped<IMetadataReaderService, XmlMetadataReaderService>();
 builder.Services.AddScoped<IMetadataReaderService, TxtMetadataReaderService>();
 builder.Services.AddScoped<IMetadataReaderFactoryService, MetadataReaderFactoryService>();
+
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -167,6 +169,10 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 200 * 1024 * 1024; // 200 MB
+});
 var app = builder.Build();
 
 // Middleware

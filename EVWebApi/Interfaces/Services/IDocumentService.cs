@@ -12,7 +12,7 @@ namespace EVWebApi.Interfaces.Services
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
         Task<PagedResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
         Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto);
-        Task<Stream?> GetDocumentStream(int id);
+        Task<DocumentStreamResultDTO?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
         Task<(int cabinetId, bool status)> DeleteDocument(int id);
         Task<BatchResponseDTO> DeleteMultipleDocuments(List<int> ids);
@@ -22,8 +22,7 @@ namespace EVWebApi.Interfaces.Services
         Task<List<string>> GetDocTypeAsync();
 
         Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid);
-        
-        
+        Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int currentuserid);
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------

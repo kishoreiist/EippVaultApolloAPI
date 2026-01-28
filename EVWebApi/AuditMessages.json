@@ -28,7 +28,7 @@
       "Note Modified": "{username} updated a note. Note Content - {target}",
       "Note Deleted": "{username} deleted a note. Note Content - {target}",
 
-
+      "PDF SPLIT": "{username} splitted Pages {target}, extracted as new document with {filters} in {cabinetName} cabinet.",
       "Email Sent": "{username} send an email.{filters}",
 
       "Login Successful": "{username} authenticated successfully. {filters}",

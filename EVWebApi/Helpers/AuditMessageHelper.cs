@@ -22,7 +22,7 @@
                 {2, "HR"},
                 {3, "Statement"},
                 {4, "AP Files"},
-                {5,"Purchase Orders" }
+                {5,"Purchase Department" }
             };
             if (module == "Document")
             {

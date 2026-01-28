@@ -10,6 +10,7 @@ using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Interfaces.Services.MetaDataReaders;
@@ -17,19 +18,18 @@ using EVWebApi.Models;
 using EVWebApi.Repositories;
 using Humanizer;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Linq.Dynamic.Core;
+using System.Reflection;
 using System.Text.Json;
 using static PdfSharpCore.Pdf.PdfDictionary;
 using Document = EVWebApi.Models.Document;
-
-
-using System.Linq.Dynamic.Core;
-using System.Reflection;
 namespace EVWebApi.Services
 {
     public class DocumentService : IDocumentService
@@ -40,6 +40,7 @@ namespace EVWebApi.Services
         public readonly IDocumentGroupingService _docGrpService;
         private readonly IWebHostEnvironment _env;
         private readonly string _uploadRoot;
+        private readonly string _tempRoot;
         private readonly string _storageRoot;
 
         private readonly IUnitOfWork _uow;
@@ -57,6 +58,7 @@ namespace EVWebApi.Services
             _mapper = mapper;
             _uploadRoot = config["UploadSettings:RootPath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
+            _tempRoot = config["UploadSettings:TempPath"];
             _docGrpService = docGrpService;
         }
 
@@ -528,7 +530,7 @@ namespace EVWebApi.Services
         }
 
         // ---------------------- PREVIEW STREAM ----------------------
-        public async Task<Stream?> GetDocumentStream(int id)
+        public async Task<DocumentStreamResultDTO?> GetDocumentStream(int id)
         {
             var doc = await _repo.GetDocument(id);
             if (doc == null)
@@ -540,9 +542,24 @@ namespace EVWebApi.Services
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
 
-            return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 64 * 1024, useAsync: true);
+            var stream = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 64 * 1024,
+                useAsync: true
+            );
+
+            //return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 64 * 1024, useAsync: true);
+            return new DocumentStreamResultDTO
+            {
+                Stream = stream,
+                FilePath = fullPath
+            };
         }
 
+        
         // ---------------------- DOWNLOAD ----------------------
         public async Task<DocumentDownloadDto?> GetDocumentForDownload(int id)
         {
@@ -647,9 +664,9 @@ namespace EVWebApi.Services
                     if (pdfStream == null)
                         throw new NotFoundException($"Document not found: {id}");
 
-                    using (pdfStream)
+                    using (pdfStream.Stream)
                     using (var inputDocument = PdfSharpCore.Pdf.IO.PdfReader.Open(
-                        pdfStream,
+                        pdfStream.Stream,
                         PdfSharpCore.Pdf.IO.PdfDocumentOpenMode.Import))
                     {
                         for (int i = 0; i < inputDocument.PageCount; i++)
@@ -692,7 +709,7 @@ namespace EVWebApi.Services
                     var zipEntry = archive.CreateEntry(FileName, CompressionLevel.Fastest);
                         using (var entryStream = zipEntry.Open())
                         {
-                            await pdfStream.CopyToAsync(entryStream);
+                            await pdfStream.Stream.CopyToAsync(entryStream);
                         }
                     }
                 }
@@ -976,6 +993,225 @@ namespace EVWebApi.Services
 
             return summary ;
         }
+
+        //---------------------------------------------------------------------------//
+
+        //---------chunk upload--------------------
+
+        public async Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto,int currentuserid)
+        {
+            if (dto.TotalChunks == null || dto.TotalChunks <= 1)
+            {
+                // OLD behavior (small file)
+                var tempDir = Path.Combine(_tempRoot, Guid.NewGuid().ToString());
+                Directory.CreateDirectory(tempDir);
+
+                var tempFilePath = Path.Combine(
+                    tempDir,
+                    Path.GetFileName(dto.OriginalFileName??dto.File.FileName)
+                );
+                await using (var stream = new FileStream(tempFilePath, FileMode.Create))
+                {
+                    await dto.File.CopyToAsync(stream);
+                }
+                try
+                {
+                    return await FinalizeUploadAsync(dto, currentuserid, tempFilePath);
+                }
+                finally
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                }
+            }
+
+            // NEW behavior (chunk upload)
+            return await UploadChunkAsync(dto, currentuserid);
+        }
+
+        private async Task<DocumentResponseDto?> UploadChunkAsync(DocumentUploadDto dto,int currentuserid)
+        {
+            if (dto.TotalChunks <= 0)
+                throw new BadRequestException("Invalid total chunks");
+
+            if (dto.ChunkIndex < 0 || dto.ChunkIndex >= dto.TotalChunks)
+                throw new BadRequestException("Invalid chunk index");
+
+            if (dto.File.Length == 0)
+                throw new BadRequestException("Empty chunk received");
+
+            if (string.IsNullOrWhiteSpace(dto.UploadId))
+                throw new BadRequestException("UploadId is required");
+
+            var tempDir = Path.Combine(_tempRoot, dto.UploadId);
+            var chunksDir = Path.Combine(tempDir, "chunks");
+            var mergedDir = Path.Combine(tempDir, "merged");
+
+            Directory.CreateDirectory(chunksDir);
+            Directory.CreateDirectory(mergedDir);
+
+            var chunkPath = Path.Combine(chunksDir, $"{dto.ChunkIndex}.part");
+
+            await using (var stream = new FileStream(
+                    chunkPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024,useAsync: true))
+            {
+                await dto.File.CopyToAsync(stream);
+            }
+
+
+            var partCount = Directory.GetFiles(chunksDir, "*.part").Length;
+            if (partCount < dto.TotalChunks)
+            {
+                // not all chunks yet
+                return null;
+            }
+            
+
+            string mergedFilePath;
+            try
+            {
+                mergedFilePath = await MergeChunksAsync(chunksDir, mergedDir, dto.OriginalFileName,dto.TotalChunks);
+            }
+            catch
+            {
+               
+                throw new ServerException("Failed to merge file chunks.");
+            }
+
+            DocumentResponseDto result;
+            try
+            {
+                result= await FinalizeUploadAsync(dto, currentuserid, mergedFilePath);               
+                
+            }
+            catch(Exception ex)
+            {
+               
+                throw new ServerException($"Failed to save document {ex.InnerException}");
+            }
+
+            // Cleanup ONLY after success
+            try
+            {
+                Directory.Delete(tempDir, recursive: true);
+                if (File.Exists(mergedFilePath))
+                    File.Delete(mergedFilePath);
+            }
+            catch
+            {
+                throw new ServerException("Failed to clean up temporary files after upload.");
+            }
+
+            return result;
+
+        }
+
+        private async Task<DocumentResponseDto> FinalizeUploadAsync( DocumentUploadDto dto,int currentuserid, string mergedFilePath)
+        {
+            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId)
+                ?? throw new Exception("Invalid CabinetId");
+
+            DocumentTypes? docType = null;
+            if (!string.IsNullOrWhiteSpace(dto.DocumentType))
+                docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+
+            string folderName = cabinet.CabinetName;
+            string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            string cabinetFolder = Path.Combine(_uploadRoot, dateFolder, folderName);
+            
+            if (!Directory.Exists(cabinetFolder))
+                Directory.CreateDirectory(cabinetFolder);
+
+            int version = await _repo.GetLatestVersion(dto.CabinetId, dto.OriginalFileName) + 1;
+
+            var ext = Path.GetExtension(dto.OriginalFileName);
+            var baseName = Path.GetFileNameWithoutExtension(dto.OriginalFileName);
+
+            string fileName =
+                $"{baseName}_v{version}{ext}";
+
+            string fullPath = Path.Combine(cabinetFolder, fileName);
+
+            await using var source = new FileStream(mergedFilePath, FileMode.Open, FileAccess.Read);
+            await using var destination = new FileStream(fullPath, FileMode.Create);
+            await source.CopyToAsync(destination);
+
+            var doc = await _repo.CreateDocument(new Document
+            {
+                CabinetId = dto.CabinetId,
+                FileName = fileName,
+                FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
+                UploadedBy = currentuserid,
+                Version = version,
+                Status = "active",
+                UploadedAt = DateTime.UtcNow,
+                DocumentTypeId = docType?.Id,
+
+              
+                InvoiceNumber = dto.InvoiceNumber,
+                VendorNumber = dto.VendorNumber,
+                InvoiceDate = dto.InvoiceDate,
+                Amount = dto.Amount,
+                GST = dto.GST,
+                StatementDate = dto.StatementDate,
+                PaidAmount = dto.PaidAmount,
+                Department = dto.Department,
+                Designation = dto.Designation,
+                Name = dto.Name,
+                EmployeeId = dto.EmployeeId,
+                PoNumber = dto.PoNumber,
+                ContactNumber = dto.ContactNumber,
+                DOB = dto.DOB,
+                DOJ = dto.DOJ,
+                CheckNumber = dto.CheckNumber
+            });
+            if (doc == null)
+                throw new ServerException("Failed to save document");
+
+            return _mapper.Map<DocumentResponseDto>(doc);
+        }
+
+        private async Task<string> MergeChunksAsync(string chunksDir, string mergedDir, string originalFileName,int? totalChunks)
+        {
+            var safeFileName = Path.GetFileName(originalFileName);
+            var mergedPath = Path.Combine(mergedDir, safeFileName);
+
+            if (File.Exists(mergedPath))
+                File.Delete(mergedPath);
+
+            await using var finalStream = new FileStream(
+                mergedPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                4 * 1024 * 1024,
+                true
+            );
+            var parts = Directory.GetFiles(chunksDir, "*.part")
+                                 .OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f))).ToList();
+
+            // Validate chunk sequence
+            for (int i = 0; i < totalChunks; i++)
+            {
+                var partPath = Path.Combine(chunksDir, $"{i}.part");
+
+                if (!File.Exists(partPath))
+                    throw new BadRequestException($"Missing chunk {i}");
+
+                await using var partStream = new FileStream(
+                    partPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    4 * 1024 * 1024,
+                    useAsync: true);
+
+                await partStream.CopyToAsync(finalStream);
+            }
+
+
+            return mergedPath;
+        }
+
     }
-    
+
 }

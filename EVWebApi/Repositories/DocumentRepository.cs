@@ -102,7 +102,7 @@ namespace EVWebApi.Repositories
         public async Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId)
         {
             var files = await _context.Documents
-        .Where(d => d.CabinetId == cabinetId)
+        .Where(d => d.CabinetId == cabinetId && d.Status=="active")
         .Select(d => new DocumentFileExplorer
         {
             DocumentId = d.DocumentId,

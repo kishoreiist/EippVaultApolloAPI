@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.IO.Compression;
 using static Microsoft.CodeAnalysis.Host.HostWorkspaceServices;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+using Microsoft.AspNetCore.StaticFiles;
+
 
 namespace EVWebApi.Controllers
 {
@@ -28,19 +30,23 @@ namespace EVWebApi.Controllers
         }
 
         //Upload Document
-       [HttpPost("upload")]
+        [HttpPost("upload")]
+        [RequestSizeLimit(200_000_000)]
         public async Task<IActionResult> UploadDocument([FromForm] DocumentUploadDto dto)
         {
             string filterDetails = dto.ToFilterLog("Index Details - ");
             try
             {
-                var result = await _documentService.UploadDocument(dto, CurrentUserId);
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Uploaded", result.FileName, result.CabinetId, filters: filterDetails);// need to pass index fileds as filters
+                var result = await _documentService.UploadDocumentChunks(dto, CurrentUserId);
+                if (dto.TotalChunks == null || dto.ChunkIndex == dto.TotalChunks - 1)
+                {
+                    await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Uploaded", result.FileName, result.CabinetId, filters: filterDetails);
+                }
                 return Ok(result);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Upload Failed", ex.Message,dto.CabinetId, filters: filterDetails);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Upload Failed", ex.Message, dto.CabinetId, filters: filterDetails);
                 return StatusCode(500, new
                 {
                     Message = "Document upload failed",
@@ -127,16 +133,18 @@ namespace EVWebApi.Controllers
         }
 
 
-
         // PDF Preview (stream)
+
         [HttpGet("{id}/preview")]
         public async Task<IActionResult> PreviewDocument(int id)
         {
-            var fileStream = await _documentService.GetDocumentStream(id);
-            if (fileStream == null) return NotFound();
+            var result = await _documentService.GetDocumentStream(id);
+            if (result == null) return NotFound();
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "PDF View");
 
-            return File(fileStream, "application/pdf", enableRangeProcessing: true);
+            var contentType = FileContentTypeDetectHelper.GetContentType(result.FilePath);
+
+            return File(result.Stream, contentType, enableRangeProcessing: true);
 
         }
 

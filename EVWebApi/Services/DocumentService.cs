@@ -23,7 +23,10 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using PdfSharpCore.Pdf;
+using PdfSharpCore.Pdf.IO;
 using Syncfusion.XlsIO;
+using Syncfusion.XlsIO.Implementation.Security;
 using System;
 using System.Data;
 using System.Globalization;
@@ -1139,9 +1142,11 @@ namespace EVWebApi.Services
 
             string fullPath = Path.Combine(cabinetFolder, fileName);
 
-            await using var source = new FileStream(mergedFilePath, FileMode.Open, FileAccess.Read);
-            await using var destination = new FileStream(fullPath, FileMode.Create);
-            await source.CopyToAsync(destination);
+            //await using var source = new FileStream(mergedFilePath, FileMode.Open, FileAccess.Read);
+            //await using var destination = new FileStream(fullPath, FileMode.Create);
+            //await source.CopyToAsync(destination);
+
+            File.Move(mergedFilePath, fullPath, overwrite: true);
 
             var doc = await _repo.CreateDocument(new Document
             {
@@ -1178,26 +1183,29 @@ namespace EVWebApi.Services
             return _mapper.Map<DocumentResponseDto>(doc);
         }
 
-        private async Task<string> MergeChunksAsync(string chunksDir, string mergedDir, string originalFileName,int? totalChunks)
+        private async Task<string> MergeChunksAsync(string chunksDir,string mergedDir,string originalFileName,int? totalChunks)
         {
+            if (totalChunks == null || totalChunks <= 0)
+                throw new ArgumentException("Invalid totalChunks", nameof(totalChunks));
+
             var safeFileName = Path.GetFileName(originalFileName);
             var mergedPath = Path.Combine(mergedDir, safeFileName);
 
             if (File.Exists(mergedPath))
                 File.Delete(mergedPath);
 
+            // Use a larger buffer to speed up I/O (16 MB)
+            byte[] buffer = new byte[16 * 1024 * 1024];
+
             await using var finalStream = new FileStream(
                 mergedPath,
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.None,
-                4 * 1024 * 1024,
-                true
+                buffer.Length,
+                useAsync: true
             );
-            var parts = Directory.GetFiles(chunksDir, "*.part")
-                                 .OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f))).ToList();
 
-            // Validate chunk sequence
             for (int i = 0; i < totalChunks; i++)
             {
                 var partPath = Path.Combine(chunksDir, $"{i}.part");
@@ -1210,15 +1218,20 @@ namespace EVWebApi.Services
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.Read,
-                    4 * 1024 * 1024,
-                    useAsync: true);
+                    buffer.Length,
+                    useAsync: true
+                );
 
-                await partStream.CopyToAsync(finalStream);
+                int bytesRead;
+                while ((bytesRead = await partStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    await finalStream.WriteAsync(buffer, 0, bytesRead);
+                }
             }
-
 
             return mergedPath;
         }
+
 
         //--------------------- EXCEL PATCHING ----------------------
 
@@ -1345,6 +1358,142 @@ namespace EVWebApi.Services
 
             return results;
         }
+
+        //-------------------------     SPLIT & EXTRACT PDF ----------------------
+
+        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto,int userId)
+        {
+            var originalDoc = await _repo.GetDocument(dto.DocumentId)
+                ?? throw new KeyNotFoundException("Document not found");
+
+            var cabinet = await _uow.Cabinets.GetByIdAsync(originalDoc.CabinetId)
+                ?? throw new Exception("Invalid cabinet");
+
+            // Resolve physical original file path
+            var relativePath = originalDoc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var fullPath = Path.Combine(_storageRoot, relativePath);
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found in storage");
+
+            string tempExtractedPath = Path.GetTempFileName();
+            string tempRemainingPath = Path.GetTempFileName();
+
+            try
+            {
+                using var originalPdf =
+                    PdfReader.Open(fullPath, PdfDocumentOpenMode.Import);
+
+                
+
+                if (dto.FromPage < 1 || dto.ToPage < 1 || dto.FromPage > dto.ToPage || dto.ToPage > originalPdf.PageCount)
+                    throw new InvalidOperationException($"Invalid page range. Document has {originalPdf.PageCount} pages.");
+
+
+                //if (dto.ToPage > originalPdf.PageCount)
+                //    throw new InvalidOperationException("Page range exceeds document length");
+
+                var extractedPdf = new PdfDocument();
+                var remainingPdf = new PdfDocument();
+
+                for (int i = 0; i < originalPdf.PageCount; i++)
+                {
+                    int pageNumber = i + 1;
+
+                    if (pageNumber >= dto.FromPage && pageNumber <= dto.ToPage)
+                        extractedPdf.AddPage(originalPdf.Pages[i]);
+                    else
+                        remainingPdf.AddPage(originalPdf.Pages[i]);
+                }
+
+                if (extractedPdf.PageCount == 0)
+                    throw new InvalidOperationException("No pages extracted");
+
+                extractedPdf.Save(tempExtractedPath);
+                remainingPdf.Save(tempRemainingPath);
+
+                // ---------------- DB TRANSACTION ----------------
+                using var transaction = await _uow.BeginTransactionAsync();
+
+                // Resolve folder structure (same as UploadDocument)
+                string folderName = cabinet.CabinetName;
+                string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+                string cabinetFolder = Path.Combine(_uploadRoot, dateFolder, folderName);
+
+                if (!Directory.Exists(cabinetFolder))
+                    Directory.CreateDirectory(cabinetFolder);
+
+                // Versioning &filenaming
+                var filenaming = $"{dto.DocumentType}_{originalDoc.Name}";
+                var orgext = Path.GetExtension(originalDoc.FileName);
+
+                int version = await _repo.GetLatestVersion(
+                    originalDoc.CabinetId,
+                    filenaming) + 1;
+
+                string newFileName =
+                    $"{filenaming}_v{version}{orgext}";
+
+                string newPhysicalPath = Path.Combine(cabinetFolder, newFileName);
+
+                var docType =
+                    await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+
+                var newDocument = new Document
+                {
+                    CabinetId = originalDoc.CabinetId,
+                    FileName = newFileName,
+                    FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{newFileName}",
+                    UploadedBy = userId,
+                    UploadedAt = DateTime.UtcNow,
+                    Version = version,
+                    Status = "active",
+                    DocumentTypeId = docType?.Id,
+
+                    
+                    InvoiceNumber = originalDoc.InvoiceNumber,
+                    VendorNumber = originalDoc.VendorNumber,
+                    InvoiceDate = originalDoc.InvoiceDate,
+                    Amount = originalDoc.Amount,
+                    GST = originalDoc.GST,
+                    StatementDate = originalDoc.StatementDate,
+                    PaidAmount = originalDoc.PaidAmount,
+                    Department = originalDoc.Department,
+                    Designation = originalDoc.Designation,
+                    Name = originalDoc.Name,
+                    EmployeeId = originalDoc.EmployeeId,
+                    PoNumber = originalDoc.PoNumber,
+                    ContactNumber = originalDoc.ContactNumber,
+                    DOB = originalDoc.DOB,
+                    DOJ = originalDoc.DOJ,
+                    CheckNumber = originalDoc.CheckNumber
+                };
+
+                await _repo.CreateDocument(newDocument);
+
+                //  Move files only AFTER DB success
+                File.Move(tempExtractedPath, newPhysicalPath, overwrite: true);
+                File.Move(tempRemainingPath, fullPath, overwrite: true);
+
+                await transaction.CommitAsync();
+
+                return _mapper.Map<DocumentResponseDto>(newDocument);
+            }
+            catch
+            {
+                // Cleanup temp files
+                if (File.Exists(tempExtractedPath))
+                    File.Delete(tempExtractedPath);
+
+                if (File.Exists(tempRemainingPath))
+                    File.Delete(tempRemainingPath);
+
+                throw;
+            }
+        }
+
+
+
 
     }
 

@@ -28,7 +28,7 @@
       "Note Modified": "{username} updated a note. Note Content - {target}",
       "Note Deleted": "{username} deleted a note. Note Content - {target}",
 
-      "PDF SPLIT": "{username} splitted Pages {target}, extracted as new document with {filters} in {cabinetName} cabinet.",
+      "PDF SPLIT": "{username} splitted and extracted Pages {target}, in {cabinetName} cabinet.",
       "Excel Patch": "{username} updated a excel document in {cabinetName} cabinet.",
       "Email Sent": "{username} send an email.{filters}",
 

@@ -28,6 +28,7 @@ namespace EVWebApi.Interfaces.Services
         Task<List<string>> GetSuggestionsAsync(AutoSuggestionRequestDto dto);
         Task<object> GetAutoFillAsync(AutoFillRequestDto dto);
 
+        Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int userId);
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------

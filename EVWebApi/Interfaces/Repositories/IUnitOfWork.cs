@@ -1,6 +1,7 @@
 ﻿
 
 using EVWebApi.Models;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EVWebApi.Interfaces.Repositories
 {
@@ -11,5 +12,7 @@ namespace EVWebApi.Interfaces.Repositories
         ICabinetRepository Cabinets { get; }
         IDocumentRepository Documents { get; }
         Task<int> CompleteAsync();
+        Task<IDbContextTransaction> BeginTransactionAsync();
+        Task RollbackTransactionAsync(IDbContextTransaction transaction);
     }
 }

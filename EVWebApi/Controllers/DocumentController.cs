@@ -379,5 +379,36 @@ namespace EVWebApi.Controllers
 
         }
 
+        //split document
+        [HttpPost("split")]
+        public async Task<IActionResult> SplitAndExtractPdf([FromBody] SplitAndExtractPdfDto dto)
+        {
+            if (dto.FromPage <= 0 || dto.ToPage <= 0 || dto.FromPage > dto.ToPage)
+            {
+                return BadRequest("Invalid page range.");
+            }
+
+            try
+            {
+                var result = await _documentService.SplitAndExtractPdfAsync(dto, CurrentUserId);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "PDF SPLIT", $"{dto.FromPage} - {dto.ToPage} into {dto.DocumentType} document Type", dto.CabinetId);
+
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred while splitting the document.,{ex.Message}");
+            }
+        }
+
+
     }
 }

@@ -20,12 +20,15 @@ using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using System.Reflection.Metadata;
 using System.Text;
-
+using Syncfusion.Licensing;
 
 
 
 var builder = WebApplication.CreateBuilder(args);
 
+SyncfusionLicenseProvider.RegisterLicense(
+    builder.Configuration["Syncfusion:LicenseKey"]
+);
 // 1. Add DB Context (PostgreSQL)
 var connString = builder.Configuration.GetConnectionString("DefaultConnection");
 

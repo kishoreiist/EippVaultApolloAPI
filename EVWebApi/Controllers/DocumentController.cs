@@ -1,4 +1,5 @@
-﻿using DocumentFormat.OpenXml.Spreadsheet;
+﻿using DocumentFormat.OpenXml.ExtendedProperties;
+using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
@@ -336,6 +337,46 @@ namespace EVWebApi.Controllers
                     error = ex.Message
                 });
             }
+        }
+
+        //auto sugesstion
+        [HttpGet("auto_suggestions")]
+        public async Task<IActionResult> GetAutoSuggestions([FromQuery] AutoSuggestionRequestDto dto)
+        {
+            try
+            {
+                var result = await _documentService.GetSuggestionsAsync(dto);
+                return Ok(new { data = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while fetching auto suggestions",
+                    error = ex.Message
+                });
+            }
+        }
+
+        //auto fill
+
+        [HttpGet("auto-fill")]
+        public async Task<IActionResult> GetAutoFill([FromQuery] AutoFillRequestDto dto)
+        {
+            try
+            {
+                var result = await _documentService.GetAutoFillAsync(dto);
+                return Ok(new { data = result });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while fetching auto suggestions",
+                    error = ex.Message
+                });
+            }
+
         }
 
     }

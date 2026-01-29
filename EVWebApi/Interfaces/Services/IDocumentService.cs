@@ -25,6 +25,9 @@ namespace EVWebApi.Interfaces.Services
         Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int currentuserid);
         Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int userId);
 
+        Task<List<string>> GetSuggestionsAsync(AutoSuggestionRequestDto dto);
+        Task<object> GetAutoFillAsync(AutoFillRequestDto dto);
+
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------

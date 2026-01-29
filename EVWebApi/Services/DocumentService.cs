@@ -20,9 +20,12 @@ using EVWebApi.Repositories;
 using Humanizer;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Syncfusion.XlsIO;
 using System;
+using System.Data;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -48,9 +51,11 @@ namespace EVWebApi.Services
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
 
+        private readonly NpgsqlDataSource _dataSource;
+
 
         public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IMetadataReaderFactoryService metadataReaderFactory,
-            IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService)
+            IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService, NpgsqlDataSource dataSource)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
@@ -62,6 +67,7 @@ namespace EVWebApi.Services
             _storageRoot = config["DocumentSettings:StorageRoot"];
             _tempRoot = config["UploadSettings:TempPath"];
             _docGrpService = docGrpService;
+            _dataSource = dataSource;
         }
 
         // ---------------------- SINGLE UPLOAD ----------------------
@@ -1287,6 +1293,57 @@ namespace EVWebApi.Services
             response.TotalProcessed = dto.Changes.Count;
             return response;
 
+        }
+
+        //----------------------------  AUTO SUGGESTION -----------------------------------------------//
+
+        public async Task<List<string>> GetSuggestionsAsync(AutoSuggestionRequestDto dto)
+        {
+            var suggestions = new List<string>();
+
+            await using var conn = await _dataSource.OpenConnectionAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sp_get_auto_suggestions(@p_field_name, @p_search_text, @p_limit)",
+                conn);
+
+            cmd.Parameters.AddWithValue("p_field_name", NpgsqlTypes.NpgsqlDbType.Varchar, dto.FieldName);
+            cmd.Parameters.AddWithValue("p_search_text", NpgsqlTypes.NpgsqlDbType.Varchar, dto.SearchText);
+            cmd.Parameters.AddWithValue("p_limit", NpgsqlTypes.NpgsqlDbType.Integer, dto.Limit);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                suggestions.Add(reader.GetString(0));
+            }
+
+            return suggestions;
+        }
+
+        //------------------    AUTO FIL    -------------------------------------
+
+        public async Task<object> GetAutoFillAsync(AutoFillRequestDto dto)
+        {
+            await using var conn = await _dataSource.OpenConnectionAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT * FROM get_auto_fill(@p_cabinet_id,@p_field_name, @p_search_text, @p_limit)", conn);
+
+            cmd.Parameters.AddWithValue("@p_cabinet_id", NpgsqlTypes.NpgsqlDbType.Integer, dto.Cabinet);
+            cmd.Parameters.AddWithValue("@p_field_name", NpgsqlTypes.NpgsqlDbType.Varchar, dto.FieldName);
+            cmd.Parameters.AddWithValue("@p_search_text", NpgsqlTypes.NpgsqlDbType.Varchar, dto.SearchText);
+            cmd.Parameters.AddWithValue("@p_limit", NpgsqlTypes.NpgsqlDbType.Integer, dto.Limit);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+
+            var results = new List<JsonElement>();
+
+            while (await reader.ReadAsync())
+            {
+                var json = reader.GetString(0); 
+                results.Add(JsonSerializer.Deserialize<JsonElement>(json));
+            }
+
+            return results;
         }
 
     }

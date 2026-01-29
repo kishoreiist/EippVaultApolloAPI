@@ -29,6 +29,7 @@
       "Note Deleted": "{username} deleted a note. Note Content - {target}",
 
       "PDF SPLIT": "{username} splitted Pages {target}, extracted as new document with {filters} in {cabinetName} cabinet.",
+      "Excel Patch": "{username} updated a excel document in {cabinetName} cabinet.",
       "Email Sent": "{username} send an email.{filters}",
 
       "Login Successful": "{username} authenticated successfully. {filters}",

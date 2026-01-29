@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Azure;
 using CsvHelper;
 using CsvHelper.Configuration;
 using DocumentFormat.OpenXml.Bibliography;
@@ -20,6 +21,7 @@ using Humanizer;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using Syncfusion.XlsIO;
 using System;
 using System.Globalization;
 using System.IO;
@@ -1210,6 +1212,81 @@ namespace EVWebApi.Services
 
 
             return mergedPath;
+        }
+
+        //--------------------- EXCEL PATCHING ----------------------
+
+        public async Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto,int userId)
+        {
+            var response = new BatchResponseDTO();
+            var document = await _uow.Documents.GetDocument(dto.DocumentId);
+            if (document == null || document.Status=="archived")
+                throw new Exception("Document not found");
+
+            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
+            if (cabinet == null || document.CabinetId!=dto.CabinetId)
+                throw new Exception("Invalid CabinetId");
+
+
+            var excelPath = document.FilePath;
+
+            using var fileStream = new FileStream(
+                excelPath,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.None);
+
+            using var excelEngine = new ExcelEngine();
+            var application = excelEngine.Excel;
+            application.DefaultVersion = ExcelVersion.Xlsx;
+
+            var workbook = application.Workbooks.Open(fileStream);
+
+            foreach (var change in dto.Changes)
+            {
+
+                int idx = change.Address.LastIndexOf('!');
+                if (idx == -1)
+                {
+                    response.Failed++;
+                    response.FailedDocDetails.Add($"Invalid cell address format: {change.Address}");
+                    continue;
+                }
+
+                string sheetName = change.Address.Substring(0, idx);
+                string cellAddress = change.Address.Substring(idx + 1);
+
+                var worksheet = workbook.Worksheets
+                    .FirstOrDefault(w => w.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase));
+                if (worksheet == null)
+                {
+                    response.Failed++;
+                    response.FailedDocDetails.Add($"Sheet not found: {sheetName}");
+                    continue;
+                }
+
+                try
+                {
+                    var cell = worksheet.Range[cellAddress];
+                    //worksheet.Range[cellAddress].Value = change.Value;
+                    cell.SetCellValue(change.Value);
+                    response.Success++;
+                }
+                catch(Exception ex)
+                {
+                    response.Failed++;
+                    response.FailedDocDetails.Add($"Cell {change.Address} update failed: {ex.Message}");
+                }
+            }
+
+
+            fileStream.SetLength(0);  
+            workbook.SaveAs(fileStream);
+            workbook.Close();
+
+            response.TotalProcessed = dto.Changes.Count;
+            return response;
+
         }
 
     }

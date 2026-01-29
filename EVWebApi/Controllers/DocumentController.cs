@@ -1,4 +1,5 @@
-﻿using EVWebApi.DTOs.Document;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using EVWebApi.DTOs.Document;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
@@ -7,10 +8,10 @@ using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using System.IO.Compression;
 using static Microsoft.CodeAnalysis.Host.HostWorkspaceServices;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
-using Microsoft.AspNetCore.StaticFiles;
 
 
 namespace EVWebApi.Controllers
@@ -304,5 +305,38 @@ namespace EVWebApi.Controllers
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Deleted",noteText);
             return NoContent();
         }
+
+        //excel patch
+        [HttpPatch("excel_patch")]
+        public async Task<IActionResult> PatchExcel([FromBody] ExcelPatchRequestDto dto)
+        {
+            if (dto.Changes == null || !dto.Changes.Any())
+                return BadRequest("No changes provided");
+            try
+            {
+                var result =await _documentService.ApplyExcelPatchAsync(dto, CurrentUserId);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel Patch", $"{dto.DocumentId}", dto.CabinetId);
+                if (result.Success == 0 && result.Failed > 0)
+                {
+                    return UnprocessableEntity(result);
+
+                }
+                if (result.Success > 0 && result.Failed > 0)
+                {
+                    return StatusCode(207, result); // Partial success
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while updating the Excel document",
+                    error = ex.Message
+                });
+            }
+        }
+
     }
 }

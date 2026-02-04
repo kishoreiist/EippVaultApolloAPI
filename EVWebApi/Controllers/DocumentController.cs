@@ -3,6 +3,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
+using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
@@ -24,11 +25,12 @@ namespace EVWebApi.Controllers
     {
         private readonly IDocumentService _documentService;
         private readonly IAuditLogService _auditlogservice;
-
-        public DocumentController(IDocumentService documentService, IAuditLogService auditLogService)
+        private readonly IDocumentRepository _documentRepo;
+        public DocumentController(IDocumentService documentService, IAuditLogService auditLogService, IDocumentRepository documentRepo)
         {
             _documentService = documentService;
             _auditlogservice = auditLogService;
+            _documentRepo = documentRepo;
         }
 
         //Upload Document
@@ -91,7 +93,7 @@ namespace EVWebApi.Controllers
                 }
 
                 return Ok(result);
-            }           
+            }
             catch (Exception ex)
             {
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Upload Failed", ex.Message, dto.CabinetId);
@@ -108,7 +110,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetDocument(int id)
         {
             var doc = await _documentService.GetDocument(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Viewed Document", doc.FileName,doc.CabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Viewed Document", doc.FileName, doc.CabinetId);
             return Ok(doc);
         }
 
@@ -118,7 +120,7 @@ namespace EVWebApi.Controllers
         {
             var docs = await _documentService.GetDocumentsByCabinetId(cabinetId, query);
             string filterDetails = query.ToFilterLog();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Retrieved", null,cabinetId, null, filters: filterDetails);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Retrieved", null, cabinetId, null, filters: filterDetails);
 
             return Ok(docs);
         }
@@ -150,6 +152,25 @@ namespace EVWebApi.Controllers
 
         }
 
+        // Download only works for small pdf, for large one need to fetch token from cookies
+
+        [HttpGet("{id}/download")]
+        public IActionResult DownloadDocument(int id)
+        {
+            var download = _documentService.GetDocumentForDownload(id).Result;
+            if (download == null) return NotFound();
+
+            // Stream file in chunks
+            var fileStream = new FileStream(download.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 65536, useAsync: true);
+
+            // Use content type based on file extension (optional but better)
+            var contentType = FileContentTypeDetectHelper.GetContentType(download.FileName);
+
+            return File(fileStream, contentType, download.FileName, enableRangeProcessing: true);
+        }
+
+
+
         //edit by doc id
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateDocument(int id, [FromBody] UpdateDocumentDto dto)
@@ -159,7 +180,7 @@ namespace EVWebApi.Controllers
             if (updated == null)
                 return NotFound(new { message = "Document not found" });
 
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Updated", updated.FileName,updated.CabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Updated", updated.FileName, updated.CabinetId);
 
             return Ok(updated);
         }
@@ -171,7 +192,7 @@ namespace EVWebApi.Controllers
 
             if (!isSuccess)
                 return NotFound(new { message = "Document not found" });
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete",id.ToString(), cabinetId);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete", id.ToString(), cabinetId);
             return Ok(new { message = "Document deleted successfully" });
         }
 
@@ -182,9 +203,9 @@ namespace EVWebApi.Controllers
             var result = await _documentService.DeleteMultipleDocuments(dto.DocumentIds);
             string filterDetails = result.ToFilterLog("Summary - ");
 
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Batch Document Delete",null,dto.CabinetId, null, filters: filterDetails);
-            
-            if(result.Success == 0)
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Batch Document Delete", null, dto.CabinetId, null, filters: filterDetails);
+
+            if (result.Success == 0)
                 return NotFound(new { message = "No documents were deleted." });
 
             return Ok(result);
@@ -194,7 +215,7 @@ namespace EVWebApi.Controllers
         [HttpGet("fileexplorer/{cabinetid}")]
         public async Task<IActionResult> GetFileExplorerDocument(int cabinetid)
         {
-            var files=await _documentService.GetFileExplorerDocumentAsync(cabinetid);
+            var files = await _documentService.GetFileExplorerDocumentAsync(cabinetid);
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "File Explorer Accessed", null, cabinetid);
             return Ok(new { data = files });
         }
@@ -227,7 +248,7 @@ namespace EVWebApi.Controllers
                 CurrentUserId,
                 CurrentUsername,
                 "Document",
-                "Export Merged PDF",null, dto.CabinetId
+                "Export Merged PDF", null, dto.CabinetId
             );
 
             mergedStream.Position = 0;
@@ -262,7 +283,7 @@ namespace EVWebApi.Controllers
 
 
             return File(zip_stream.ZipStream, "application/zip", zip_stream.ZipFileName);
-            
+
         }
 
         //----------------------------NOTES----------------------------------
@@ -284,7 +305,7 @@ namespace EVWebApi.Controllers
         {
             var note = await _documentService.CreateNoteAsync(noteDto, CurrentUsername);
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Created", note.NoteText);
-            return Ok(note); 
+            return Ok(note);
         }
 
         //edit note
@@ -303,7 +324,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> DeleteNote(long noteId)
         {
             var noteText = await _documentService.DeleteNoteAsync(noteId);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Deleted",noteText);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Note", "Note Deleted", noteText);
             return NoContent();
         }
 
@@ -315,7 +336,7 @@ namespace EVWebApi.Controllers
                 return BadRequest("No changes provided");
             try
             {
-                var result =await _documentService.ApplyExcelPatchAsync(dto, CurrentUserId);
+                var result = await _documentService.ApplyExcelPatchAsync(dto, CurrentUserId);
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel Patch", $"{dto.DocumentId}", dto.CabinetId);
                 if (result.Success == 0 && result.Failed > 0)
                 {
@@ -409,6 +430,62 @@ namespace EVWebApi.Controllers
             }
         }
 
+        //------doc downlod link---------------
+        //get all records
+        [HttpGet("download_records")]
+        public async Task<IActionResult> GetDocumentDownload()
+        {
+            try
+            {
+                var downloadLink = await _documentService.GetAllDocumentForDownloadAsync(CurrentUserId);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Download items Generated");
+                return Ok(new { data=downloadLink });
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound("Document not found.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while generating the download link",
+                    error = ex.Message
+                });
+            }
+
+        }
+
+        ////download encrypted one
+        [HttpPost("download_record/{id}")]
+        public async Task<IActionResult> DownloadEncryptedDocument(int id)
+        {
+            try
+            {
+                var result = await _documentService.GenerateProtectedDownloadAsync(id, CurrentUserId);
+                //var stream = new FileStream(result.ProtectedFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 16 * 1024 * 1024, useAsync: true);
+               // var contentType = FileContentTypeDetectHelper.GetContentType(result.ProtectedFilePath);
+               /// return File(stream, "application/octet-stream", contentType, enableRangeProcessing: true);
+
+
+                if (result == null) return NotFound();
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Download");
+
+                var contentType = FileContentTypeDetectHelper.GetContentType(result.FilePath);
+
+                return File(result.Stream, contentType, enableRangeProcessing: true);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while downloading the document",
+                    error = ex.Message
+                });
+            }
+
+        }
 
     }
+
 }

@@ -55,7 +55,7 @@ public class MfaService : IMfaService
             .Replace("{CODE}", token)
             .Replace("{MINUTES}", minutes.ToString());
 
-        await _emailSender.SendAsync(user.Email, subject, body, null, null,ct);
+        await _emailSender.SendAsync(user.Email, ReplyTo: null, UserName: null, subject, body, null, null,ct);
         _logger.LogInformation("MFA email sent to {Email}", user.Email);
 
     }
@@ -193,7 +193,7 @@ public class MfaService : IMfaService
             .Replace("{CODE}", token)
             .Replace("{MINUTES}", minutes.ToString());
 
-        await _emailSender.SendAsync(user.Email, subject, body, null);
+        await _emailSender.SendAsync(user.Email,null,null,subject, body, null);
         _logger.LogInformation("MFA email sent to {Email}", user.Email);
     }
 }

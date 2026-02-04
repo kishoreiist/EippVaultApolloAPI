@@ -5,8 +5,15 @@
         public string GroupName { get; set; } = null!;
         //public GroupDescriptionDTO Description { get; set; } = new GroupDescriptionDTO();
         public string UserType { get; set; }
-        public List<int> AccessList { get; set; }
-        public List<int> CabinetsList { get; set; }
+        public List<int>? AccessList { get; set; }
+        public List<int>? CabinetsList { get; set; }
+    }
+
+    public class CreateEmailGroupDto
+     {
+        public string GroupName { get; set; }
+        public Boolean IsExternal { get; set; }
+
     }
 
 }

@@ -19,7 +19,7 @@ namespace EVWebApi.DTOs.User
         public List<ListDto> AccessList { get; set; }
         public List<ListDto> CabinetsList { get; set; }
         public bool Status { get; set; }
-
+        public int? EmailGroupId { get; set; }
 
         public bool MfaEnabled { get; set; }
         public string? PhoneNumber { get; set; }

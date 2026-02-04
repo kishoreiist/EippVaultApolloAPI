@@ -16,7 +16,7 @@ namespace EVWebApi.DTOs.User
 
         public bool Status { get; set; }
 
-
+        public int? EmailGroupId { get; set; }
         public bool? MfaEnabled { get; set; }
         public MfaMethod? MfaMethod { get; set; }
         public string? PhoneNumber { get; set; }

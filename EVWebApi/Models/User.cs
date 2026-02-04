@@ -1,6 +1,7 @@
 ﻿using EVWebApi.Helpers;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using static QRCoder.PayloadGenerator;
 
@@ -50,7 +51,11 @@ namespace EVWebApi.Models
             set => _email = EmailValidationHelper.Normalize(value);
         }
 
+        [Column("email_group_id")]
+        public int? EmailGroupId { get; set; }
 
+        [ForeignKey(nameof(EmailGroupId))]
+        public EmailGroup? EmailGroup { get; set; }
 
         // junction table
         public UserGroup? UserGroup { get; set; }

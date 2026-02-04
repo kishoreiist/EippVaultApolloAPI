@@ -73,7 +73,7 @@ namespace EVWebApi.Controllers
             }
             catch (ConflictException ex)
             {
-                return Conflict(new { Message = ex.Message }); 
+                return Conflict(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -89,8 +89,59 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> GetGroupsForDropdown()
         {
             var groups = await _groupService.GetGroupsForDropdownAsync();
-            
+
             return Ok(groups);
+        }
+
+        //----------------email grp----------------
+
+        [HttpPost("email_group")]
+        public async Task<IActionResult> CreateEmailGroup([FromBody] CreateEmailGroupDto dto)
+        {
+            var created = await _groupService.CreateEmailGroupAsync(dto);
+
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Created", created.GroupName);
+
+            return Ok(created);
+        }
+
+        [HttpGet("email_group")]
+        public async Task<IActionResult> GetAllEmailGroupForDropDown()
+        {
+            var groups = await _groupService.GetallEmailGroupForDropDownAsync();
+            return Ok(groups);
+        }
+
+        [HttpPut("email_group/{id}")]
+        public async Task<IActionResult> UpdateEmailGroup([FromBody] EmailGroupDto dto)
+        {
+            var updated = await _groupService.UpdateEmailGroupAsync(dto);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Updated", updated.GroupName);
+            return Ok(updated);
+
+        }
+
+        [HttpDelete("email_group/{id}")]
+        public async Task<IActionResult> DeleteEmailGroup(int id)
+        {
+            try
+            {
+                await _groupService.DeleteEmailGroupAsync(id);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Deleted");
+                return NoContent();
+            }
+            catch (ConflictException ex)
+            {
+                return Conflict(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "Email group delete failed",
+                    Error = ex.Message
+                });
+            }
         }
     }
 }

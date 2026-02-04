@@ -3,7 +3,9 @@ using Azure;
 using CsvHelper;
 using CsvHelper.Configuration;
 using DocumentFormat.OpenXml.Bibliography;
+using DocumentFormat.OpenXml.InkML;
 using DocumentFormat.OpenXml.Office2010.Excel;
+using DocumentFormat.OpenXml.Spreadsheet;
 using DocumentFormat.OpenXml.Wordprocessing;
 using EVWebApi.DTOs;
 using EVWebApi.DTOs.Cabinet;
@@ -23,6 +25,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Org.BouncyCastle.Cms;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
 using Syncfusion.XlsIO;
@@ -35,9 +38,14 @@ using System.IO.Compression;
 using System.Linq;
 using System.Linq.Dynamic.Core;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using static PdfSharpCore.Pdf.PdfDictionary;
 using Document = EVWebApi.Models.Document;
+
+//using PdfSharpPdf = PdfSharpCore.Pdf;
+//using PdfSharpIO = PdfSharpCore.Pdf.IO;
+
 namespace EVWebApi.Services
 {
     public class DocumentService : IDocumentService
@@ -50,15 +58,16 @@ namespace EVWebApi.Services
         private readonly string _uploadRoot;
         private readonly string _tempRoot;
         private readonly string _storageRoot;
-
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
 
+        private readonly IEmailSender _emailSender;
         private readonly NpgsqlDataSource _dataSource;
 
 
         public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IMetadataReaderFactoryService metadataReaderFactory,
-            IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService, NpgsqlDataSource dataSource)
+            IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService, NpgsqlDataSource dataSource
+            , IEmailSender emailSender)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
@@ -71,6 +80,7 @@ namespace EVWebApi.Services
             _tempRoot = config["UploadSettings:TempPath"];
             _docGrpService = docGrpService;
             _dataSource = dataSource;
+            _emailSender = emailSender;
         }
 
         // ---------------------- SINGLE UPLOAD ----------------------
@@ -570,20 +580,26 @@ namespace EVWebApi.Services
             };
         }
 
-        
+
         // ---------------------- DOWNLOAD ----------------------
         public async Task<DocumentDownloadDto?> GetDocumentForDownload(int id)
         {
             var doc = await _repo.GetDocument(id);
+            if (doc == null) return null;
+
             var rootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
             var fullPath = Path.Combine(rootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
 
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
 
-            var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return new DocumentDownloadDto { Stream = fs, FileName = doc.FileName };
+            return new DocumentDownloadDto
+            {
+                FilePath = fullPath,
+                FileName = doc.FileName
+            };
         }
+
 
         //--------------------------FILE EXPLORER-------------------
 
@@ -1492,7 +1508,219 @@ namespace EVWebApi.Services
             }
         }
 
+        //------------------------- DOCUMENT DOWNLOAD LINK ----------------------------------//
 
+        // get all document for download
+        public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int userid)
+        {
+            var documents = await _uow.Documents.GetAllDocumentForDownload(userid);
+            if (documents == null || documents.Count == 0)
+                throw new NotFoundException("No documents available for download.");
+            // Map to DTOs
+            return documents ?? new List<DocDownloadGetDTO>();
+        }
+
+        //downlaod encrypt
+
+        public async Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int userid)
+        {
+            var doc = await _repo.GetDocument(docid);
+
+            if (doc == null)
+                throw new NotFoundException("Document not found");
+
+
+            var user = await _uow.Users.GetByIdAsync(userid);
+            if (user == null)
+                throw new NotFoundException($"User with id {userid} not found");
+
+
+            //var relativePath = doc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
+            //var originalFilePath = Path.Combine(_storageRoot, relativePath);
+
+            //if (!File.Exists(originalFilePath))
+            //    throw new NotFoundException("File not found in storage");
+
+            //var password = GeneratePassword();
+
+            //var tempDir = Path.Combine(Path.GetTempPath(), "ProtectedDownloads");
+            //if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
+
+            //var ext = Path.GetExtension(originalFilePath).ToLower();
+            //var tempFilePath = Path.Combine(tempDir, $"{Guid.NewGuid()}{ext}");
+
+            //switch (ext)
+            //{
+            //    case ".pdf":
+            //        await ProtectPdf(originalFilePath, tempFilePath, password);
+            //        break;
+            //    case ".xlsx":
+            //        await ProtectExcel(originalFilePath, tempFilePath, password);
+            //        break;
+            //    default:
+            //        throw new NotSupportedException("Unsupported file type");
+            //}
+
+            var downloadLink = await _uow.Documents.GetByIdDownloadLinkAsync(docid, userid);
+
+            if (downloadLink.ExpiryDate <= DateTime.UtcNow)
+                throw new UnauthorizedAccessException("Download link has expired.");
+
+            if (downloadLink.CurrentDownloads >= downloadLink.MaxDownloads)
+                throw new UnauthorizedAccessException("Download limit exceeded.");
+           
+                try
+                {
+                    var data = await GetDocumentStream(docid);
+                    if (data != null)
+                    {
+                        downloadLink.CurrentDownloads++;
+                        await _uow.CompleteAsync();
+                    }
+                    return data;
+                }
+                catch (Exception ex)
+                {
+                    throw new ServerException("Failed to process document download." + ex.Message);
+                }
+            
+
+            
+
+
+
+        }
+
+
+        //var htmlBody = $"""
+        //    <html>
+        //      <body style="font-family: Arial, sans-serif; line-height:1.5; color:#333;">
+        //        <div style="max-width:600px; margin:auto; padding:20px; border:1px solid #e0e0e0; border-radius:8px;">
+        //          <h2 style="color:#1a73e8;">Secure Document Access</h2>
+        //          <p>Dear User,</p>
+        //          <p>You have downloaded the document: <strong>{doc.FileName}</strong>.</p>
+        //          <p>For security, this file is password-protected. Use the password below to open it:</p>
+        //          <p style="font-size:16px; font-weight:bold; background:#f5f5f5; padding:10px; border-radius:4px; display:inline-block;">
+        //            {password}
+        //          </p>
+        //          <p style="margin-top:20px;">
+        //            Please keep this password confidential. It is required each time you open the file.
+        //          </p>
+        //          <p style="margin-top:10px;">
+        //            If you did not initiate this download, contact your administrator immediately.
+        //          </p>
+        //          <hr style="border:none; border-top:1px solid #e0e0e0; margin:20px 0;" />
+        //          <p style="font-size:12px; color:#888;">This is an automated message. Do not reply to this email.</p>
+        //        </div>
+
+
+        //      </body>
+        //    </html>
+        //    """;
+        //await _emailSender.SendAsync(
+        //            toEmail: user.Email, null, null,
+        //            subject: "Password for Document download",
+        //            htmlBody: htmlBody);
+
+        //return new ProtectedFileResultdto
+        //{
+        //    ProtectedFilePath = tempFilePath
+        //};
+        //}
+
+        //if (downloadLink == null || downloadLink.ExpiryDate < DateTime.UtcNow || downloadLink.CurrentDownloads == downloadLink.MaxDownloads)
+        //    throw new NotFoundException("Document download time is expired/Exceeded the download limit");
+
+        // This return is unreachable, but required to satisfy the compiler.
+        // The method will always throw or return above.
+        //throw new NotFoundException("Document download time is expired/Exceeded the download limit");
+        // }
+
+        //private static string GeneratePassword()
+        //{
+        //    return Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+        //        .Replace("+", "")
+        //        .Replace("/", "")
+        //        .Substring(0, 10);
+        //}
+
+        ////public static void ProtectPdf(string inputPath, string outputPath, string password)
+        ////{
+        ////    // Open existing PDF
+        ////    var document = PdfReader.Open(inputPath, PdfDocumentOpenMode.Modify);
+
+        ////    // Set user password
+        ////    document.SecuritySettings.UserPassword = password;
+
+        ////    // Optionally, set owner password and permissions
+        ////    document.SecuritySettings.OwnerPassword = password;
+        ////    document.SecuritySettings.PermitPrint = true;
+        ////    document.SecuritySettings.PermitModifyDocument = false;
+
+        ////    document.Save(outputPath);
+        ////}
+
+
+        ////public static void ProtectExcel(string inputPath, string outputPath, string password)
+        ////{
+        ////    using var excelEngine = new ExcelEngine();
+        ////    var application = excelEngine.Excel;
+        ////    application.DefaultVersion = ExcelVersion.Excel2016;
+
+        ////    // Open workbook
+        ////    var workbook = application.Workbooks.Open(inputPath);
+
+        ////    // Protect workbook (structure + windows)
+        ////    workbook.Protect(true,true,password);
+
+        ////    workbook.SaveAs(outputPath);
+        ////}
+        ///large file
+        //public static async Task ProtectPdf(string inputPath, string outputPath, string password)
+        //{
+        //    // iText7 supports streaming encryption
+        //    var writerProperties = new iTextPdf.WriterProperties()
+        //        .SetStandardEncryption(
+        //            System.Text.Encoding.UTF8.GetBytes(password), // user password
+        //            System.Text.Encoding.UTF8.GetBytes(password), // owner password
+        //            0, // permissions (0 = no special permissions)
+        //            iTextPdf.EncryptionConstants.ENCRYPTION_AES_128 | iTextPdf.EncryptionConstants.DO_NOT_ENCRYPT_METADATA // encryptionAlgorithm
+        //        );
+
+        //    await using (var readerStream = new FileStream(inputPath, FileMode.Open, FileAccess.Read, FileShare.Read, 16 * 1024 * 1024, useAsync: true))
+        //    await using (var writerStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None, 16 * 1024 * 1024, useAsync: true))
+        //    {
+        //        using var pdfReader = new iTextPdf.PdfReader(readerStream);
+        //        using var pdfWriter = new iTextPdf.PdfWriter(writerStream, writerProperties);
+
+        //        using var pdfDoc = new iTextPdf.PdfDocument(pdfReader, pdfWriter);
+        //        // No need to load entire document: encryption is applied on the fly
+        //    }
+        //}
+
+        //public static async Task ProtectExcel(string inputPath, string outputPath, string password)
+        //{
+        //    // Copy the file first (like your chunk merge)
+        //    File.Copy(inputPath, outputPath, overwrite: true);
+
+        //    await Task.Run(() =>
+        //    {
+        //        using var spreadsheet = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(outputPath, true);
+
+        //        var workbookPart = spreadsheet.WorkbookPart;
+        //        var protection = new DocumentFormat.OpenXml.Spreadsheet.WorkbookProtection
+        //        {
+        //            LockStructure = true,
+        //            LockWindows = true,
+        //            WorkbookPassword = Convert.ToBase64String(System.Security.Cryptography.SHA1.HashData(
+        //                System.Text.Encoding.UTF8.GetBytes(password)
+        //            ))
+        //        };
+
+        //        workbookPart.Workbook.AppendChild(protection);
+        //        workbookPart.Workbook.Save();
+        //    });
+        //}
 
 
     }

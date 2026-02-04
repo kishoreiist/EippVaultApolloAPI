@@ -1,4 +1,5 @@
-﻿using EVWebApi.DTOs.Pagination;
+﻿using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 
 namespace EVWebApi.Interfaces.Services
@@ -10,5 +11,8 @@ namespace EVWebApi.Interfaces.Services
         Task<UserDto> CreateAsync(CreateUserDto dto);
         Task<UserDto> UpdateAsync(UpdateUserDto dto);
         Task DeleteAsync(int id);
+
+        //--------email grp=----------------
+        Task<List<EmailGroupUserDto>> GetUserByEmailGroupAsync(int groupid);
     }
 }

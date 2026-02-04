@@ -18,6 +18,7 @@ namespace EVWebApi.Data
         public DbSet<UserMfaToken> UserMfaTokens { get; set; }
         public DbSet<Notes> Notes { get; set; }
         public DbSet<Document> Documents { get; set; }
+        public DbSet<DocDownloadLink> DocumentLink { get; set; }
         public DbSet<AccessRights> AccessRights { get; set; }
         public DbSet<DocumentTypes> DocumentTypes { get; set; }
         public DbSet<Cabinet> Cabinets { get; set; }
@@ -25,6 +26,7 @@ namespace EVWebApi.Data
         public DbSet<Workflow> Workflows { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<EmailGroup> EmailGroups { get; set; }
 
         public DbSet<GroupAccessRight> GroupAccessRights { get; set; }
         public DbSet<GroupCabinet> GroupCabinets { get; set; }
@@ -50,9 +52,10 @@ namespace EVWebApi.Data
             modelBuilder.Entity<AccessRights>().ToTable("accessrights");
             modelBuilder.Entity<DocumentTypes>().ToTable("document_types");
             modelBuilder.Entity<CabinetGroupingRule>().ToTable("cabinet_grouping_rules");
-
+            modelBuilder.Entity<EmailGroup>().ToTable("email_group");
             modelBuilder.Entity<GroupCabinet>().ToTable("group_cabinets");
             modelBuilder.Entity<GroupAccessRight>().ToTable("group_accessrights");
+            modelBuilder.Entity<DocDownloadLink>().ToTable("doc_download_link");
 
             // -------------------
             // Primary Keys
@@ -118,6 +121,9 @@ namespace EVWebApi.Data
                 .HasForeignKey(ug => ug.GroupId);
 
 
+            modelBuilder.Entity<DocDownloadLink>()
+            .HasIndex(x => new { x.DocumentId, x.UserId })
+            .IsUnique();
 
             modelBuilder.Entity<User>()
                 .Property(u => u.UserId)

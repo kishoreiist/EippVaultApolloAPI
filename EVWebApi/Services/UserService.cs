@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using EVWebApi.DTOs;
 using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
@@ -8,6 +9,7 @@ using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
+using Humanizer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +26,7 @@ namespace EVWebApi.Services
         private readonly string _frontendRoot;
         private readonly IEmailSender _emailSender;
         private readonly string  _displayName;
+        private readonly string _pdfviewer;
         public UserService(IUnitOfWork uow, IMapper mapper, IAuthService authService, IConfiguration config, IEmailSender emailSender)
         {
             _uow = uow;
@@ -32,6 +35,7 @@ namespace EVWebApi.Services
             _emailSender = emailSender;
             _frontendRoot = config["Frontend:BaseUrl"];
             _displayName = config["Email:DisplayName"];
+            _pdfviewer = config["PDFViewFEUrl:BaseUrl"];
 
         }
 
@@ -137,6 +141,7 @@ namespace EVWebApi.Services
                 PhoneNumber = dto.PhoneNumber,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
+                EmailGroupId = dto.EmailGroupId,
                 UserGroup = new UserGroup
                 {
                     GroupId = dto.GroupId
@@ -147,13 +152,22 @@ namespace EVWebApi.Services
             await _uow.CompleteAsync();
 
             var updatedUser = await _uow.Users.GetByIdAsync(user.UserId);
-
+            var mappeduser = _mapper.Map<UserDto>(updatedUser);
             var token = _authService.GeneratePasswordResetJwtAsync(updatedUser);
+            var resetUrl= string.Empty;
 
-            //var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
-            var resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+            if (mappeduser.UserType=="external")
+            {
+                 resetUrl = $"{_pdfviewer}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+            }
+            else
+            {
+                 resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+            }
 
             await _emailSender.SendAsync(
+              ReplyTo:null,
+              UserName: null,
                toEmail: user.Email,
                 subject: $"Welcome to {_displayName}",
                 htmlBody: $@"
@@ -283,7 +297,7 @@ namespace EVWebApi.Services
                     user.UserGroup.GroupId = dto.GroupId;
                 }
             }
-
+            if(dto.EmailGroupId.HasValue) user.EmailGroupId = dto.EmailGroupId;
             user.UpdatedAt = DateTime.UtcNow;
 
 
@@ -305,6 +319,14 @@ namespace EVWebApi.Services
            
             //_uow.Users.Remove(user);
             await _uow.CompleteAsync();
+        }
+
+        public async Task<List<EmailGroupUserDto>> GetUserByEmailGroupAsync(int groupid)
+        {
+            var users=await _uow.Groups.GetUsersByEmailGroupIdAsync(groupid);
+            if (!users.Any())
+                throw new Exception("No users found in this group");
+            return users;
         }
     }
 }

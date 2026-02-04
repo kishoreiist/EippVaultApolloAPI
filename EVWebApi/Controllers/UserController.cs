@@ -85,5 +85,15 @@ namespace EVWebApi.Controllers
                 });
             }
         }
+
+        //--------------------email grp--------------
+
+        [HttpGet("email_group/{id}")]
+        public async Task<IActionResult> GetUsersByEmailGroup(int id)
+        {
+            var user = await _userService.GetUserByEmailGroupAsync(id);
+            if (user == null) return NotFound();
+            return Ok(user);
+        }
     }
 }

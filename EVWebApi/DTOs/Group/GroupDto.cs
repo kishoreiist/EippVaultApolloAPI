@@ -10,4 +10,13 @@
         public List<ListDto> AccessList { get; set; }
         public List<ListDto> CabinetsList { get; set; }
     }
+
+    public class EmailGroupDto
+    {
+        public int Id { get; set; }
+        public required string GroupName { get; set; }       
+        public DateTime? CreatedAt { get; set; }
+        public bool IsExternal { get; set; }
+
+    }
 }

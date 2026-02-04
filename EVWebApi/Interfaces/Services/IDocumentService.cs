@@ -1,6 +1,7 @@
 ﻿using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Pagination;
+using EVWebApi.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Interfaces.Services
@@ -37,5 +38,15 @@ namespace EVWebApi.Interfaces.Services
         Task<NotesDto> CreateNoteAsync(NoteCreateDto dto, string CurrentUsername);
         Task<NotesDto> UpdateNoteAsync(NoteUpdateDto dto);
         Task<string> DeleteNoteAsync(long noteId);
+
+        //--------------DOCUMENT DOWNLOAD LINK------------
+        //Task IncrementDownloadCountAsync(int linkId);
+        //Task<DocDownloadLink?> ValidateLinkAsync(string token, string? password = null);
+        //Task<DownloadLinkDto> CreateLinkAsync(int documentId, int expiresInDays = 3, int maxDownloads = 2);
+
+
+        Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int userid);
+
+        Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int userid);
     }
 }

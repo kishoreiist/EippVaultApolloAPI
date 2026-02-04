@@ -19,6 +19,7 @@ namespace EVWebApi.Services
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
 
+
         public GroupService(IUnitOfWork uow, IMapper mapper)
         {
             _uow = uow;
@@ -151,7 +152,7 @@ namespace EVWebApi.Services
             //if (dto.Description != null)
             //    group.Description = dto.Description;
             if (!string.IsNullOrWhiteSpace(dto.UserType)) group.UserType = dto.UserType;
-            if (dto.CabinetsList != null)
+            if (dto.CabinetsList != null && dto.CabinetsList.Count>0)
             {
                 group.GroupCabinets.Clear();
                 foreach (var cabinetId in dto.CabinetsList)
@@ -163,7 +164,7 @@ namespace EVWebApi.Services
                     });
                 }
             }
-            if(dto.AccessList != null)
+            if(dto.AccessList != null && dto.AccessList.Count > 0)
             {
                 group.GroupAccessRights.Clear();
                 foreach (var accessId in dto.AccessList)
@@ -200,11 +201,62 @@ namespace EVWebApi.Services
             
         }
 
-        public async Task<List<ListDto>> GetGroupsForDropdownAsync()
+        public async Task<List<GroupListDto>> GetGroupsForDropdownAsync()
         {
             var groups = await _uow.Groups.GetGroupsForDropdownAsync();
             return groups;
         }
+
+        //--------------------email grp--------------------------------------
+        public async Task<EmailGroupDto> CreateEmailGroupAsync(CreateEmailGroupDto dto)
+        {
+            var exists = await _uow.Groups.GetByEmailGroupnameAsync(dto.GroupName);
+            if (exists != null)
+                throw new ConflictException($"Email group with '{dto.GroupName}' name already exists");
+            var emailGroup = new EmailGroup
+            {
+                GroupName = dto.GroupName,
+                IsExternal = dto.IsExternal,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _uow.Groups.AddEmailGroupAsync(emailGroup);
+            await _uow.CompleteAsync();
+            return _mapper.Map<EmailGroupDto>(emailGroup);
+        }
+
+        public async Task<List<EmailGroup>> GetallEmailGroupForDropDownAsync()
+        {
+            var emailGroup = await _uow.Groups.GeAllEmailGroupsAsync();
+            return emailGroup;
+        }
+
+        public async Task<EmailGroupDto> UpdateEmailGroupAsync(EmailGroupDto emailGroup)
+        {
+            var existingGroup = await _uow.Groups.GetEmailGroupByIdAsync(emailGroup.Id);
+            if (existingGroup == null)
+                throw new NotFoundException("Email group not found");
+
+            var conflictGroup = await _uow.Groups.GetByEmailGroupnameAsync(emailGroup.GroupName);
+            if (conflictGroup != null && conflictGroup.Id != emailGroup.Id)
+                throw new ConflictException($"Email group with '{emailGroup.GroupName}' name already exists");
+
+            existingGroup.GroupName = emailGroup.GroupName;
+            existingGroup.IsExternal = emailGroup.IsExternal;
+            _uow.Groups.UpdateEmailGroupAsync(existingGroup);
+            await _uow.CompleteAsync();
+            return _mapper.Map<EmailGroupDto>(existingGroup);
+        }
+
+        public async Task DeleteEmailGroupAsync(int id)
+        {
+            var emailGroup = await _uow.Groups.GetEmailGroupByIdAsync(id);
+            if (emailGroup == null)
+                throw new NotFoundException("Email group not found");
+            _uow.Groups.RemoveEmailGroupAsync(emailGroup);
+            await _uow.CompleteAsync();
+        }
+
+
 
     }
 }

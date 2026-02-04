@@ -150,6 +150,7 @@ namespace EVWebApi.Mapping
 
             CreateMap<AuditLog, AuditLogDTO>();
             CreateMap<Notes, NotesDto>();
+            CreateMap<EmailGroup, EmailGroupDto>();
         }
     }
 }

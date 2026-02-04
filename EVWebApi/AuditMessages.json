@@ -27,15 +27,19 @@
       "Note Created": "{username} created a new note. Note Content - {target}",
       "Note Modified": "{username} updated a note. Note Content - {target}",
       "Note Deleted": "{username} deleted a note. Note Content - {target}",
-
+      "Download": "{username} downloaded the document.",
       "PDF SPLIT": "{username} splitted and extracted Pages {target}, in {cabinetName} cabinet.",
       "Excel Patch": "{username} updated a excel document in {cabinetName} cabinet.",
       "Email Sent": "{username} send an email.{filters}",
-
       "Login Successful": "{username} authenticated successfully. {filters}",
       "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
       "MFA Verified": "MFA verified successfully & authentication token issued for {username}. {filters}",
       "Logout Successful": "User {username} logged out successfully.",
+
+
+      "Download items Generated": "{username} fetched all accessible documents",
+      "Document Link Email Sent": "{username} send an document download link email to the users in email group {target}.",
+
 
       "Forgot Password": "{username} requested a password reset link. {filters}",
       "Forgot Username": "{username} requested username details via forgot username. {filters}",

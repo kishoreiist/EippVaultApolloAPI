@@ -241,6 +241,8 @@ namespace EVWebAPI.Controllers
             if (action == "username")
             {
                 await _emailSender.SendAsync(
+                            ReplyTo: null,
+                            UserName: null,
                             toEmail: user.Email,
                             subject: $"{_displayName} – Username Recovery",
                             htmlBody: $@"
@@ -267,6 +269,8 @@ namespace EVWebAPI.Controllers
 
 
                 await _emailSender.SendAsync(
+                     ReplyTo: null,
+                     UserName: null,
                    toEmail: user.Email,
                     subject: $"{_displayName} - Password Reset",
                    htmlBody: $@"

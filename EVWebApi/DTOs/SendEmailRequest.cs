@@ -1,15 +1,4 @@
-﻿//namespace EVWebApi.DTOs
-//{
-//    public class SendEmailRequest
-//    {
-
-//        public string ToEmail { get; set; } = default!;
-//        public string Subject { get; set; } = default!;
-//        public string Body { get; set; } = default!;
-//        public List<string> SelectedInvoiceIds { get; set; } = new();
-
-//    }
-//}
+﻿
 
 
 namespace EVWebApi.DTOs
@@ -21,5 +10,20 @@ namespace EVWebApi.DTOs
         public string Subject { get; set; }
         public string Body { get; set; }
         public List<string>? AttachmentPaths { get; set; }
+    }
+
+    public class LinkEmailDto
+    {
+        public string ReplyTo { get; set; }
+        public int? GroupId { get; set; }
+        public string? GroupName { get; set; }
+        public string? To { get; set; }
+        public List<string>? Cc { get; set; }
+        public string Subject { get; set; }
+        public string? Body { get; set; }
+        public List<int> AttachmentIds { get; set; }
+        public int MaxDownloads { get; set; } = 2;
+
+       
     }
 }

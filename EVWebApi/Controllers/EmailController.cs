@@ -76,6 +76,16 @@ namespace EVWebApi.Controllers
                 //need to check result and log accordingly
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email", "Document Link Email Sent",data.GroupName);
 
+
+                var response = new
+                {
+                    total_email = result.TotalProcessed,
+                    success_email = result.Success,
+                    failed_email = result.Failed,
+                    Failure_details = result.FailedDocDetails
+
+                };
+
                 if (result.Success == 0 && result.Failed == 0)
                 {
                     return StatusCode(500, new
@@ -87,15 +97,15 @@ namespace EVWebApi.Controllers
 
                 if (result.Success == 0 && result.Failed > 0)
                 {
-                    return UnprocessableEntity(result);
+                    return UnprocessableEntity(response);
 
                 }
                 if (result.Success > 0 && result.Failed > 0)
                 {
-                    return StatusCode(207, result); // Partial success
+                    return StatusCode(207, response); // Partial success
                 }
 
-                return Ok(new { message = "Document link email sent successfully for all recipients.", result });
+                return Ok(new { message = "Document link email sent successfully for all recipients.", response });
             }
             catch (Exception ex)
             {

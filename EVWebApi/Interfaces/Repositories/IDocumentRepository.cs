@@ -32,6 +32,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int userid);
 
         Task<DocDownloadLink>GetByIdDownloadLinkAsync(int docid,int userid);
+        Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId, IEnumerable<int> documentIds);
 
     }
 }

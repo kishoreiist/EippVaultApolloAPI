@@ -5,6 +5,7 @@ using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EVWebApi.Repositories
 {
@@ -277,5 +278,20 @@ namespace EVWebApi.Repositories
                 throw new NotFoundException("Download link not found.");
             return docLink;
         }
+
+        public async Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId,IEnumerable<int> documentIds)
+        {
+            if (documentIds == null || !documentIds.Any())
+                return new List<int>();
+
+            return await _context.DocumentLink
+                .Where(d =>
+                    d.UserId == userId &&
+                    documentIds.Contains(d.DocumentId) &&
+                    d.ExpiryDate > DateTime.UtcNow && d.CurrentDownloads<d.MaxDownloads)
+                .Select(d => d.DocumentId)
+                .ToListAsync();
+        }
+
     }
 }

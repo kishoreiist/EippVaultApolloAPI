@@ -39,7 +39,7 @@
 
       "Download items Generated": "{username} fetched all accessible documents",
       "Document Link Email Sent": "{username} send an document download link email to the users in email group {target}.",
-
+      "Document Download Failed": "{username} attempted to download document & the operation failed.  Error details : {target}.",
 
       "Forgot Password": "{username} requested a password reset link. {filters}",
       "Forgot Username": "{username} requested username details via forgot username. {filters}",

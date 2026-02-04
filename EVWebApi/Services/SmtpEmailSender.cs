@@ -5,7 +5,9 @@ using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Humanizer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using System.Net;
 using System.Net.Mail;
 
@@ -161,35 +163,36 @@ namespace EVWebApi.Services
             {
                 response.TotalProcessed++;
                 using var transaction = await _uow.BeginTransactionAsync();
-
                 try
                 {
+                    var alreadyAssignedDocIds =
+                    await _docRepo.GetActiveDocumentIdsForUserAsync(recipient.UserId,dto.AttachmentIds);
 
-                    var links = dto.AttachmentIds.Select(docId => new DocDownloadLink
+                var newDocIds = dto.AttachmentIds
+                    .Except(alreadyAssignedDocIds)
+                    .ToList();
+
+                if (!newDocIds.Any())
+                {
+                    response.Failed++;
+                    response.FailedDocDetails.Add(
+                        $"Email:{recipient.Email}, Error:All selected documents are already assigned.");
+                    continue;
+                }
+               
+
+                    var links = newDocIds.Select(docId => new DocDownloadLink
                     {
                         DocumentId = docId,
                         UserId = recipient.UserId,
                         MaxDownloads = dto.MaxDownloads,
                         CurrentDownloads = 0,
-                        //PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                         ExpiryDate = DateTime.UtcNow.AddMonths(1) //expires after one month
                     }).ToList();
                     await _docRepo.CreateDocDownloadLinkAsync(links);
                     await _uow.CompleteAsync();
 
 
-                    //var htmlBody = $"""
-                    // <p>Hello,</p>
-                    // <p>You have been given access to new documents.</p>
-
-                    // <p>
-                    //     <a href="{_pdfviewurl}/documents">
-                    //         Click here to login and view documents
-                    //     </a>
-                    // </p>
-
-                    // <p>Regards</p>
-                    //""";
                     var htmlBody= $"""
                         <div>
                         {dto.Body}
@@ -253,14 +256,31 @@ namespace EVWebApi.Services
                     );
                     await transaction.CommitAsync();
                     response.Success++;
+
+                    if (alreadyAssignedDocIds.Any())
+                    {
+                        response.FailedDocDetails.Add(
+                            $"Email:{recipient.Email}, Skipped Doc ids: {string.Join(",", alreadyAssignedDocIds)} (already assigned)");
+                    }
                 }
+
+                catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx)
+                {
+                    await transaction.RollbackAsync();
+
+                    response.Failed++;                     
+                    response.FailedDocDetails.Add(
+                        $"Email:{recipient.Email}, Error:Document is already assigned to this user and is still active."
+                    );
+                }
+
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
 
                     response.Failed++;
                     response.FailedDocDetails.Add(
-                        $"Email:{recipient.Email}, Error:{ex.Message}");
+                        $"Email:{recipient.Email}, Error:Unexpected error occurred while assigning document.");
                 }
             }
             return response;

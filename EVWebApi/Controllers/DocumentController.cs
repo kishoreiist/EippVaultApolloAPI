@@ -457,7 +457,7 @@ namespace EVWebApi.Controllers
         }
 
         ////download encrypted one
-        [HttpPost("download_record/{id}")]
+        [HttpGet("download_record/{id}")]
         public async Task<IActionResult> DownloadEncryptedDocument(int id)
         {
             try
@@ -473,10 +473,11 @@ namespace EVWebApi.Controllers
 
                 var contentType = FileContentTypeDetectHelper.GetContentType(result.FilePath);
 
-                return File(result.Stream, contentType, enableRangeProcessing: true);
+                return File(result.Stream, contentType, fileDownloadName: result.FileName, enableRangeProcessing: true);
             }
             catch (Exception ex)
             {
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Download Failed", ex.Message);
                 return StatusCode(500, new
                 {
                     message = "An error occurred while downloading the document",

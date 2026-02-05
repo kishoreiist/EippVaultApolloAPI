@@ -26,6 +26,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Org.BouncyCastle.Cms;
+using Org.BouncyCastle.Crypto.IO;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
 using Syncfusion.XlsIO;
@@ -448,7 +449,7 @@ namespace EVWebApi.Services
             };
         }
 
-        public async Task<PagedResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query)
+        public async Task<GroupedPaginationResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query)
         {
             int? docTypeId = null;
 
@@ -463,10 +464,11 @@ namespace EVWebApi.Services
 
             if (!documents.Any())
             {
-                return new PagedResponse<GroupedDocResponseDTO>
+                return new GroupedPaginationResponse<GroupedDocResponseDTO>
                 {
                     Data = new List<GroupedDocResponseDTO>(),
                     TotalRecords = 0,
+                    TotalRows = 0,
                     PageNumber = query.PageNumber,
                     PageSize = query.PageSize
                 };
@@ -475,15 +477,13 @@ namespace EVWebApi.Services
            
             var groupingKey = await _docGrpService.GetDynamicGroupingKeyAsync(cabinetId);
 
-           
-            var result = documents
+             var result = documents
                 .GroupBy(d =>
                     string.Join("||", groupingKey.Select(k =>
                         d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
                 .Select(g =>
                 {
                     var first = g.First();
-
                     return new GroupedDocResponseDTO
                     {
                         EmployeeId = first.EmployeeId,
@@ -523,9 +523,9 @@ namespace EVWebApi.Services
                 query.PageSize = 10;
 
             var totalRecords = documents.Count;
-           
-            int totalPages = (int)Math.Ceiling(totalRecords / (double)query.PageSize);
-
+            int totalRows = result.Count;
+            int totalPages = (int)Math.Ceiling(totalRows / (double)query.PageSize);
+            
            
             if (query.PageNumber <= 0)
                 query.PageNumber = 1;
@@ -533,18 +533,19 @@ namespace EVWebApi.Services
             if (query.PageNumber > totalPages && totalPages > 0)
                 query.PageNumber = totalPages;
 
-            var pagedDocs = await docQuery
+            var pagedDocs = result
                 .Skip((query.PageNumber - 1) * query.PageSize)
                 .Take(query.PageSize)
-                .ToListAsync();
+                .ToList();
 
             
-            var docDtos = _mapper.Map<List<GroupedDocResponseDTO>>(result);
+            //var docDtos = _mapper.Map<List<GroupedDocResponseDTO>>(pagedDocs);
 
-            return new PagedResponse<GroupedDocResponseDTO>
+            return new GroupedPaginationResponse<GroupedDocResponseDTO>
             {
-                Data = docDtos,
+                Data = pagedDocs,
                 TotalRecords = totalRecords, 
+                TotalRows=totalRows,
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             };
@@ -1514,9 +1515,8 @@ namespace EVWebApi.Services
         public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int userid)
         {
             var documents = await _uow.Documents.GetAllDocumentForDownload(userid);
-            if (documents == null || documents.Count == 0)
-                throw new NotFoundException("No documents available for download.");
-            // Map to DTOs
+            //if (documents == null || documents.Count == 0)
+            //    throw new NotFoundException("No documents available for download.");
             return documents ?? new List<DocDownloadGetDTO>();
         }
 
@@ -1561,34 +1561,27 @@ namespace EVWebApi.Services
             //        throw new NotSupportedException("Unsupported file type");
             //}
 
-            var downloadLink = await _uow.Documents.GetByIdDownloadLinkAsync(docid, userid);
+            //var downloadLink = await _uow.Documents.GetByIdDownloadLinkAsync(docid, userid);
 
-            if (downloadLink.ExpiryDate <= DateTime.UtcNow)
-                throw new UnauthorizedAccessException("Download link has expired.");
+            //if (downloadLink.ExpiryDate <= DateTime.UtcNow)
+            //    throw new UnauthorizedAccessException("Download link has expired.");
 
-            if (downloadLink.CurrentDownloads >= downloadLink.MaxDownloads)
-                throw new UnauthorizedAccessException("Download limit exceeded.");
+            //if (downloadLink.CurrentDownloads >= downloadLink.MaxDownloads)
+            //    throw new UnauthorizedAccessException("Download limit exceeded.");
            
-                try
-                {
-                    var data = await GetDocumentStream(docid);
-                    if (data != null)
-                    {
-                        downloadLink.CurrentDownloads++;
-                        await _uow.CompleteAsync();
-                    }
-                    return data;
-                }
-                catch (Exception ex)
-                {
-                    throw new ServerException("Failed to process document download." + ex.Message);
-                }
-            
+              
+            //var data = await GetDocumentStream(docid);
+            var rowsincremented = await _repo.CounterDocumentDownload(docid, userid);
+            if (rowsincremented == 0)//not updated any rows
+                throw new UnauthorizedAccessException("Download limit exceeded or link expired.");
 
-            
-
-
-
+            //if (data != null)
+            //{
+            //    downloadLink.CurrentDownloads++;
+            //    await _uow.CompleteAsync();
+            //}
+             return await GetDocumentStream(docid);
+                      
         }
 
 
@@ -1722,7 +1715,40 @@ namespace EVWebApi.Services
         //    });
         //}
 
+        //public async Task<string> OpenExcelAsync(int docid)
+        //{
+        //    var docStream = await GetDocumentStream(docid);
+        //    if (docStream == null)
+        //        throw new NotFoundException("Document doesn't exists");
+        //    try
+        //    {
+        //        using var memoryStream = new MemoryStream();
+        //        await docStream.Stream.CopyToAsync(memoryStream);
+        //        memoryStream.Position = 0;
 
+        //        var openRequest = new OpenRequest
+        //        {
+        //            File = memoryStream,
+        //            Guid = Guid.NewGuid().ToString(),
+        //            ThresholdLimit = new ThresholdLimit
+        //            {
+        //                MaximumFileSize = 20 * 1024 * 1024,
+        //                MaximumDataLimit = 2_000_000,
+        //                //MaximumSheetCount = 50
+        //            }
+        //        };
+
+        //        var json = Syncfusion.EJ2.Spreadsheet.Workbook.Open(openRequest);
+
+        //        return json;
+        //    }
+        //    finally
+        //    {
+        //        docStream.Stream.Dispose();
+        //    }
+
+
+        //}
     }
 
 }

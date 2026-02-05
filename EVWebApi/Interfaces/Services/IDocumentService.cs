@@ -11,7 +11,7 @@ namespace EVWebApi.Interfaces.Services
         Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int CurrentUserId);
         Task<DocumentResponseDto> GetDocument(int id);
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
-        Task<PagedResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
+        Task<GroupedPaginationResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
         Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto);
         Task<DocumentStreamResultDTO?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
@@ -48,5 +48,7 @@ namespace EVWebApi.Interfaces.Services
         Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int userid);
 
         Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int userid);
+
+        //Task<string> OpenExcelAsync(int docid);
     }
 }

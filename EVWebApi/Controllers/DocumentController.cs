@@ -439,12 +439,27 @@ namespace EVWebApi.Controllers
             {
                 var downloadLink = await _documentService.GetAllDocumentForDownloadAsync(CurrentUserId);
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Download items Generated");
-                return Ok(new { data=downloadLink });
+                //return Ok(new { data=downloadLink });
+
+
+                if (!downloadLink.Any())
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "No documents assigned for download.",
+                        data = new List<DocDownloadGetDTO>()
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Documents fetched successfully.",
+                    data = downloadLink
+                });
             }
-            catch (KeyNotFoundException)
-            {
-                return NotFound("Document not found.");
-            }
+            
             catch (Exception ex)
             {
                 return StatusCode(500, new

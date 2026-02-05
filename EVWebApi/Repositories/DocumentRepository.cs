@@ -1,4 +1,5 @@
-﻿using EVWebApi.Data;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using EVWebApi.Data;
 using EVWebApi.DTOs.Document;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
@@ -251,12 +252,14 @@ namespace EVWebApi.Repositories
             await _context.DocumentLink.AddRangeAsync(entities);
 
         }
-
+        //to fetch all active document download links for a user in pdf viewer app
         public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int userid)
         {
             var docLink = await _context.DocumentLink
                 .Where(d => d.UserId == userid)
                 .Where(d => d.ExpiryDate > DateTime.UtcNow)
+                .Where(d=>d.CurrentDownloads<d.MaxDownloads)
+                .OrderBy(d => d.ExpiryDate)
                 .Select(d => new DocDownloadGetDTO
                 {
                     DocumentId = d.DocumentId,
@@ -265,8 +268,8 @@ namespace EVWebApi.Repositories
                     FileName = d.Document.FileName
                 })
                  .ToListAsync();
-            if (docLink == null)
-                throw new NotFoundException("No download link found for the user.");
+            //if (docLink == null || !docLink.Any())
+            //    throw new NotFoundException("No download link found for the user.");
             return docLink;
         }
 
@@ -279,6 +282,7 @@ namespace EVWebApi.Repositories
             return docLink;
         }
 
+        //to determine the active document ids in the list for which download email have sent
         public async Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId,IEnumerable<int> documentIds)
         {
             if (documentIds == null || !documentIds.Any())
@@ -293,5 +297,25 @@ namespace EVWebApi.Repositories
                 .ToListAsync();
         }
 
+        //atomic  counter increment
+        public async Task<int> CounterDocumentDownload(int docid, int userid)
+        {
+            var rowsincremented = await _context.DocumentLink
+            .Where(d =>
+                d.DocumentId == docid &&
+                d.UserId == userid &&
+                d.ExpiryDate > DateTime.UtcNow &&
+                d.CurrentDownloads < d.MaxDownloads)
+            .ExecuteUpdateAsync(setters =>
+                setters.SetProperty(
+                    d => d.CurrentDownloads,
+                    d => d.CurrentDownloads + 1)
+                .SetProperty(
+                    d => d.UpdatedAt,
+                    d => DateTime.UtcNow)
+
+                );
+            return rowsincremented;// can return count of updated rows , so can update more than 1 doc id
+        }
     }
 }

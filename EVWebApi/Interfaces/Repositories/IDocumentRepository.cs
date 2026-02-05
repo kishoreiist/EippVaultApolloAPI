@@ -34,5 +34,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<DocDownloadLink>GetByIdDownloadLinkAsync(int docid,int userid);
         Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId, IEnumerable<int> documentIds);
 
+        Task<int> CounterDocumentDownload(int docid, int userid);
+
     }
 }

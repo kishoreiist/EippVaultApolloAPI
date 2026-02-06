@@ -1,5 +1,6 @@
 ﻿using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -49,6 +50,7 @@ namespace EVWebApi.Interfaces.Services
 
         Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int userid);
 
-        //Task<string> OpenExcelAsync(int docid);
+        Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId);
+        Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto);
     }
 }

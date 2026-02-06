@@ -4,6 +4,6 @@
     {
         public Stream Stream { get; set; } = default!;
         public string FilePath { get; set; } = default!;
-        public string FileName => Path.GetFileName(FilePath);
+        public string FileName { get; set; } = default!;
     }
 }

@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Azure;
+using ClosedXML.Excel;
 using CsvHelper;
 using CsvHelper.Configuration;
 using DocumentFormat.OpenXml.Bibliography;
@@ -29,6 +30,8 @@ using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto.IO;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
+using Syncfusion.EJ2.Charts;
+using Syncfusion.EJ2.Spreadsheet;
 using Syncfusion.XlsIO;
 using Syncfusion.XlsIO.Implementation.Security;
 using System;
@@ -39,6 +42,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Linq.Dynamic.Core;
 using System.Reflection;
+using System.Security;
 using System.Text;
 using System.Text.Json;
 using static PdfSharpCore.Pdf.PdfDictionary;
@@ -85,7 +89,7 @@ namespace EVWebApi.Services
         }
 
         // ---------------------- SINGLE UPLOAD ----------------------
-        public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int currentuserid)
+        public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto, int currentuserid)
         {
             if (dto.File == null)
                 throw new BadRequestException("File is required");
@@ -134,26 +138,26 @@ namespace EVWebApi.Services
                 UploadedBy = currentuserid,
                 Version = version,
                 Status = "active",
-                UploadedAt= DateTime.UtcNow,
+                UploadedAt = DateTime.UtcNow,
                 DocumentTypeId = docType?.Id,
                 DocumentType = null,
-                InvoiceNumber =dto.InvoiceNumber,
-                VendorNumber=dto.VendorNumber,
-                InvoiceDate=dto.InvoiceDate,
-                Amount=dto.Amount,
-                GST=dto.GST,
-                StatementDate =dto.StatementDate,
-                PaidAmount=dto.PaidAmount,
-                Department=dto.Department,
-                Designation=dto.Designation,
-                Name=dto.Name,
-                EmployeeId=dto.EmployeeId,
-                PoNumber=dto.PoNumber,
-                ContactNumber=dto.ContactNumber,
-                DOB=dto.DOB,
-                DOJ=dto.DOJ,
-                CheckNumber=dto.CheckNumber
-                });
+                InvoiceNumber = dto.InvoiceNumber,
+                VendorNumber = dto.VendorNumber,
+                InvoiceDate = dto.InvoiceDate,
+                Amount = dto.Amount,
+                GST = dto.GST,
+                StatementDate = dto.StatementDate,
+                PaidAmount = dto.PaidAmount,
+                Department = dto.Department,
+                Designation = dto.Designation,
+                Name = dto.Name,
+                EmployeeId = dto.EmployeeId,
+                PoNumber = dto.PoNumber,
+                ContactNumber = dto.ContactNumber,
+                DOB = dto.DOB,
+                DOJ = dto.DOJ,
+                CheckNumber = dto.CheckNumber
+            });
 
             if (doc == null)
                 throw new ServerException("Failed to save document");
@@ -171,12 +175,12 @@ namespace EVWebApi.Services
 
             var metadata = await _metadataRepo.GetMetadataByDocumentId(id);
             return _mapper.Map<DocumentResponseDto>(doc);
-         
+
         }
         //--------------------- GET BY Cabinet ID --------------------
 
-                //-------filter helper method--------//
-        private  IQueryable<Document> FilteredQuery(int cabinetId,DocumentQueryParameters query, int? docTypeId)
+        //-------filter helper method--------//
+        private IQueryable<Document> FilteredQuery(int cabinetId, DocumentQueryParameters query, int? docTypeId)
         {
             var docQuery = _uow.Documents.Query()
                 .Where(d => d.CabinetId == cabinetId);
@@ -404,7 +408,7 @@ namespace EVWebApi.Services
             return docQuery;
         }
 
-        public async Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId,DocumentQueryParameters query)
+        public async Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query)
         {
 
             int? docTypeId = null;
@@ -474,59 +478,59 @@ namespace EVWebApi.Services
                 };
             }
 
-           
+
             var groupingKey = await _docGrpService.GetDynamicGroupingKeyAsync(cabinetId);
 
-             var result = documents
-                .GroupBy(d =>
-                    string.Join("||", groupingKey.Select(k =>
-                        d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
-                .Select(g =>
-                {
-                    var first = g.First();
-                    return new GroupedDocResponseDTO
-                    {
-                        EmployeeId = first.EmployeeId,
-                        Name = first.Name,
-                        ContactNumber = first.ContactNumber,
-                        Designation = first.Designation,
-                        DOB = first.DOB,
-                        DOJ = first.DOJ,
-                        Region = first.Region,
-                        InvoiceNumber = first.InvoiceNumber,
-                        InvoiceDate = first.InvoiceDate,
-                        VendorNumber = first.VendorNumber,
-                        StatementDate = first.StatementDate,
-                        PoNumber = first.PoNumber,
-                        Amount = first.Amount,
-                        PaidAmount = first.PaidAmount,
-                        GST = first.GST,
-                        CheckNumber = first.CheckNumber,
-                        Version = first.Version,
-                        Status = first.Status,
-                        CabinetId = first.CabinetId,
+            var result = documents
+               .GroupBy(d =>
+                   string.Join("||", groupingKey.Select(k =>
+                       d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
+               .Select(g =>
+               {
+                   var first = g.First();
+                   return new GroupedDocResponseDTO
+                   {
+                       EmployeeId = first.EmployeeId,
+                       Name = first.Name,
+                       ContactNumber = first.ContactNumber,
+                       Designation = first.Designation,
+                       DOB = first.DOB,
+                       DOJ = first.DOJ,
+                       Region = first.Region,
+                       InvoiceNumber = first.InvoiceNumber,
+                       InvoiceDate = first.InvoiceDate,
+                       VendorNumber = first.VendorNumber,
+                       StatementDate = first.StatementDate,
+                       PoNumber = first.PoNumber,
+                       Amount = first.Amount,
+                       PaidAmount = first.PaidAmount,
+                       GST = first.GST,
+                       CheckNumber = first.CheckNumber,
+                       Version = first.Version,
+                       Status = first.Status,
+                       CabinetId = first.CabinetId,
 
-                        DocumentTypes = g.Select(d => new DocumentChildDDTO
-                        {
-                            DocumentId = d.DocumentId,
-                            DocumentType = d.DocumentType?.Label,
-                            NotesCount = d.Notes?.Count ?? 0,
-                            FileName = d.FileName,
-                            FilePath = d.FilePath
-                        }).ToList()
-                    };
-                })
-                .ToList();
+                       DocumentTypes = g.Select(d => new DocumentChildDDTO
+                       {
+                           DocumentId = d.DocumentId,
+                           DocumentType = d.DocumentType?.Label,
+                           NotesCount = d.Notes?.Count ?? 0,
+                           FileName = d.FileName,
+                           FilePath = d.FilePath
+                       }).ToList()
+                   };
+               })
+               .ToList();
 
-           
+
             if (query.PageSize <= 0)
                 query.PageSize = 10;
 
             var totalRecords = documents.Count;
             int totalRows = result.Count;
             int totalPages = (int)Math.Ceiling(totalRows / (double)query.PageSize);
-            
-           
+
+
             if (query.PageNumber <= 0)
                 query.PageNumber = 1;
 
@@ -538,14 +542,14 @@ namespace EVWebApi.Services
                 .Take(query.PageSize)
                 .ToList();
 
-            
+
             //var docDtos = _mapper.Map<List<GroupedDocResponseDTO>>(pagedDocs);
 
             return new GroupedPaginationResponse<GroupedDocResponseDTO>
             {
                 Data = pagedDocs,
-                TotalRecords = totalRecords, 
-                TotalRows=totalRows,
+                TotalRecords = totalRecords,
+                TotalRows = totalRows,
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             };
@@ -558,8 +562,11 @@ namespace EVWebApi.Services
             if (doc == null)
                 throw new NotFoundException("Document not found");
 
-            var relativePath = doc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var relativePath = doc.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
             var fullPath = Path.Combine(_storageRoot, relativePath);
+
+            if (!fullPath.StartsWith(_storageRoot))
+                throw new SecurityException("Invalid file path");
 
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
@@ -569,15 +576,15 @@ namespace EVWebApi.Services
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
-                bufferSize: 64 * 1024,
+                bufferSize: 1024 * 1024,
                 useAsync: true
             );
 
-            //return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 64 * 1024, useAsync: true);
             return new DocumentStreamResultDTO
             {
                 Stream = stream,
-                FilePath = fullPath
+                FilePath = fullPath,
+                FileName = doc.FileName
             };
         }
 
@@ -588,8 +595,8 @@ namespace EVWebApi.Services
             var doc = await _repo.GetDocument(id);
             if (doc == null) return null;
 
-            var rootPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-            var fullPath = Path.Combine(rootPath, doc.FilePath.TrimStart('/').Replace("/", "\\"));
+            var rootPath = doc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var fullPath = Path.Combine(_storageRoot, rootPath);
 
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
@@ -612,7 +619,7 @@ namespace EVWebApi.Services
                 throw new NotFoundException("Cabinet not found");
 
             var files = await _repo.GetFileExplorerAsync(id);
-            if(files==null)
+            if (files == null)
                 throw new NotFoundException("Files not found in storage");
 
 
@@ -674,7 +681,7 @@ namespace EVWebApi.Services
                     summary.FailedDocDetails.Add($"Error deleting Document ID {id}: {ex.Message}");
                     summary.Failed++;
                 }
-                
+
             }
             return summary;
         }
@@ -717,17 +724,17 @@ namespace EVWebApi.Services
         {
             var memoryStream = new MemoryStream();
 
-                using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+            using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+            {
+                foreach (var id in dto.DocumentIds)
                 {
-                    foreach (var id in dto.DocumentIds)
-                    {
-                        // Fetch PDF stream for invoice
-                        var pdfStream = await GetDocumentStream(id);
-                        if (pdfStream == null)
-                            throw new NotFoundException($"Document not found: {id}");
+                    // Fetch PDF stream for invoice
+                    var pdfStream = await GetDocumentStream(id);
+                    if (pdfStream == null)
+                        throw new NotFoundException($"Document not found: {id}");
 
                     // Generate file name
-                    var originalFileName = await _repo.GetDocumentName(id); 
+                    var originalFileName = await _repo.GetDocumentName(id);
 
                     // Generate unique filename for ZIP: originalname_id.pdf
                     var fileNameWithoutExt = Path.GetFileNameWithoutExtension(originalFileName);
@@ -735,12 +742,12 @@ namespace EVWebApi.Services
                     var FileName = $"{fileNameWithoutExt}_{id}{extension}";
 
                     var zipEntry = archive.CreateEntry(FileName, CompressionLevel.Fastest);
-                        using (var entryStream = zipEntry.Open())
-                        {
-                            await pdfStream.Stream.CopyToAsync(entryStream);
-                        }
+                    using (var entryStream = zipEntry.Open())
+                    {
+                        await pdfStream.Stream.CopyToAsync(entryStream);
                     }
                 }
+            }
 
             memoryStream.Position = 0;
             var cabinetName = await _uow.Cabinets.GetCabinetNameAsync(dto.CabinetId) ?? "UnknownCabinet";
@@ -748,7 +755,7 @@ namespace EVWebApi.Services
             var zipFileName = $"{safeCabinetName}_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.zip";
 
             return (memoryStream, zipFileName);
-            
+
         }
 
         //--------------------- EDIT ---------------------------------
@@ -838,9 +845,9 @@ namespace EVWebApi.Services
             var note = new Notes
             {
                 NoteText = dto.NoteText,
-                CreatedAt= DateTime.UtcNow,
-                CreatedBy= CurrentUsername,
-                DocumentId=dto.DocumentId
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = CurrentUsername,
+                DocumentId = dto.DocumentId
             };
             await _uow.Documents.AddNoteAsync(note);
             await _uow.CompleteAsync();
@@ -948,13 +955,13 @@ namespace EVWebApi.Services
                     using (var stream = new FileStream(fullPath, FileMode.Create))
                     {
                         await physicalFile.CopyToAsync(stream);
-                        
+
                     }
                     processedFiles.Add(fullPath);
                     DocumentTypes? docType = null;
                     if (!string.IsNullOrWhiteSpace(record.DocumentType))
                     {
-                         docType =await _uow.Documents.GetOrCreateDocLabelAsync(record.DocumentType);
+                        docType = await _uow.Documents.GetOrCreateDocLabelAsync(record.DocumentType);
 
                     }
 
@@ -965,7 +972,7 @@ namespace EVWebApi.Services
                         //FileName = physicalFile.FileName,
                         FileName = fileName,
                         FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
-                        Version=version,
+                        Version = version,
                         Status = "active",
                         // Metadata fields from CSV
                         InvoiceNumber = record.InvoiceNumber,
@@ -1019,14 +1026,14 @@ namespace EVWebApi.Services
                 }
             }
 
-            return summary ;
+            return summary;
         }
 
         //---------------------------------------------------------------------------//
 
         //---------chunk upload--------------------
 
-        public async Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto,int currentuserid)
+        public async Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int currentuserid)
         {
             if (dto.TotalChunks == null || dto.TotalChunks <= 1)
             {
@@ -1036,7 +1043,7 @@ namespace EVWebApi.Services
 
                 var tempFilePath = Path.Combine(
                     tempDir,
-                    Path.GetFileName(dto.OriginalFileName??dto.File.FileName)
+                    Path.GetFileName(dto.OriginalFileName ?? dto.File.FileName)
                 );
                 await using (var stream = new FileStream(tempFilePath, FileMode.Create))
                 {
@@ -1056,7 +1063,7 @@ namespace EVWebApi.Services
             return await UploadChunkAsync(dto, currentuserid);
         }
 
-        private async Task<DocumentResponseDto?> UploadChunkAsync(DocumentUploadDto dto,int currentuserid)
+        private async Task<DocumentResponseDto?> UploadChunkAsync(DocumentUploadDto dto, int currentuserid)
         {
             if (dto.TotalChunks <= 0)
                 throw new BadRequestException("Invalid total chunks");
@@ -1080,7 +1087,7 @@ namespace EVWebApi.Services
             var chunkPath = Path.Combine(chunksDir, $"{dto.ChunkIndex}.part");
 
             await using (var stream = new FileStream(
-                    chunkPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024,useAsync: true))
+                    chunkPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true))
             {
                 await dto.File.CopyToAsync(stream);
             }
@@ -1092,28 +1099,28 @@ namespace EVWebApi.Services
                 // not all chunks yet
                 return null;
             }
-            
+
 
             string mergedFilePath;
             try
             {
-                mergedFilePath = await MergeChunksAsync(chunksDir, mergedDir, dto.OriginalFileName,dto.TotalChunks);
+                mergedFilePath = await MergeChunksAsync(chunksDir, mergedDir, dto.OriginalFileName, dto.TotalChunks);
             }
             catch
             {
-               
+
                 throw new ServerException("Failed to merge file chunks.");
             }
 
             DocumentResponseDto result;
             try
             {
-                result= await FinalizeUploadAsync(dto, currentuserid, mergedFilePath);               
-                
+                result = await FinalizeUploadAsync(dto, currentuserid, mergedFilePath);
+
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-               
+
                 throw new ServerException($"Failed to save document {ex.InnerException}");
             }
 
@@ -1133,7 +1140,7 @@ namespace EVWebApi.Services
 
         }
 
-        private async Task<DocumentResponseDto> FinalizeUploadAsync( DocumentUploadDto dto,int currentuserid, string mergedFilePath)
+        private async Task<DocumentResponseDto> FinalizeUploadAsync(DocumentUploadDto dto, int currentuserid, string mergedFilePath)
         {
             var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId)
                 ?? throw new Exception("Invalid CabinetId");
@@ -1145,7 +1152,7 @@ namespace EVWebApi.Services
             string folderName = cabinet.CabinetName;
             string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
             string cabinetFolder = Path.Combine(_uploadRoot, dateFolder, folderName);
-            
+
             if (!Directory.Exists(cabinetFolder))
                 Directory.CreateDirectory(cabinetFolder);
 
@@ -1176,7 +1183,7 @@ namespace EVWebApi.Services
                 UploadedAt = DateTime.UtcNow,
                 DocumentTypeId = docType?.Id,
 
-              
+
                 InvoiceNumber = dto.InvoiceNumber,
                 VendorNumber = dto.VendorNumber,
                 InvoiceDate = dto.InvoiceDate,
@@ -1200,7 +1207,7 @@ namespace EVWebApi.Services
             return _mapper.Map<DocumentResponseDto>(doc);
         }
 
-        private async Task<string> MergeChunksAsync(string chunksDir,string mergedDir,string originalFileName,int? totalChunks)
+        private async Task<string> MergeChunksAsync(string chunksDir, string mergedDir, string originalFileName, int? totalChunks)
         {
             if (totalChunks == null || totalChunks <= 0)
                 throw new ArgumentException("Invalid totalChunks", nameof(totalChunks));
@@ -1252,15 +1259,15 @@ namespace EVWebApi.Services
 
         //--------------------- EXCEL PATCHING ----------------------
 
-        public async Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto,int userId)
+        public async Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int userId)
         {
             var response = new BatchResponseDTO();
             var document = await _uow.Documents.GetDocument(dto.DocumentId);
-            if (document == null || document.Status=="archived")
+            if (document == null || document.Status == "archived")
                 throw new Exception("Document not found");
 
             var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
-            if (cabinet == null || document.CabinetId!=dto.CabinetId)
+            if (cabinet == null || document.CabinetId != dto.CabinetId)
                 throw new Exception("Invalid CabinetId");
 
 
@@ -1308,7 +1315,7 @@ namespace EVWebApi.Services
                     cell.SetCellValue(change.Value);
                     response.Success++;
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     response.Failed++;
                     response.FailedDocDetails.Add($"Cell {change.Address} update failed: {ex.Message}");
@@ -1316,7 +1323,7 @@ namespace EVWebApi.Services
             }
 
 
-            fileStream.SetLength(0);  
+            fileStream.SetLength(0);
             workbook.SaveAs(fileStream);
             workbook.Close();
 
@@ -1369,7 +1376,7 @@ namespace EVWebApi.Services
 
             while (await reader.ReadAsync())
             {
-                var json = reader.GetString(0); 
+                var json = reader.GetString(0);
                 results.Add(JsonSerializer.Deserialize<JsonElement>(json));
             }
 
@@ -1378,7 +1385,7 @@ namespace EVWebApi.Services
 
         //-------------------------     SPLIT & EXTRACT PDF ----------------------
 
-        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto,int userId)
+        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int userId)
         {
             var originalDoc = await _repo.GetDocument(dto.DocumentId)
                 ?? throw new KeyNotFoundException("Document not found");
@@ -1401,7 +1408,7 @@ namespace EVWebApi.Services
                 using var originalPdf =
                     PdfReader.Open(fullPath, PdfDocumentOpenMode.Import);
 
-                
+
 
                 if (dto.FromPage < 1 || dto.ToPage < 1 || dto.FromPage > dto.ToPage || dto.ToPage > originalPdf.PageCount)
                     throw new InvalidOperationException($"Invalid page range. Document has {originalPdf.PageCount} pages.");
@@ -1467,7 +1474,7 @@ namespace EVWebApi.Services
                     Status = "active",
                     DocumentTypeId = docType?.Id,
 
-                    
+
                     InvoiceNumber = originalDoc.InvoiceNumber,
                     VendorNumber = originalDoc.VendorNumber,
                     InvoiceDate = originalDoc.InvoiceDate,
@@ -1568,8 +1575,8 @@ namespace EVWebApi.Services
 
             //if (downloadLink.CurrentDownloads >= downloadLink.MaxDownloads)
             //    throw new UnauthorizedAccessException("Download limit exceeded.");
-           
-              
+
+
             //var data = await GetDocumentStream(docid);
             var rowsincremented = await _repo.CounterDocumentDownload(docid, userid);
             if (rowsincremented == 0)//not updated any rows
@@ -1580,8 +1587,8 @@ namespace EVWebApi.Services
             //    downloadLink.CurrentDownloads++;
             //    await _uow.CompleteAsync();
             //}
-             return await GetDocumentStream(docid);
-                      
+            return await GetDocumentStream(docid);
+
         }
 
 
@@ -1715,40 +1722,91 @@ namespace EVWebApi.Services
         //    });
         //}
 
-        //public async Task<string> OpenExcelAsync(int docid)
-        //{
-        //    var docStream = await GetDocumentStream(docid);
-        //    if (docStream == null)
-        //        throw new NotFoundException("Document doesn't exists");
-        //    try
-        //    {
-        //        using var memoryStream = new MemoryStream();
-        //        await docStream.Stream.CopyToAsync(memoryStream);
-        //        memoryStream.Position = 0;
+        //------------excel view-------------------------
+        //get sheet names
+        public async Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId)
+        {
+            var document = await _repo.GetDocument(documentId);
+            if (document == null)
+                throw new KeyNotFoundException("Document not found");
 
-        //        var openRequest = new OpenRequest
-        //        {
-        //            File = memoryStream,
-        //            Guid = Guid.NewGuid().ToString(),
-        //            ThresholdLimit = new ThresholdLimit
-        //            {
-        //                MaximumFileSize = 20 * 1024 * 1024,
-        //                MaximumDataLimit = 2_000_000,
-        //                //MaximumSheetCount = 50
-        //            }
-        //        };
+            if (!File.Exists(document.FilePath))
+                throw new FileNotFoundException("Excel file not found");
 
-        //        var json = Syncfusion.EJ2.Spreadsheet.Workbook.Open(openRequest);
+            using var excelEngine = new ExcelEngine();
+            var application = excelEngine.Excel;
+            application.DefaultVersion = ExcelVersion.Xlsx;
 
-        //        return json;
-        //    }
-        //    finally
-        //    {
-        //        docStream.Stream.Dispose();
-        //    }
+            using var stream = new FileStream(document.FilePath, FileMode.Open, FileAccess.Read);
+            var workbook = application.Workbooks.Open(stream);
 
+            //var sheetNames = workbook.Worksheets.Select(s => s.Name).ToList();
+            var sheets = workbook.Worksheets
+                .Select((sheet, index) => new ListDto
+                {
+                    Id = index,
+                    Name = sheet.Name
+                })
+                .ToList();
 
-        //}
+            return sheets;
+        }
+        //get sheet data by sheet name
+        public async Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto)
+        {
+            var document = await _repo.GetDocument(dto.DocumentId);
+            if (document == null)
+                throw new KeyNotFoundException("Document not found");
+
+            if (!File.Exists(document.FilePath))
+                throw new FileNotFoundException("Excel file not found");
+
+            using var excelEngine = new ExcelEngine();
+            var application = excelEngine.Excel;
+            application.DefaultVersion = ExcelVersion.Xlsx;
+
+            using var stream = new FileStream(document.FilePath, FileMode.Open, FileAccess.Read);
+            var workbook = application.Workbooks.Open(stream);
+
+            if (dto.SheetIndex < 0 || dto.SheetIndex >= workbook.Worksheets.Count)
+                throw new KeyNotFoundException("Invalid sheet index");
+
+            var sheet = workbook.Worksheets[dto.SheetIndex];
+            if (sheet == null)
+                throw new KeyNotFoundException("Sheet not found");
+
+            int lastRow = sheet.UsedRange.LastRow;
+            int lastCol = sheet.UsedRange.LastColumn;
+
+            int endRow = Math.Min(dto.StartRow + dto.RowCount - 1, lastRow);
+
+            var headers = new List<string>();
+            for (int c = 1; c <= lastCol; c++)
+                headers.Add(sheet.Range[1, c].Text);
+
+            // Collect data
+            var data = new List<Dictionary<string, object>>();
+            for (int r = dto.StartRow; r <= endRow; r++)
+            {
+                var rowDict = new Dictionary<string, object>();
+                for (int c = 1; c <= lastCol; c++)
+                    rowDict[headers[c - 1]] = sheet.Range[r, c].Text;
+                data.Add(rowDict);
+            }
+
+            var result = new
+            {
+                SheetName = sheet.Name,
+                StartRow = dto.StartRow,
+                RowCount = data.Count,
+                TotalRows = lastRow,
+                Columns = headers,
+                Data = data
+            };
+
+            return JsonSerializer.Serialize(result);
+
+        }
     }
 
 }

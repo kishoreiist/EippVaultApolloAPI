@@ -230,8 +230,8 @@ namespace EVWebAPI.Controllers
 
             var user = await _userRepo.GetByEmailAsync(request.Email);
             if (user == null)
-                //return Ok(new { message = "If the email exists, a reset link will be sent." });
-                throw new NotFoundException("Invalid Email Id.");
+                return Ok(new { message = "If the email exists, a reset link will be sent." });
+                //throw new NotFoundException("Invalid Email Id.");
             var action = request.Action.ToLower().Trim();
             bool usernameSent = false;
             bool passwordSent = false;

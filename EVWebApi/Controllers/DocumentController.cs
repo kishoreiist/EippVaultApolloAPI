@@ -11,7 +11,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
+using Syncfusion.XlsIO;
 using System.IO.Compression;
+using System.Threading.Tasks;
 using static Microsoft.CodeAnalysis.Host.HostWorkspaceServices;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
@@ -144,7 +146,7 @@ namespace EVWebApi.Controllers
         {
             var result = await _documentService.GetDocumentStream(id);
             if (result == null) return NotFound();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "PDF View");
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document View");
 
             var contentType = FileContentTypeDetectHelper.GetContentType(result.FilePath);
 
@@ -152,21 +154,20 @@ namespace EVWebApi.Controllers
 
         }
 
-        // Download only works for small pdf, for large one need to fetch token from cookies
+        // Download
 
         [HttpGet("{id}/download")]
-        public IActionResult DownloadDocument(int id)
+        public async Task<IActionResult> DownloadDocument(int id)
         {
-            var download = _documentService.GetDocumentForDownload(id).Result;
+            var download = await _documentService.GetDocumentStream(id);
             if (download == null) return NotFound();
 
-            // Stream file in chunks
-            var fileStream = new FileStream(download.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 65536, useAsync: true);
+            //var fileStream = new FileStream(download.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1024 * 1024, useAsync: true);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Download");
 
-            // Use content type based on file extension (optional but better)
             var contentType = FileContentTypeDetectHelper.GetContentType(download.FileName);
 
-            return File(fileStream, contentType, download.FileName, enableRangeProcessing: true);
+            return File(download.Stream, contentType, download.FileName, enableRangeProcessing: true);
         }
 
 
@@ -459,7 +460,7 @@ namespace EVWebApi.Controllers
                     data = downloadLink
                 });
             }
-            
+
             catch (Exception ex)
             {
                 return StatusCode(500, new
@@ -479,8 +480,8 @@ namespace EVWebApi.Controllers
             {
                 var result = await _documentService.GenerateProtectedDownloadAsync(id, CurrentUserId);
                 //var stream = new FileStream(result.ProtectedFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 16 * 1024 * 1024, useAsync: true);
-               // var contentType = FileContentTypeDetectHelper.GetContentType(result.ProtectedFilePath);
-               /// return File(stream, "application/octet-stream", contentType, enableRangeProcessing: true);
+                // var contentType = FileContentTypeDetectHelper.GetContentType(result.ProtectedFilePath);
+                /// return File(stream, "application/octet-stream", contentType, enableRangeProcessing: true);
 
 
                 if (result == null) return NotFound();
@@ -502,6 +503,54 @@ namespace EVWebApi.Controllers
 
         }
 
+        //excel open
+
+        //--------------get sheetname-----------------
+        [HttpGet("sheets{documentId}")]
+        public async Task<IActionResult> GetSheetNames(int documentId)
+        {
+            try
+            {
+                var sheets = await _documentService.GetExcelSheetNamesAsync(documentId);
+                return Ok(sheets);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while opening the Excel sheet",
+                    error = ex.Message
+                });
+            }
+
+        }
+
+
+        [HttpPost("sheets/open/")]
+        public async Task<IActionResult> OpenExcelSheet([FromBody] DocumentExcelOpenDTO dto)
+        {
+            string filterDetails = dto.ToFilterLog("");
+            try
+            {
+                var json = await _documentService.OpenExcelSheetAsync(dto);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open",null,null,filters: filterDetails);
+                return Content(json, "application/json");
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open fail", null, null, filters: filterDetails);
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while opening the Excel sheet",
+                    error = ex.Message
+                });
+            }
+
+        }
     }
 
 }

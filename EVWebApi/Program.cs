@@ -118,26 +118,36 @@ builder.Services.AddControllers()
                 false // do not allow integers
             )
         );
-    });
+    }); 
 
 // 7. Enable CORS (allow frontend)
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("RestrictedCors", policy =>
+
+    //"AllowAll", policy =>
     {
-        //policy.AllowAnyOrigin()
-        //      .AllowAnyMethod()
-        //      .AllowAnyHeader();
 
-        policy.SetIsOriginAllowed(origin => true)
-          .AllowAnyMethod()
-          .AllowAnyHeader()
-          .AllowCredentials();
+    //policy.SetIsOriginAllowed(origin => true)
+    //  .AllowAnyMethod()
+    //  .AllowAnyHeader()
+    //  .AllowCredentials();
 
-        // policy.WithOrigins("https://yourfrontenddomain.com", "http://localhost:4200")////need to change before last deplymnt
-        //.AllowAnyMethod()
-        //.AllowAnyHeader()
-        //.AllowCredentials();
+    policy.SetIsOriginAllowed(origin =>
+    {
+        if (origin.StartsWith("http://localhost"))
+            return true;
+
+        var allowed = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>();
+
+        return allowed!.Contains(origin);
+    })
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .AllowCredentials();
+
     });
 });
 
@@ -179,8 +189,14 @@ builder.Services.Configure<FormOptions>(options =>
 var app = builder.Build();
 
 // Middleware
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+//app.UseSwagger();
+//app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseRouting();

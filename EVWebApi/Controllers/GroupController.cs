@@ -37,28 +37,62 @@ namespace EVWebApi.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
-            var group = await _groupService.GetByIdAsync(id);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Retrieved", group.GroupName);
-            if (group == null) return NotFound();
-            return Ok(group);
+            try
+            {
+                var group = await _groupService.GetByIdAsync(id);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Retrieved", group.GroupName);
+                if (group == null) return NotFound();
+                return Ok(group);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "Group details Fetch failed",
+                    Error = ex.Message
+                });
+            }
         }
 
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateGroupDto dto)
         {
-            var created = await _groupService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Created", created.GroupName);
-            return CreatedAtAction(nameof(Get), new { id = created.GroupId }, created);
+            try
+            {
+                var created = await _groupService.CreateAsync(dto);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Created", created.GroupName);
+                return CreatedAtAction(nameof(Get), new { id = created.GroupId }, created);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "Group creation failed",
+                    Error = ex.Message
+                });
+            }
         }
 
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateGroupDto dto)
         {
-            if (id != dto.GroupId) return BadRequest();
-            var updated = await _groupService.UpdateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Updated", updated.GroupName);
-            return Ok(new { data = updated });
+            try
+            {
+                if (id != dto.GroupId) return BadRequest();
+                var updated = await _groupService.UpdateAsync(dto);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Updated", updated.GroupName);
+                return Ok(new { data = updated });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "Group updation failed",
+                    Error = ex.Message
+                });
+            }
+
         }
 
 

@@ -506,7 +506,7 @@ namespace EVWebApi.Controllers
         //excel open
 
         //--------------get sheetname-----------------
-        [HttpGet("sheets{documentId}")]
+        [HttpGet("sheets/{documentId}")]
         public async Task<IActionResult> GetSheetNames(int documentId)
         {
             try
@@ -538,7 +538,7 @@ namespace EVWebApi.Controllers
             }
             catch (KeyNotFoundException ex)
             {
-                return NotFound(ex.Message);
+                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {

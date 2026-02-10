@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Data;
 using EVWebApi.DTOs;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -173,7 +174,8 @@ public class MfaService : IMfaService
 
     public async Task GenerateAndSendTokenAsync(User user)
     {
-        var token = new Random().Next(100000, 999999).ToString();
+        //var token = new Random().Next(100000, 999999).ToString();
+        var token = SecurityHelper.GenerateSecureOtp();
         var mfaToken = new UserMfaToken
         {
 

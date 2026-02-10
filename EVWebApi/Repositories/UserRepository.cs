@@ -44,6 +44,7 @@ namespace EVWebApi.Repositories
                         .ThenInclude(g => g.GroupCabinets)
                             .ThenInclude(c=>c.Cabinet)
                 .Where(u => u.Status != UserStatus.locked)
+                .OrderBy(u=>u.UserId)
                 .AsQueryable();
         }
 

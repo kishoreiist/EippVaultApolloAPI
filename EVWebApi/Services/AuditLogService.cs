@@ -5,6 +5,7 @@ using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
+using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Org.BouncyCastle.Utilities;
@@ -76,11 +77,21 @@ namespace EVWebApi.Services
         }
 
 
-        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,CancellationToken cancellationToken = default)
-        { 
+        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,int userid,string usertype,CancellationToken cancellationToken = default)
+        {
 
 
-            var auditQuery = _context.AuditLogs.AsQueryable();
+            IQueryable<AuditLog> auditQuery;
+
+            if (usertype=="super_admin")//need to chekc the super_admin role
+            {
+                auditQuery = _context.AuditLogs.AsQueryable();
+            }
+            else
+            {
+               // For regular users, filter by their userId
+                auditQuery = _context.AuditLogs.Where(a => a.UserId == userid);
+            }
 
             // FILTERS
 
@@ -145,6 +156,7 @@ namespace EVWebApi.Services
         public async Task ExportLogsToCsvAsync(
             int pagenumber,
             int pagesize,
+            int userid, string usertype,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,
@@ -171,7 +183,7 @@ namespace EVWebApi.Services
                     FromDate = fromDate,
                     ToDate = toDate
                 };
-                var result = await GetLogsAsync(query);
+                var result = await GetLogsAsync(query, userid, usertype);
                 var logsChunk = result.Data;
                 if (logsChunk == null || !logsChunk.Any())
                     break;
@@ -202,15 +214,16 @@ namespace EVWebApi.Services
 
         // Add explicit interface implementations for missing overloads
 
-        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query)
+        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query, int userid, string usertype)
         {
             // Call the main implementation, passing default CancellationToken
-            return await GetLogsAsync(query,default);
+            return await GetLogsAsync(query,userid,usertype, default);
         }
 
         public async Task ExportLogsToCsvAsync(
             int pagenumber,
             int pagesize,
+            int userid, string usertype,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,
@@ -218,7 +231,7 @@ namespace EVWebApi.Services
         )
         {
             // Call the main implementation, passing default CancellationToken
-             await ExportLogsToCsvAsync(pagenumber, pagesize,outputStream, search, fromDate, toDate, default);
+             await ExportLogsToCsvAsync(pagenumber, pagesize, userid, usertype,outputStream, search, fromDate, toDate, default);
         }
 
         // Aceslist &cabinetlist

@@ -14,8 +14,8 @@ namespace EVWebApi.DTOs.User
         [EmailAddress]
         public required string Email { get; set; }
 
-        [Required]
-        public required string Password { get; set; }
+        //[Required]
+        //public required string Password { get; set; }
 
         public int ? EmailGroupId { get; set; }
         public int GroupId { get; set; } = new();

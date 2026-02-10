@@ -6,10 +6,12 @@ namespace EVWebApi.Controllers
     public abstract class BaseController : ControllerBase
     {
         //protected int CurrentUserId = 1;---->for testing need to remove bfr production
-    protected int CurrentUserId =>
+        protected int CurrentUserId =>
             int.Parse(User.FindFirst("userId")?.Value ?? "0");
         protected string CurrentUsername =>
              User.FindFirst("username")?.Value ?? string.Empty;
 
+        protected string CurrentUserType =>
+             User.FindFirst("usertype")?.Value ?? string.Empty;
     }
 }

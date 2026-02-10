@@ -7,12 +7,14 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
 using EVWebAPI.Controllers;
+using Humanizer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto.Generators;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using static SkiaSharp.HarfBuzz.SKShaper;
 
 public class AuthService : IAuthService
 {
@@ -55,6 +57,13 @@ public class AuthService : IAuthService
         if (user == null)
             throw new NotFoundException("User not found");
 
+        if (user.Status == UserStatus.inactive)//to resrtict login for inactive user before passwrd reset
+            throw new AuthorizationException("Account not activated");
+
+        if (user.Status == UserStatus.locked)//to resrtict login for users locked by admin(inactivated by user)
+            throw new AuthorizationException("Account is locked by admin");
+
+
         bool validPassword;
 
         try
@@ -69,27 +78,33 @@ public class AuthService : IAuthService
         if (!validPassword)
             throw new AuthenticationException("Invalid email or password");
 
+        //to allow login only with password
+        user.EmailVerified = true;
+        _userRepo.Update(user);
+        await _userRepo.SaveChangesAsync();
+
         if (user.MfaEnabled)
         {
-            //return "MFA_REQUIRED";
-
+           
             return new AuthResult
             {
                 MfaRequired = true,
                 UserId = user.UserId,
                 UserName = user.Username,
-                Email=user.Email
+                Email=user.Email,
+                EmailVerified = user.EmailVerified,
             };
         }
-        //return GenerateJwtToken(user);
-        //normal login
+
+        //normal login for first time user
         return new AuthResult
         {
-            MfaRequired = false,
-            Token = GenerateJwtToken(user),
+            MfaRequired = false,//as not activated
+            //Token = GenerateJwtToken(user),
             UserId = user.UserId,
             UserName = user.Username,
-            Email = user.Email
+            EmailVerified = user.EmailVerified,
+            Email = user.Email,
         };
 
     }
@@ -117,10 +132,15 @@ public class AuthService : IAuthService
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
+        var userType = string.Empty;
+        if (user.UserGroup?.Group != null && user.UserGroup.Group.UserType != null)
+            userType = user.UserGroup.Group.UserType;
+
         var claims = new [] {
             new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
             new Claim("userId", user.UserId.ToString()),
             new Claim("username", user.Username),
+            new Claim("usertype", userType.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
        
@@ -229,8 +249,14 @@ public class AuthService : IAuthService
             throw new NotFoundException("User not found.");
         }
 
-        
+        var validatedPassword= PasswordValidationHelper.Validate(password, user.Username,user.FirstName,user.LastName,user.Email);
+
+        if (!validatedPassword.IsValid)
+        {
+            throw new BadRequestException(validatedPassword.Error);
+        }
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
+        user.Status = UserStatus.active; // Ensure account is active after password reset
 
         _userRepo.Update(user);
         await _userRepo.SaveChangesAsync();

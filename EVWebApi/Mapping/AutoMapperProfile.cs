@@ -11,6 +11,7 @@ namespace EVWebApi.Mapping
 {
     public class AutoMapperProfile : Profile
     {
+
         public AutoMapperProfile()
         {
             //USER
@@ -32,7 +33,7 @@ namespace EVWebApi.Mapping
                     src.UserGroup != null && src.UserGroup.Group != null
                     ? src.UserGroup.Group.UserType
                     : null))
-
+                   
 
             .ForMember(dest => dest.AccessList,
                 opt => opt.MapFrom(src =>

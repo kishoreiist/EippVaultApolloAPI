@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using static SkiaSharp.HarfBuzz.SKShaper;
 
 namespace EVWebAPI.Controllers
 {
@@ -61,30 +62,46 @@ namespace EVWebAPI.Controllers
           
             var result = await _authService.AuthenticateAsync(request);
             var Reqfilters = request.ToFilterLog("Login Detail :  ");
-            if (result.MfaRequired)
+            
+            try
             {
-                _logger.LogInformation("MFA required for {UserName}", result.UserName);
-                // 202 Accepted: MFA flow was started (token generation & sending)
-                await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null,null, filters: Reqfilters);
-                return Accepted(new
+                if (result.MfaRequired)
+                {
+                    _logger.LogInformation("MFA required for {UserName}", result.UserName);
+                    // 202 Accepted: MFA flow was started (token generation & sending)
+                    await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null, null, filters: Reqfilters);
+                    return Ok(new
                     {
                         status = "MFA_REQUIRED",
-                        email=result.Email
+                        email = result.Email
                     });
-            }
+                }
+                else if (result.EmailVerified && !result.MfaRequired)
+                {
+                    await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Initial Login Successful", null, null, null, filters: Reqfilters);
 
-            if (result is null)
+                    _logger.LogInformation("User {UserName} authenticated successfully", result.UserName);
+
+                    return Ok(new { status = "MFA Enabled",email = result.Email });
+
+                }
+                else
+                {
+                    throw new AuthenticationException("Invalid email or password");
+
+                }
+            }
+            catch (Exception ex)
             {
-                throw new AuthenticationException("Invalid email or password");
+                _logger.LogError(ex, "Error during MFA initiation for {UserName}", result.UserName);
+                return StatusCode(500, new
+                {
+                    Message = $"Error during MFA initiation for {result.UserName}",
+                    Error = ex.Message
+                });
             }
 
-                
-            await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null, null,filters: Reqfilters);
 
-            _logger.LogInformation("User {UserName} authenticated successfully", result.UserName);
-            
-            return Ok(new { token = result.Token, email = result.Email });
-           
         }
 
 
@@ -106,19 +123,24 @@ namespace EVWebAPI.Controllers
 
             if (user == null)
                 throw new NotFoundException("User not found");
-
-            if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
+            if (user.EmailVerified)
             {
-                var issuer = string.IsNullOrWhiteSpace(request.Issuer) ? "MyApp" : request.Issuer;
+                if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
+                {
+                    var issuer = string.IsNullOrWhiteSpace(request.Issuer) ? "MyApp" : request.Issuer;
 
 
                     if (user.MfaEnabled && user.MfaMethod == MfaMethod.authenticator)
                     {
+                        user.EmailVerified = false;
+                        _userRepo.Update(user);
+                        await _userRepo.SaveChangesAsync();
+
                         return Ok(new
                         {
                             status = "already_enabled",
                             message = "MFA is already enabled for this account.",
-                            qrCodeDataUrl= "already_enabled"
+                            qrCodeDataUrl = "already_enabled"
                         });
                     }
 
@@ -126,45 +148,57 @@ namespace EVWebAPI.Controllers
                     // Generate QR as base64 image (no prefix)
                     var base64Png = await _mfaService.GenerateQrCodeAsync(user.UserId, user.Email);
 
-                // Persist method choice (optional but recommended)
-                user.MfaMethod = MfaMethod.authenticator;
-                user.MfaEnabled = true; // or set true after first successful verification
-                _userRepo.Update(user);
-                await _userRepo.SaveChangesAsync();
+                    // Persist method choice (optional but recommended)
+                    user.MfaMethod = MfaMethod.authenticator;
+                    user.MfaEnabled = true;// or set true after first successful verification
+                    user.EmailVerified = false;//to block login without initial password step
+                    _userRepo.Update(user);
+                    await _userRepo.SaveChangesAsync();
 
-                // Optional: return a data URL to simplify frontend
-                var dataUrl = $"data:image/png;base64,{base64Png}";
-
-
-                var Reqfilters = request.ToFilterLog(" MFA Enabled Details -  ");
-                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null, filters: Reqfilters);
+                    // Optional: return a data URL to simplify frontend
+                    var dataUrl = $"data:image/png;base64,{base64Png}";
 
 
-                return Ok(new
+                    var Reqfilters = request.ToFilterLog(" MFA Enabled Details -  ");
+                    await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null, filters: Reqfilters);
+
+
+                    return Ok(new
+                    {
+                        qrCodeBase64 = base64Png,     // raw base64 (PNG)
+                        qrCodeDataUrl = dataUrl,      // convenient for <img src={...}>
+                        issuer
+                    });
+                }
+                else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
                 {
-                    qrCodeBase64 = base64Png,     // raw base64 (PNG)
-                    qrCodeDataUrl = dataUrl,      // convenient for <img src={...}>
-                    issuer
-                });
-            }
-            else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
-            {
-                await _mfaService.GenerateAndSendTokenAsync(user);
+                    await _mfaService.GenerateAndSendTokenAsync(user);
 
-                //user.MfaMethod = MfaMethod.email;
-                user.MfaEnabled = true; // or enable after first successful verification
-                _userRepo.Update(user);
-                await _userRepo.SaveChangesAsync();
+                    //user.MfaMethod = MfaMethod.email;
+                    user.MfaEnabled = true; // or enable after first successful verification
+                    user.EmailVerified = false;
+                    _userRepo.Update(user);
+                    await _userRepo.SaveChangesAsync();
 
-                var Reqfilters = request.ToFilterLog("Details - ");
-                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null,filters: Reqfilters);
+                    var Reqfilters = request.ToFilterLog("Details - ");
+                    await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null, filters: Reqfilters);
 
-                return Ok(new { message = "Email MFA enabled. A verification code has been sent to your email." });
+                    return Ok(new { message = "Email MFA enabled. A verification code has been sent to your email." });
+                }
+                else
+                {
+                    throw new BadRequestException("Invalid MFA method.");
+                }
             }
             else
             {
-                throw new BadRequestException("Invalid MFA method.");
+                return StatusCode(500, new
+                {
+                    Message = $"Error during MFA enabling for {user.FirstName}"
+                    
+                });
             }
+        
          
         }
 
@@ -174,22 +208,25 @@ namespace EVWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> VerifyMfa([FromBody] MfaVerifyRequest request, CancellationToken cancellationToken = default)
         {
-            if (request is null)
-                throw new BadRequestException("Invalid MFA verification request");
+            try
+            {
 
-            if (!ModelState.IsValid)
-                throw new ValidationException("Invalid payload");
+                if (request is null)
+                    throw new BadRequestException("Invalid MFA verification request");
 
-            var user = await _userRepo.GetByEmailAsync(request.Email);
-            if (user == null)
-                throw new AuthenticationException("Invalid MFA user");
+                if (!ModelState.IsValid)
+                    throw new ValidationException("Invalid payload");
 
-            bool success = false;
+                var user = await _userRepo.GetByEmailAsync(request.Email);
+                if (user == null)
+                    throw new AuthenticationException("Invalid MFA user");
+
+                bool success = false;
 
                 if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
                 {
                     // Use the user's email and the code as token for verification
-                    success = await _mfaService.VerifyTotpAsync(user.UserId, request.Code);                   
+                    success = await _mfaService.VerifyTotpAsync(user.UserId, request.Code);
 
                 }
                 else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
@@ -206,15 +243,25 @@ namespace EVWebAPI.Controllers
                     return Unauthorized(new { message = "Invalid MFA code" });
                 }
 
-            var jwt = await _authService.GenerateJwtAfterMfaAsync(request.Email);
-            var userDto = await _userService.GetByIdAsync(user.UserId);
-            _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
+                var jwt = await _authService.GenerateJwtAfterMfaAsync(request.Email);
+                var userDto = await _userService.GetByIdAsync(user.UserId);
+                _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
 
-            var filters = request.ToFilterLog(" MFA Details -  ");
-            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Verified", null, null, null, filters: filters);
+                var filters = request.ToFilterLog(" MFA Details -  ");
+                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Verified", null, null, null, filters: filters);
 
-            return Ok(new { token = jwt, user = userDto });
-           
+                return Ok(new { token = jwt, user = userDto });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during MFA verification");
+                return StatusCode(500, new
+                {
+                    Message = $"Error during MFA verification",
+                    Error = ex.Message
+                });
+            }
+
         }
 
         [HttpPost("forgot_details")]
@@ -340,7 +387,7 @@ namespace EVWebAPI.Controllers
 
 
             await _authService.PasswordResetAsync(request.Token, request.Password);
-            return Ok(new { message = "Password reset successful." });
+            return Ok(new { message = "Password reset successfully." });
         }
 
 

@@ -1,4 +1,5 @@
-﻿using EVWebApi.Models;
+﻿using EVWebApi.Helpers;
+using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Xml.Linq;
 
@@ -203,7 +204,8 @@ namespace EVWebApi.Data
                 .Property(u => u.MfaEnabled).HasColumnName("mfa_enabled");
             modelBuilder.Entity<User>()
                 .Property(u => u.MfaMethod).HasColumnName("mfa_method");
-
+            modelBuilder.Entity<User>()
+                .Property(u => u.EmailVerified).HasColumnName("email_verified");
 
             modelBuilder.Entity<UserMfaToken>()
                 .Property(e => e.ExpiresAt)

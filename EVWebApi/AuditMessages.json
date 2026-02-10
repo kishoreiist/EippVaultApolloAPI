@@ -40,7 +40,7 @@
       "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
       "MFA Verified": "MFA verified successfully & authentication token issued for {username}. {filters}",
       "Logout Successful": "User {username} logged out successfully.",
-
+      "Initial Login Successful": "{username} initial login after account creation is sucessful. {filters}",
 
       "Download items Generated": "{username} fetched all accessible documents",
       "Document Link Email Sent": "{username} send an document download link email to the users in email group {target}.",

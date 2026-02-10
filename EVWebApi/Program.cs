@@ -135,14 +135,18 @@ builder.Services.AddCors(options =>
 
     policy.SetIsOriginAllowed(origin =>
     {
+        if (string.IsNullOrWhiteSpace(origin))
+            return false;
+
         if (origin.StartsWith("http://localhost"))
             return true;
 
         var allowed = builder.Configuration
             .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>();
+            .Get<string[]>() ?? Array.Empty<string>();
 
-        return allowed!.Contains(origin);
+        return allowed.Any(o =>
+                string.Equals(o, origin, StringComparison.OrdinalIgnoreCase));
     })
     .AllowAnyMethod()
     .AllowAnyHeader()
@@ -200,7 +204,7 @@ if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
 
 app.UseHttpsRedirection();
 app.UseRouting();
-app.UseCors("AllowAll");
+app.UseCors("RestrictedCors");
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 

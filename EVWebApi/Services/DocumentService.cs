@@ -46,6 +46,7 @@ using System.Security;
 using System.Text;
 using System.Text.Json;
 using static PdfSharpCore.Pdf.PdfDictionary;
+using static SkiaSharp.HarfBuzz.SKShaper;
 using Document = EVWebApi.Models.Document;
 
 //using PdfSharpPdf = PdfSharpCore.Pdf;
@@ -1733,6 +1734,19 @@ namespace EVWebApi.Services
             if (!File.Exists(document.FilePath))
                 throw new FileNotFoundException("Excel file not found");
 
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".xls", ".xlsx", ".xlsb", ".xlsm", ".xltx", ".xltm"
+            };
+
+            var extension = Path.GetExtension(document.FileName);
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new InvalidOperationException("Invalid Excel file extension/File is not an excel.");
+            }
+
+
             using var excelEngine = new ExcelEngine();
             var application = excelEngine.Excel;
             application.DefaultVersion = ExcelVersion.Xlsx;
@@ -1752,6 +1766,71 @@ namespace EVWebApi.Services
             return sheets;
         }
         //get sheet data by sheet name
+        //public async Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto)
+        //{
+        //    var document = await _repo.GetDocument(dto.DocumentId);
+        //    if (document == null)
+        //        throw new KeyNotFoundException("Document not found");
+
+        //    if (!File.Exists(document.FilePath))
+        //        throw new FileNotFoundException("Excel file not found");
+
+        //    using var excelEngine = new ExcelEngine();
+        //    var application = excelEngine.Excel;
+        //    application.DefaultVersion = ExcelVersion.Xlsx;
+
+        //    using var stream = new FileStream(document.FilePath, FileMode.Open, FileAccess.Read);
+        //    var workbook = application.Workbooks.Open(stream);
+
+        //    if (dto.SheetIndex < 0 || dto.SheetIndex >= workbook.Worksheets.Count)
+        //        throw new KeyNotFoundException("Invalid sheet index");
+
+        //    var sheet = workbook.Worksheets[dto.SheetIndex];
+        //    if (sheet == null)
+        //        throw new KeyNotFoundException("Sheet not found");
+
+        //    int lastRow = sheet.UsedRange.LastRow;
+        //    int lastCol = sheet.UsedRange.LastColumn;
+
+        //    int endRow = Math.Min(dto.StartRow + dto.RowCount - 1, lastRow);
+
+        //    var headers = new List<string>();
+        //    for (int c = 1; c <= lastCol; c++)
+        //        headers.Add(sheet.Range[1, c].Text);
+
+        //    // Collect data
+        //    var data = new List<Dictionary<string, object>>();
+        //    for (int r = dto.StartRow; r <= endRow; r++)
+        //    {
+        //        var rowDict = new Dictionary<string, object>();
+        //        for (int c = 1; c <= lastCol; c++)
+        //        {    //rowDict[headers[c - 1]] = sheet.Range[r, c].Text;
+        //            var cell = sheet.Range[r, c];
+
+        //            rowDict[headers[c - 1]] =
+        //            string.IsNullOrWhiteSpace(cell.DisplayText)
+        //                ? null
+        //                : cell.DisplayText;
+        //        }
+
+        //        data.Add(rowDict);
+        //    }
+
+        //    var result = new
+        //    {
+        //        SheetName = sheet.Name,
+        //        StartRow = dto.StartRow,
+        //        RowCount = data.Count,
+        //        TotalRows = lastRow,
+        //        Columns = headers,
+        //        Data = data
+        //    };
+
+        //    return JsonSerializer.Serialize(result);
+
+        //}
+
+
         public async Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto)
         {
             var document = await _repo.GetDocument(dto.DocumentId);
@@ -1760,52 +1839,108 @@ namespace EVWebApi.Services
 
             if (!File.Exists(document.FilePath))
                 throw new FileNotFoundException("Excel file not found");
+            
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".xls", ".xlsx", ".xlsb", ".xlsm", ".xltx", ".xltm"
+            };
+
+            var extension = Path.GetExtension(document.FileName);
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new InvalidOperationException("Invalid Excel file extension/File is not an excel.");
+            }
+
+
+            // Safety guard – prevent abuse
+            if (dto.RowCount <= 0 || dto.RowCount > 500)
+                throw new ArgumentOutOfRangeException(nameof(dto.RowCount), "RowCount must be between 1 and 500");
 
             using var excelEngine = new ExcelEngine();
             var application = excelEngine.Excel;
             application.DefaultVersion = ExcelVersion.Xlsx;
 
-            using var stream = new FileStream(document.FilePath, FileMode.Open, FileAccess.Read);
+            using var stream = new FileStream(
+                document.FilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read);
+
             var workbook = application.Workbooks.Open(stream);
 
-            if (dto.SheetIndex < 0 || dto.SheetIndex >= workbook.Worksheets.Count)
-                throw new KeyNotFoundException("Invalid sheet index");
+            if (dto.SheetIndex < 0 || dto.SheetIndex >= workbook.Worksheets.Count)           
+                throw new KeyNotFoundException($"Invalid sheet index, total sheet count is {workbook.Worksheets.Count}");
+            
 
             var sheet = workbook.Worksheets[dto.SheetIndex];
-            if (sheet == null)
-                throw new KeyNotFoundException("Sheet not found");
 
             int lastRow = sheet.UsedRange.LastRow;
             int lastCol = sheet.UsedRange.LastColumn;
 
-            int endRow = Math.Min(dto.StartRow + dto.RowCount - 1, lastRow);
+            if (dto.RowCount > lastRow || dto.StartRow> lastRow)
+                throw new KeyNotFoundException($"Row count exceeds,existing row count is {lastRow}");
 
-            var headers = new List<string>();
-            for (int c = 1; c <= lastCol; c++)
-                headers.Add(sheet.Range[1, c].Text);
+            int startRow = Math.Max(dto.StartRow, 1);
+            int endRow = Math.Min(startRow + dto.RowCount - 1, lastRow);
 
-            // Collect data
-            var data = new List<Dictionary<string, object>>();
-            for (int r = dto.StartRow; r <= endRow; r++)
+            var cells = new List<object>((endRow - startRow + 1) * lastCol);
+
+            for (int r = startRow; r <= endRow; r++)
             {
-                var rowDict = new Dictionary<string, object>();
                 for (int c = 1; c <= lastCol; c++)
-                    rowDict[headers[c - 1]] = sheet.Range[r, c].Text;
-                data.Add(rowDict);
+                {
+                    var cell = sheet.Range[r, c];
+
+                    if (string.IsNullOrWhiteSpace(cell.DisplayText))
+                        continue;
+
+                    var style = cell.CellStyle;
+
+                    // Font color
+                    string fontColor =
+                        style.Font.RGBColor != null
+                            ? $"#{style.Font.RGBColor}"
+                            : null;
+
+                    // Background color
+                    string backgroundColor =
+                        !style.Color.IsEmpty
+                            ? $"#{style.Color.R:X2}{style.Color.G:X2}{style.Color.B:X2}"
+                            : null;
+
+                    cells.Add(new
+                    {
+                        row = r,
+                        col = c,
+                        value = cell.DisplayText,
+                        style = new
+                        {
+                            bold = style.Font.Bold,
+                            italic = style.Font.Italic,
+                            fontColor,
+                            backgroundColor,
+                            hAlign = style.HorizontalAlignment.ToString()
+                        }
+                    });
+                }
             }
 
-            var result = new
+            var response = new
             {
-                SheetName = sheet.Name,
-                StartRow = dto.StartRow,
-                RowCount = data.Count,
-                TotalRows = lastRow,
-                Columns = headers,
-                Data = data
+                sheetName = sheet.Name,
+                sheetIndex = dto.SheetIndex,
+                startRow,
+                rowCount = endRow - startRow + 1,
+                totalRows = lastRow,
+                totalColumns = lastCol,
+                cells
             };
 
-            return JsonSerializer.Serialize(result);
-
+            return JsonSerializer.Serialize(response, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
         }
     }
 

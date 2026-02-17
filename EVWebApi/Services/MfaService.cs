@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Data;
 using EVWebApi.DTOs;
+using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
@@ -21,6 +22,9 @@ public class MfaService : IMfaService
     private readonly IOptions<MfaSettings> _mfaOptions;
     private readonly ILogger<MfaService> _logger;
     private readonly string _displayName;
+    private readonly string _frontendRoot;
+
+    
 
     public MfaService(IMfaRepository mfaRepo, IUserRepository userRepo, IUserAuthenticatorRepository authenticatorRepo,
         IEmailSender emailSender,
@@ -34,9 +38,11 @@ public class MfaService : IMfaService
         _mfaOptions = mfaOptions;
         _logger = logger;
         _displayName = _config["Email:DisplayName"];
+        _frontendRoot = _config["Frontend:BaseUrl"];
+       
     }
 
-    public async Task GenerateAndSendTokenAsync(User user, CancellationToken ct = default) {
+    public async Task<bool> GenerateAndSendTokenAsync(User user, CancellationToken ct = default) {
         var token = new Random().Next(100000, 999999).ToString();
         var mfaToken = new UserMfaToken
         {
@@ -46,7 +52,7 @@ public class MfaService : IMfaService
             ExpiresAt = DateTime.UtcNow.AddMinutes(5),
             Used = false
         };
-        await _mfaRepo.SaveMfaTokenAsync(mfaToken);
+        await _mfaRepo.SaveMfaTokenAsync(mfaToken.UserId,mfaToken.Token);
         // TODO: Send token via Email/SMS
 
         // Build email body from template
@@ -56,18 +62,32 @@ public class MfaService : IMfaService
             .Replace("{CODE}", token)
             .Replace("{MINUTES}", minutes.ToString());
 
-        await _emailSender.SendAsync(user.Email, ReplyTo: null, UserName: null, subject, body, null, null,ct);
-        _logger.LogInformation("MFA email sent to {Email}", user.Email);
+        var sent=await _emailSender.SendAsync(user.Email, ReplyTo: null, UserName: null, subject, body, null, null,ct);
+
+        if (sent)
+        {
+            _logger.LogInformation("MFA email sent to {Email}", user.Email);
+            return true;
+
+        }
+        else
+        {
+            _logger.LogError("Failed to send MFA email to {Email}", user.Email);
+            return false;
+        }
 
     }
 
     public async Task<bool> VerifyTokenAsync(string email, string token) {
         var user = await _userRepo.GetByEmailAsync(email);
         if (user == null) return false;
+
         var mfaToken = await _mfaRepo.GetValidTokenAsync(user.UserId, token);
         if (mfaToken == null) return false;
-        mfaToken.Used = true;
-        await _mfaRepo.SaveMfaTokenAsync(mfaToken);
+
+        //mfaToken.Used = true;
+        //await _mfaRepo.SaveMfaTokenAsync(mfaToken.UserId,mfaToken.Token);
+        await _mfaRepo.MarkTokenAsUsedAsync(mfaToken);
         return true;
     }
 
@@ -172,30 +192,50 @@ public class MfaService : IMfaService
         throw new NotImplementedException();
     }
 
-    public async Task GenerateAndSendTokenAsync(User user)
+    public async Task<bool> GenerateAndSendTokenAsync(User user)
     {
-        //var token = new Random().Next(100000, 999999).ToString();
-        var token = SecurityHelper.GenerateSecureOtp();
-        var mfaToken = new UserMfaToken
+        var token=string.Empty;
+        var validtoken=await _mfaRepo.GetMfaTokenAsync(user.UserId);
+        if (validtoken == null)
         {
+            token = SecurityHelper.GenerateSecureOtp();
+            var mfaToken = new UserMfaToken
+            {
 
-            UserId = user.UserId,
-            Token = token,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(5),
-            Used = false
-        };
-        await _mfaRepo.SaveMfaTokenAsync(mfaToken);
-        // TODO: Send token via Email/SMS
-
+                UserId = user.UserId,
+                Token = token,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+                Used = false
+            };
+            await _mfaRepo.SaveMfaTokenAsync(mfaToken.UserId,mfaToken.Token);
+        }
+        else
+        {
+            token=validtoken;
+        }
         // Build email body from template
         var minutes = 5;
-        var subject = _mfaOptions.Value.EmailSubject
-            .Replace("{DisplayName}", _displayName);
-        var body = _mfaOptions.Value.EmailBodyTemplate
-            .Replace("{CODE}", token)
-            .Replace("{MINUTES}", minutes.ToString());
+            var subject = _mfaOptions.Value.EmailSubject
+                .Replace("{DisplayName}", _displayName);
+            var body = _mfaOptions.Value.EmailBodyTemplate
+                .Replace("{CODE}", token)
+                .Replace("{MINUTES}", minutes.ToString());
 
-        await _emailSender.SendAsync(user.Email,null,null,subject, body, null);
-        _logger.LogInformation("MFA email sent to {Email}", user.Email);
+            var send = await _emailSender.SendAsync(user.Email, null, null, subject, body, null);
+            if (send)
+            {
+                _logger.LogInformation("MFA email sent to {Email}", user.Email);
+                return true;
+
+            }
+            else
+            {
+                _logger.LogError("Failed to send MFA email to {Email}", user.Email);
+                return false;
+            }
+
     }
+
+
+    
 }

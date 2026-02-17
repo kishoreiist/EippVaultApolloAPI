@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using EVWebApi.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace EVWebApi.DTOs.User
 {
@@ -20,7 +21,7 @@ namespace EVWebApi.DTOs.User
         public int ? EmailGroupId { get; set; }
         public int GroupId { get; set; } = new();
 
-        public bool Status { get; set; } = true;
+        public UserStatus Status { get; set; }
         public bool MfaEnabled { get; set; }
         public string? PhoneNumber { get; set; }
     }

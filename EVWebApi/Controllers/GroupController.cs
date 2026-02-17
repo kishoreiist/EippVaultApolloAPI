@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "admin,super_admin")]
     [ApiController]
     [Route("api/[controller]")]
 
@@ -24,7 +24,7 @@ namespace EVWebApi.Controllers
             _groupService = groupService;
             _auditlogservice = auditlogservice;
         }
-
+    
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] GroupQueryParameters query)
         {
@@ -73,7 +73,7 @@ namespace EVWebApi.Controllers
             }
         }
 
-
+   
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateGroupDto dto)
         {
@@ -95,7 +95,7 @@ namespace EVWebApi.Controllers
 
         }
 
-
+       
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

@@ -23,6 +23,7 @@ namespace EVWebApi.Controllers
             _dataSource = dataSource;
         }
 
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("logs")]
         public async Task<IActionResult> GetAuditLogs([FromQuery] AuditLogQueryParameters query)
         {
@@ -30,14 +31,14 @@ namespace EVWebApi.Controllers
             return Ok(result);
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("privileges")]
         public async Task<IActionResult> GetPrivilegeConfiguration()
         {
             var result = await _auditLogService.GetPrivilegeConfigurationAsync();
             return Ok(result);
         }
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("logs/export")]
         public async Task ExportCsv(
             [FromQuery] int pagenumber,

@@ -9,6 +9,7 @@ using EVWebApi.Models;
 using EVWebApi.Repositories;
 using EVWebApi.Services;
 using EVWebApi.Services.MetadataReaders;
+using EVWebApi.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -18,9 +19,10 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
-using System.Reflection.Metadata;
-using System.Text;
 using Syncfusion.Licensing;
+using System.Reflection.Metadata;
+using System.Security.Claims;
+using System.Text;
 
 
 
@@ -71,6 +73,7 @@ builder.Services.AddScoped<IMfaService, MfaService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IDocumentGroupingService, DocumentGroupingService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<ISecurityAdminService, SecurityAdminService>();
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddHttpContextAccessor();
@@ -87,6 +90,10 @@ builder.Services.AddScoped<IMetadataReaderService, XmlMetadataReaderService>();
 builder.Services.AddScoped<IMetadataReaderService, TxtMetadataReaderService>();
 builder.Services.AddScoped<IMetadataReaderFactoryService, MetadataReaderFactoryService>();
 
+builder.Services.AddScoped<ISecurityFailureService, SecurityFailureService>();
+builder.Services.Configure<AllowedIpSettings>(
+    builder.Configuration.GetSection("Allowed"));
+
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -94,6 +101,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.NameIdentifier,
+
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
@@ -190,28 +200,50 @@ builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 200 * 1024 * 1024; // 200 MB
 });
+
+
+
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365); // 1 year
+    options.IncludeSubDomains = true;
+    options.Preload = true;
+});
+
 var app = builder.Build();
 
-// Middleware
+// swagger conditional enable
 if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+app.UseForwardedHeaders();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
 
 //app.UseSwagger();
 //app.UseSwaggerUI();
+
 
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseCors("RestrictedCors");
 
+//middlewares
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SecurityFailureTrackingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 
 app.UseAuthentication();
+
+
 app.UseAuthorization();
 
-// Map Controllers
+
 app.MapControllers();
 
 app.Run();

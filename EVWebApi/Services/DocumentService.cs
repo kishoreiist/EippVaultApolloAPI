@@ -57,6 +57,7 @@ namespace EVWebApi.Services
     public class DocumentService : IDocumentService
     {
         private readonly IDocumentRepository _repo;
+        private readonly IUserRepository _userrepo;
         private readonly IMetadataRepository _metadataRepo;
         private readonly IMetadataReaderFactoryService _metadataReaderFactory;
         public readonly IDocumentGroupingService _docGrpService;
@@ -73,7 +74,7 @@ namespace EVWebApi.Services
 
         public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IMetadataReaderFactoryService metadataReaderFactory,
             IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService, NpgsqlDataSource dataSource
-            , IEmailSender emailSender)
+            , IEmailSender emailSender, IUserRepository userrepo)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
@@ -87,10 +88,11 @@ namespace EVWebApi.Services
             _docGrpService = docGrpService;
             _dataSource = dataSource;
             _emailSender = emailSender;
+            _userrepo = userrepo;
         }
 
         // ---------------------- SINGLE UPLOAD ----------------------
-        public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto, int currentuserid)
+        public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto, int? currentuserid)
         {
             if (dto.File == null)
                 throw new BadRequestException("File is required");
@@ -894,7 +896,7 @@ namespace EVWebApi.Services
 
         // ----------------- BATCH UPLOAD------------------------
 
-        public async Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid)
+        public async Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid)
         {
             if (dto.MetadataFile == null || dto.Files == null || dto.Files.Count == 0)
                 throw new ArgumentException("CSV or PDF files are missing.");
@@ -1034,7 +1036,7 @@ namespace EVWebApi.Services
 
         //---------chunk upload--------------------
 
-        public async Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int currentuserid)
+        public async Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid)
         {
             if (dto.TotalChunks == null || dto.TotalChunks <= 1)
             {
@@ -1064,7 +1066,7 @@ namespace EVWebApi.Services
             return await UploadChunkAsync(dto, currentuserid);
         }
 
-        private async Task<DocumentResponseDto?> UploadChunkAsync(DocumentUploadDto dto, int currentuserid)
+        private async Task<DocumentResponseDto?> UploadChunkAsync(DocumentUploadDto dto, int? currentuserid)
         {
             if (dto.TotalChunks <= 0)
                 throw new BadRequestException("Invalid total chunks");
@@ -1141,7 +1143,7 @@ namespace EVWebApi.Services
 
         }
 
-        private async Task<DocumentResponseDto> FinalizeUploadAsync(DocumentUploadDto dto, int currentuserid, string mergedFilePath)
+        private async Task<DocumentResponseDto> FinalizeUploadAsync(DocumentUploadDto dto, int? currentuserid, string mergedFilePath)
         {
             var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId)
                 ?? throw new Exception("Invalid CabinetId");
@@ -1260,7 +1262,7 @@ namespace EVWebApi.Services
 
         //--------------------- EXCEL PATCHING ----------------------
 
-        public async Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int userId)
+        public async Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int? userId)
         {
             var response = new BatchResponseDTO();
             var document = await _uow.Documents.GetDocument(dto.DocumentId);
@@ -1386,7 +1388,7 @@ namespace EVWebApi.Services
 
         //-------------------------     SPLIT & EXTRACT PDF ----------------------
 
-        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int userId)
+        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId)
         {
             var originalDoc = await _repo.GetDocument(dto.DocumentId)
                 ?? throw new KeyNotFoundException("Document not found");
@@ -1520,7 +1522,7 @@ namespace EVWebApi.Services
         //------------------------- DOCUMENT DOWNLOAD LINK ----------------------------------//
 
         // get all document for download
-        public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int userid)
+        public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int? userid)
         {
             var documents = await _uow.Documents.GetAllDocumentForDownload(userid);
             //if (documents == null || documents.Count == 0)
@@ -1530,17 +1532,23 @@ namespace EVWebApi.Services
 
         //downlaod encrypt
 
-        public async Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int userid)
+        public async Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int? userid)
         {
             var doc = await _repo.GetDocument(docid);
 
             if (doc == null)
                 throw new NotFoundException("Document not found");
 
+            //var user = await _userrepo.GetByIdAsync(userid);
+            ////if (user == null)
+            ////    throw new NotFoundException($"User with id {userid} not found");
 
-            var user = await _uow.Users.GetByIdAsync(userid);
-            if (user == null)
-                throw new NotFoundException($"User with id {userid} not found");
+            User? user = null;
+            if (userid.HasValue)
+                user = await _userrepo.GetByIdAsync(userid.Value);
+
+            //if (user == null)
+            //    throw new NotFoundException($"User with id {userid} not found");
 
 
             //var relativePath = doc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());

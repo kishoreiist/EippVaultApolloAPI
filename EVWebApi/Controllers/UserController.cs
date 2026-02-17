@@ -26,7 +26,7 @@ namespace EVWebApi.Controllers
            
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] UserQueryParameters query)
         {
@@ -47,7 +47,7 @@ namespace EVWebApi.Controllers
             }
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
@@ -57,7 +57,7 @@ namespace EVWebApi.Controllers
             return Ok(user);
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
@@ -77,7 +77,7 @@ namespace EVWebApi.Controllers
             }
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
@@ -88,7 +88,7 @@ namespace EVWebApi.Controllers
             return Ok(updated);
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

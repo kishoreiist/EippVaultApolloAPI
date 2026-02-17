@@ -23,13 +23,29 @@ public class AuthService : IAuthService
     private readonly IMfaService _mfaService;
     private readonly ILogger<AuthService> _logger;
     private readonly IAuditLogService _auditlogservice;
-
-    public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService, ILogger<AuthService> logger, IAuditLogService auditlogservice) {
+    private readonly IEmailSender _emailSender;
+    private readonly string _frontendRoot;
+    private readonly string _displayName;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ISecurityFailureService _securityserv;
+    private readonly AppDbContext _context;
+    public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService, ILogger<AuthService> logger,
+        IAuditLogService auditlogservice, IHttpContextAccessor httpContextAccessor, IEmailSender emailSender, 
+        ISecurityFailureService securityserv, AppDbContext context)
+    {
         _userRepo = userRepo;
         _config = config;
         _mfaService = mfaService;
         _logger = logger;
         _auditlogservice = auditlogservice;
+        _httpContextAccessor = httpContextAccessor;
+
+        _emailSender = emailSender;
+        _frontendRoot = config["Frontend:BaseUrl"];
+        _displayName = config["Email:DisplayName"];
+        _securityserv = securityserv;
+        _context = context;
+        // _notificationService = notificationService;
     }
     public async Task<AuthResult> AuthenticateAsync(LoginRequestDTO dto)
     {
@@ -54,14 +70,39 @@ public class AuthService : IAuthService
         ? await _userRepo.GetByEmailAsync(email)
         : await _userRepo.GetByUsernameAsync(username!);
 
+        
+
+
         if (user == null)
-            throw new NotFoundException("User not found");
+            throw new AuthorizationException("Invalid credentials");//giving generic error message
+        
+        _httpContextAccessor.HttpContext!.Items["UserId"] = user.UserId;
 
-        if (user.Status == UserStatus.inactive)//to resrtict login for inactive user before passwrd reset
-            throw new AuthorizationException("Account not activated");
+        if (user.Status == UserStatus.New)//to resrtict login for NEW user before passwrd reset
+            throw new AccountNotActivatedException("Account not activated");
 
-        if (user.Status == UserStatus.locked)//to resrtict login for users locked by admin(inactivated by user)
-            throw new AuthorizationException("Account is locked by admin");
+        if (user.Status == UserStatus.Disabled || user.Status == UserStatus.Deleted )//to resrtict login 
+            throw new AccountDeletedException("Non-Existing/Deleted/Disabled Account");
+
+
+
+        if (user.Status == UserStatus.Locked)//to resrtict login for users locked by admin(inactivated by user)
+        {
+            bool isLocked = await _securityserv.IsUserLockedAsync(user.UserId);
+            if (!isLocked)
+            {
+                // Transition from Locked -> New as lock expied, to allow password reset and reactivation by user
+                user.Status = UserStatus.New;
+                _userRepo.Update(user);
+                await _userRepo.SaveChangesAsync();
+
+                //  trigger the email 
+                await PasswordResetSendEmailAsync(user);
+
+                throw new LockedException("Your temporary lock has expired. A reactivation link has been sent to your email.");
+            }
+            throw new AccountDisabledException("Account is locked by admin");
+        }
 
 
         bool validPassword;
@@ -77,6 +118,8 @@ public class AuthService : IAuthService
         }
         if (!validPassword)
             throw new AuthenticationException("Invalid email or password");
+
+        
 
         //to allow login only with password
         user.EmailVerified = true;
@@ -113,10 +156,15 @@ public class AuthService : IAuthService
         var user = await _userRepo.GetByEmailAsync(email);
         if (user == null)
             throw new NotFoundException("User not found");
-        return GenerateJwtToken(user);
+
+        var userType = await _context.UserGroups
+        .Where(x => x.UserId == user.UserId)
+        .Select(x => x.Group.UserType)
+        .FirstOrDefaultAsync() ?? string.Empty;
+        return GenerateJwtToken(user, userType);
     }
 
-    private string GenerateJwtToken(User user) {
+    private string GenerateJwtToken(User user, string userType) {
 
 
         if (user == null)
@@ -132,18 +180,22 @@ public class AuthService : IAuthService
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-        var userType = string.Empty;
-        if (user.UserGroup?.Group != null && user.UserGroup.Group.UserType != null)
-            userType = user.UserGroup.Group.UserType;
+        //var userType = string.Empty;
+        //if (user.UserGroup?.Group != null && user.UserGroup.Group.UserType != null)
+        //    userType = user.UserGroup.Group.UserType;
+
+
 
         var claims = new [] {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
+            new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
             new Claim("userId", user.UserId.ToString()),
             new Claim("username", user.Username),
-            new Claim("usertype", userType.ToString()),
+            new Claim(ClaimTypes.Role, userType),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
-       
+
+
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
@@ -188,7 +240,7 @@ public class AuthService : IAuthService
     }
     public async Task PasswordResetAsync(string token, string password)
     {
-       
+
         if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(password))
         {
             throw new BadRequestException("Token and new password are required.");
@@ -198,7 +250,7 @@ public class AuthService : IAuthService
         var jwtSecret = _config.GetValue<string>("Jwt:Key");
         var tokenHandler = new JwtSecurityTokenHandler();
 
-        
+
         var validationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
@@ -216,7 +268,7 @@ public class AuthService : IAuthService
 
         try
         {
-         
+
             principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
 
             var purposeClaim = principal.FindFirst("purpose");
@@ -241,28 +293,85 @@ public class AuthService : IAuthService
             throw new AuthorizationException("Invalid password reset token.");
         }
 
-       
+
         var user = await _userRepo.GetByIdAsync(userId);
 
         if (user == null)
         {
             throw new NotFoundException("User not found.");
         }
-
-        var validatedPassword= PasswordValidationHelper.Validate(password, user.Username,user.FirstName,user.LastName,user.Email);
-
-        if (!validatedPassword.IsValid)
+        if (user.Status == UserStatus.Active || user.Status==UserStatus.New)
         {
-            throw new BadRequestException(validatedPassword.Error);
+            var validatedPassword = PasswordValidationHelper.Validate(password, user.Username, user.FirstName, user.LastName, user.Email);
+
+            if (!validatedPassword.IsValid)
+            {
+                throw new BadRequestException(validatedPassword.Error);
+            }
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
+            user.Status = UserStatus.Active; // Ensure account is active after password reset
+
+            _userRepo.Update(user);
+            await _userRepo.SaveChangesAsync();
+
+
+            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Reset Password");
         }
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
-        user.Status = UserStatus.active; // Ensure account is active after password reset
+        else
+        {
+             throw new AuthorizationException("Unauthorized action");
+        }
+    
+    }
+    public async Task<bool> PasswordResetSendEmailAsync(User user)
+    {
 
-        _userRepo.Update(user);
-        await _userRepo.SaveChangesAsync();
 
+        var token = GeneratePasswordResetJwtAsync(user);
 
-        await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Reset Password");
+        var resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+        string htmlbody;
+        string subject;
+
+            subject = $"{_displayName} - Security Alert: Account Locked";
+            htmlbody = $"""
+                <p>Dear User,</p>
+                <p>Multiple failed login attempts were detected. For your security, your account has been deactivated.</p>
+                <p><strong>To reactivate your account, please reset your password using the below button.</strong></p>
+                <!-- Button -->
+                    <table width='100%' cellpadding='0' cellspacing='0' style='margin:32px 0;'>
+                      <tr>
+                        <td align='left'>
+                          <a href='{resetUrl}' target='_blank'
+                             style='background:#2563eb;color:#ffffff;
+                                    text-decoration:none;padding:14px 32px;
+                                    border-radius:6px;font-size:16px;
+                                    display:inline-block;'>
+                            Reset Password
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                <p>This link expires in 30 minutes.</p>
+                <br/><br/>
+                    Regards,<br/>
+                    {_displayName} Team
+                """;
+        
+
+        var sent = await _emailSender.SendAsync(
+             ReplyTo: null,
+             UserName: null,
+           toEmail: user.Email,
+            subject: subject,
+           htmlBody: htmlbody
+        );
+
+        if (sent)
+        {
+            return true;
+        }
+        else { return false; }
 
     }
 

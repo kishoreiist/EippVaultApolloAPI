@@ -36,7 +36,7 @@ namespace EVWebApi.Services
             
         }
 
-        public async Task SendAsync(
+        public async Task<bool> SendAsync(
             string toEmail,
             string? ReplyTo,
             string? UserName,
@@ -100,7 +100,16 @@ namespace EVWebApi.Services
             };
 
             // SmtpClient has no true async send; use Task.Run to avoid blocking the request thread.
-            await Task.Run(() => smtp.Send(message), ct);
+            try
+            {
+                await Task.Run(() => smtp.Send(message), ct);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                
+                return false;
+            }
         }
 
 
@@ -244,19 +253,31 @@ namespace EVWebApi.Services
                         </div>
                         
 
-                        """; 
+                        """;
 
+                  
+                     var send = await SendAsync(
+                         ReplyTo: dto.ReplyTo,
+                         UserName: $"{user.FirstName} {user.LastName}",
+                          toEmail: recipient.Email,
+                          subject: dto.Subject,
+                          htmlBody: htmlBody
+                      );
+                     if (send)
+                     {
+                        await transaction.CommitAsync();
+                        response.Success++;
 
-                    await SendAsync(
-                       ReplyTo:dto.ReplyTo,
-                       UserName:$"{user.FirstName} {user.LastName}",
-                        toEmail: recipient.Email,
-                        subject: dto.Subject,
-                        htmlBody: htmlBody
-                    );
-                    await transaction.CommitAsync();
-                    response.Success++;
-
+                     }
+                    else
+                    {
+                        response.Failed++;
+                        response.FailedDocDetails.Add(
+                            $"Email:{recipient.Email}, Error:Failed to send email."
+                        );
+                        
+                    }
+                                                                          
                     if (alreadyAssignedDocIds.Any())
                     {
                         response.FailedDocDetails.Add(

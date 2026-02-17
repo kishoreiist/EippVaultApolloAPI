@@ -10,5 +10,10 @@ namespace EVWebApi.Interfaces.Services
         Task<string> GenerateJwtAfterMfaAsync(string email);
         string GeneratePasswordResetJwtAsync(User user);
         Task PasswordResetAsync(string token, string password);
+
+
+        Task<bool> PasswordResetSendEmailAsync(User user);
+
+
     }
 }

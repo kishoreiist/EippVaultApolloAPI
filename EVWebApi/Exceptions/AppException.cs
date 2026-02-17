@@ -38,7 +38,21 @@ namespace EVWebApi.Exceptions
         public AuthorizationException(string message)
             : base(message, 403) { }
     }
-
+    public class AccountDeletedException : AppException
+    {
+        public AccountDeletedException(string message)
+            : base(message, 403) { }
+    }
+    public class AccountNotActivatedException : AppException
+    {
+        public AccountNotActivatedException(string message)
+            : base(message, 403) { }
+    }
+    public class AccountDisabledException : AppException
+    {
+        public AccountDisabledException(string message)
+            : base(message, 403) { }
+    }
     public class ConflictException : AppException
     {
         public ConflictException(string message)

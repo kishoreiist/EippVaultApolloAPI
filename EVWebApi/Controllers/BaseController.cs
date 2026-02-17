@@ -1,13 +1,13 @@
 ﻿using EVWebApi.Interfaces.Services;
+using EVWebApi.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
 {
     public abstract class BaseController : ControllerBase
     {
-        //protected int CurrentUserId = 1;---->for testing need to remove bfr production
-        protected int CurrentUserId =>
-            int.Parse(User.FindFirst("userId")?.Value ?? "0");
+        protected int? CurrentUserId =>
+            int.TryParse(User.FindFirst("userId")?.Value, out var id) ? id : null;
         protected string CurrentUsername =>
              User.FindFirst("username")?.Value ?? string.Empty;
 

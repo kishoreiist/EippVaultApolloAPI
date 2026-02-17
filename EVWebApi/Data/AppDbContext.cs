@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Helpers;
 using EVWebApi.Models;
+using EVWebApi.Models.Security;
 using Microsoft.EntityFrameworkCore;
 using System.Xml.Linq;
 
@@ -32,6 +33,13 @@ namespace EVWebApi.Data
         public DbSet<GroupAccessRight> GroupAccessRights { get; set; }
         public DbSet<GroupCabinet> GroupCabinets { get; set; }
         public DbSet<CabinetGroupingRule> CabinetGroupingRules { get; set; }
+
+
+        public DbSet<AccountLockAudit> LockAudit { get; set; }
+        public DbSet<IpSecurityState> IpSecurity { get; set; }
+        public DbSet<UserFailureRecord> UserFailureRecords { get; set; }
+        public DbSet<IpPermanentLockLog> IpPermanentLockLogs { get; set; }
+        public DbSet<IpFailureRecord> IpFailureRecords { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
            
@@ -57,6 +65,12 @@ namespace EVWebApi.Data
             modelBuilder.Entity<GroupCabinet>().ToTable("group_cabinets");
             modelBuilder.Entity<GroupAccessRight>().ToTable("group_accessrights");
             modelBuilder.Entity<DocDownloadLink>().ToTable("doc_download_link");
+
+            modelBuilder.Entity<AccountLockAudit>().ToTable("account_lock_audit");
+            modelBuilder.Entity<IpSecurityState>().ToTable("ip_security_state");
+            modelBuilder.Entity<UserFailureRecord>().ToTable("user_failure_record");
+            modelBuilder.Entity<IpPermanentLockLog>().ToTable("ip_permanent_lock_log");
+            modelBuilder.Entity<IpFailureRecord>().ToTable("ip_failure_record");
 
             // -------------------
             // Primary Keys
@@ -147,6 +161,10 @@ namespace EVWebApi.Data
                 .HasConstraintName("documents_doc_type_fk")
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<AccountLockAudit>()
+                .HasOne(x => x.User)
+                .WithMany(u => u.LockAudits)
+                .HasForeignKey(x => x.UserId);
 
             // -------------------
             // Auth Entities
@@ -225,6 +243,14 @@ namespace EVWebApi.Data
             modelBuilder.Entity<Group>().HasIndex(g => g.GroupName).IsUnique();
             modelBuilder.Entity<UserMfaToken>().HasIndex(t => new { t.UserId, t.Token });
 
+            modelBuilder.Entity<UserFailureRecord>()
+                .HasIndex(x => new { x.UserId, x.Endpoint })
+                .IsUnique()
+                .HasFilter("\"is_active\" = true");
+
+            modelBuilder.Entity<IpSecurityState>()
+                .HasIndex(x => x.IpAddress)
+                .IsUnique();
 
 
 

@@ -36,6 +36,8 @@
 
 
       "Email Sent": "{username} send an email.{filters}",
+      "Email Send Failed": "{username} request to send an email but failed.{filters}",
+
       "Login Successful": "{username} authenticated successfully. {filters}",
       "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
       "MFA Verified": "MFA verified successfully & authentication token issued for {username}. {filters}",
@@ -48,7 +50,12 @@
 
       "Forgot Password": "{username} requested a password reset link. {filters}",
       "Forgot Username": "{username} requested username details via forgot username. {filters}",
-      "Reset Password": "{username} has successfully reset the account password. {filters}"
+      "Reset Password": "{username} has successfully reset the account password. {filters}",
+
+      "BlackList IPs Retrieved": "{username} fetched all blacklisted ip details. {filters}",
+      "Locked users Retrieved": "{username} fetched all locked users details. {filters}",
+      "UnLocked Users": "{username} unlocked a locked user.Details: {target}.",
+      "Removed IP from blacklist": "{username} whitelisted an blocked ip address. Details: {target}."
     },
     "Default": {
       "Message": "Executed action: {action} on module: {module}. Record: {target}.Details - {filters}"

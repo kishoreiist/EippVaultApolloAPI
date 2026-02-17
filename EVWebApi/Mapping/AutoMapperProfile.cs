@@ -3,8 +3,10 @@ using EVWebApi.DTOs.Audit;
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.Security;
 using EVWebApi.DTOs.User;
 using EVWebApi.Models;
+using EVWebApi.Models.Security;
 using System;
 
 namespace EVWebApi.Mapping
@@ -17,7 +19,7 @@ namespace EVWebApi.Mapping
             //USER
             CreateMap<User, UserDto>()
              .ForMember(dest => dest.Status,
-               opt => opt.MapFrom(src => src.Status == UserStatus.active))
+               opt => opt.MapFrom(src => src.Status == UserStatus.Active))
 
             .ForMember(dest => dest.GroupId,
                opt => opt.MapFrom(src => src.UserGroup != null ? src.UserGroup.GroupId : (int?)null))
@@ -55,21 +57,30 @@ namespace EVWebApi.Mapping
                                 Id = x.Cabinet.CabinetId,
                                 Name = x.Cabinet.CabinetName
                             })
-                            .ToList()));
+                            .ToList()))
+
+           .ForMember(dest => dest.Status,
+                opt => opt.MapFrom(src => src.Status.ToString().ToLower()));
+
+
+
+
 
             CreateMap<UpdateUserDto, User>()
-                .ForMember(dest => dest.Status,
-                    opt => opt.MapFrom(src => src.Status
-                     ? UserStatus.active
-                     : UserStatus.inactive))
+                //.ForMember(dest => dest.Status,
+                //    opt => opt.MapFrom(src => src.Status
+                //     ? UserStatus.Active
+                //     : UserStatus.Disabled))
                 .ForAllMembers(opt => opt.Condition(
                 (src, dest, srcValue) => srcValue != null));
 
             CreateMap<CreateUserDto, User>()
             .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
-            .ForMember(dest => dest.Status,
-                    opt => opt.MapFrom(src => src.Status ? UserStatus.active : UserStatus.inactive))
+            //.ForMember(dest => dest.Status,
+            //     opt => opt.MapFrom(src =>
+            //       Enum.Parse<UserStatus>(src.Status, true)))
+
             .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore());
 
 
@@ -152,6 +163,11 @@ namespace EVWebApi.Mapping
             CreateMap<AuditLog, AuditLogDTO>();
             CreateMap<Notes, NotesDto>();
             CreateMap<EmailGroup, EmailGroupDto>();
+            CreateMap<IpSecurityState, BlacklistDto>();
+               //.ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
+            CreateMap<AccountLockAudit, LockedDto>()
+                .ForMember(dest => dest.Name,
+                    opt => opt.MapFrom(src => $"{src.User.FirstName} {src.User.LastName}"));
         }
     }
 }

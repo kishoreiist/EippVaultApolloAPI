@@ -32,7 +32,7 @@ namespace EVWebApi.Services
             _mapper = mapper;
         }
 
-        public async Task LogAsync(int userId, string username,string module, string action, string? target = null, int? cabinetId = null,  string? details = null, string? filters = null)
+        public async Task LogAsync(int? userId, string username,string module, string action, string? target = null, int? cabinetId = null,  string? details = null, string? filters = null)
         {
             var ip = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
 
@@ -77,7 +77,7 @@ namespace EVWebApi.Services
         }
 
 
-        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,int userid,string usertype,CancellationToken cancellationToken = default)
+        public async Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,int? userid,string usertype,CancellationToken cancellationToken = default)
         {
 
 
@@ -156,7 +156,7 @@ namespace EVWebApi.Services
         public async Task ExportLogsToCsvAsync(
             int pagenumber,
             int pagesize,
-            int userid, string usertype,
+            int? userid, string usertype,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,
@@ -223,7 +223,7 @@ namespace EVWebApi.Services
         public async Task ExportLogsToCsvAsync(
             int pagenumber,
             int pagesize,
-            int userid, string usertype,
+            int? userid, string usertype,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,

@@ -9,7 +9,7 @@ namespace EVWebApi.Interfaces.Services
 {
     public interface IDocumentService
     {
-        Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int CurrentUserId);
+        Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int? CurrentUserId);
         Task<DocumentResponseDto> GetDocument(int id);
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
         Task<GroupedPaginationResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
@@ -23,14 +23,14 @@ namespace EVWebApi.Interfaces.Services
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
         Task<List<string>> GetDocTypeAsync();
 
-        Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid);
-        Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int currentuserid);
-        Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int userId);
+        Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid);
+        Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid);
+        Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int? userId);
 
         Task<List<string>> GetSuggestionsAsync(AutoSuggestionRequestDto dto);
         Task<object> GetAutoFillAsync(AutoFillRequestDto dto);
 
-        Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int userId);
+        Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId);
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------
@@ -46,9 +46,9 @@ namespace EVWebApi.Interfaces.Services
         //Task<DownloadLinkDto> CreateLinkAsync(int documentId, int expiresInDays = 3, int maxDownloads = 2);
 
 
-        Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int userid);
+        Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int? userid);
 
-        Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int userid);
+        Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int? userid);
 
         Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId);
         Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto);

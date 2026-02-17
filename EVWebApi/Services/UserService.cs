@@ -124,7 +124,7 @@ namespace EVWebApi.Services
             var userexists = await _uow.Users.GetByEmailAsync(normalizedEmail);
             if (userexists != null)
             {
-                if(userexists.Status == UserStatus.locked)
+                if(userexists.Status == UserStatus.Locked)
                     throw new LockedException($"User with email - {normalizedEmail}' exists but is in locked state.");
             
                 else
@@ -138,11 +138,11 @@ namespace EVWebApi.Services
                 Username = dto.Username,
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(systemPassword),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(systemPassword, workFactor: 12),
                 Email = normalizedEmail,
                 MfaEnabled = dto.MfaEnabled,
                 //Status = dto.Status ? UserStatus.active : UserStatus.inactive,
-                Status = UserStatus.inactive, // New users are inactive by default,after paswrod reset becomes active
+                Status = UserStatus.New, // New users,after paswrod reset becomes active
                 PhoneNumber = dto.PhoneNumber,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
@@ -172,7 +172,7 @@ namespace EVWebApi.Services
                  resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
             }
 
-            await _emailSender.SendAsync(
+            var send= await _emailSender.SendAsync(
               ReplyTo:null,
               UserName: null,
                toEmail: user.Email,
@@ -252,6 +252,10 @@ namespace EVWebApi.Services
 
 
             //return _mapper.Map<UserDto>(updatedUser);
+            if(!send)
+            {
+                throw new Exception("User created but failed to send welcome email.");
+            }
             return mappeduser;
         }
 
@@ -279,15 +283,10 @@ namespace EVWebApi.Services
             if (dto.MfaEnabled.HasValue) user.MfaEnabled = dto.MfaEnabled.Value;
             if (dto.MfaMethod.HasValue) user.MfaMethod = dto.MfaMethod;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PhoneNumber = dto.PhoneNumber;
-            if (dto.EmailVerified.HasValue) user.EmailVerified = dto.EmailVerified.Value;
-            if (dto.Status)
-            {
-                user.Status = UserStatus.active;
-            }
-            else
-            {
-                user.Status = UserStatus.inactive;
-            }
+            //if (dto.EmailVerified.HasValue) user.EmailVerified = dto.EmailVerified.Value;
+            if (dto.Status.HasValue) user.Status = dto.Status.Value;
+            
+
 
 
             if (dto.GroupId != 0)

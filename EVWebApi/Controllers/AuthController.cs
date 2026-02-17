@@ -1,4 +1,5 @@
-﻿using EVWebApi.DTOs;
+﻿using Azure;
+using EVWebApi.DTOs;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
@@ -52,8 +53,12 @@ namespace EVWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status202Accepted)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+
         public async Task<IActionResult> Login([FromBody] LoginRequestDTO request, CancellationToken cancellationToken = default)
         {
+            Response.Headers.CacheControl = "no-store";
+            Response.Headers.Pragma = "no-cache";
+
             if (request is null)
                 throw new BadRequestException("Invalid request");
             if (!ModelState.IsValid) 
@@ -63,8 +68,8 @@ namespace EVWebAPI.Controllers
             var result = await _authService.AuthenticateAsync(request);
             var Reqfilters = request.ToFilterLog("Login Detail :  ");
             
-            try
-            {
+            //try
+            //{
                 if (result.MfaRequired)
                 {
                     _logger.LogInformation("MFA required for {UserName}", result.UserName);
@@ -85,21 +90,22 @@ namespace EVWebAPI.Controllers
                     return Ok(new { status = "MFA Enabled",email = result.Email });
 
                 }
-                else
-                {
-                    throw new AuthenticationException("Invalid email or password");
+            throw new AuthenticationException("Invalid email or password");
+            //else
+            //{
+            //    throw new AuthenticationException("Invalid email or password");
 
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during MFA initiation for {UserName}", result.UserName);
-                return StatusCode(500, new
-                {
-                    Message = $"Error during MFA initiation for {result.UserName}",
-                    Error = ex.Message
-                });
-            }
+            //}
+            //}
+            //catch (Exception ex)
+            //{
+            //_logger.LogError(ex, "Error during MFA initiation for {UserName}", result.UserName);
+            //return StatusCode(500, new
+            //{
+            //    Message = $"Error during MFA initiation for {result.UserName}",
+            //    Error = ex.Message
+            //});
+            //}
 
 
         }
@@ -123,7 +129,7 @@ namespace EVWebAPI.Controllers
 
             if (user == null)
                 throw new NotFoundException("User not found");
-            if (user.EmailVerified)
+            if (user.EmailVerified || request.IsResend==true)
             {
                 if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
                 {
@@ -172,29 +178,42 @@ namespace EVWebAPI.Controllers
                 }
                 else if (request.Method.Equals("EMAIL", StringComparison.OrdinalIgnoreCase))
                 {
-                    await _mfaService.GenerateAndSendTokenAsync(user);
+                    var response=await _mfaService.GenerateAndSendTokenAsync(user);
+                    if (response)
+                    {
 
-                    //user.MfaMethod = MfaMethod.email;
-                    user.MfaEnabled = true; // or enable after first successful verification
-                    user.EmailVerified = false;
-                    _userRepo.Update(user);
-                    await _userRepo.SaveChangesAsync();
+                        user.MfaEnabled = true;
+                        user.EmailVerified = false;
+                        _userRepo.Update(user);
+                        await _userRepo.SaveChangesAsync();
 
-                    var Reqfilters = request.ToFilterLog("Details - ");
-                    await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null, filters: Reqfilters);
+                        var Reqfilters = request.ToFilterLog("Details - ");
+                        await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Enabled", null, null, null, filters: Reqfilters);
 
-                    return Ok(new { message = "Email MFA enabled. A verification code has been sent to your email." });
+                        return Ok(new { message = "Email MFA enabled. A verification code has been sent to your email." });
+                    }
+                    else
+                    {
+                        await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Email Send Failed", null, null, null, filters: request.ToFilterLog("Details - "));
+
+                        return StatusCode(500, new
+                        {
+                            Message = "Failed to send MFA email"
+                        });
+
+                    }
                 }
                 else
                 {
                     throw new BadRequestException("Invalid MFA method.");
                 }
             }
+
             else
             {
                 return StatusCode(500, new
                 {
-                    Message = $"Error during MFA enabling for {user.FirstName}"
+                    Message = "Error during MFA enabling"
                     
                 });
             }
@@ -287,7 +306,7 @@ namespace EVWebAPI.Controllers
 
             if (action == "username")
             {
-                await _emailSender.SendAsync(
+                var send=await _emailSender.SendAsync(
                             ReplyTo: null,
                             UserName: null,
                             toEmail: user.Email,
@@ -299,7 +318,14 @@ namespace EVWebAPI.Controllers
                                     <i>If you did not request this information, you can safely ignore this email.</i><br/><br/>
                                     Regards,<br/>
                                     {_displayName} Team");
-            
+                if(!send)
+                {
+
+                    usernameSent = false;
+                    await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Email Send Failed", null, null, null, filters: request.ToFilterLog("Details - "));
+
+                    
+                }
                 await _auditlogservice.LogAsync( user.UserId,user.Username,"Login","Forgot Username",null, null, null,filters: request.ToFilterLog("Details - "));
                 usernameSent = true;
 
@@ -309,13 +335,12 @@ namespace EVWebAPI.Controllers
             if (action == "password")
             {
 
-                var token =_authService.GeneratePasswordResetJwtAsync(user);
+                var token = _authService.GeneratePasswordResetJwtAsync(user);
 
-                //var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
                 var resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
 
 
-                await _emailSender.SendAsync(
+                var response = await _emailSender.SendAsync(
                      ReplyTo: null,
                      UserName: null,
                    toEmail: user.Email,
@@ -349,7 +374,7 @@ namespace EVWebAPI.Controllers
                     <p style='font-size:13px;color:#6b7280;'>
                       This link will expire in <strong>30 minutes</strong>.
                     </p>
-                    
+
                     <hr style='border:none;border-top:1px solid #e5e7eb;margin:24px 0;' />
 
                     <p style='font-size:13px;color:#6b7280;'>
@@ -361,9 +386,20 @@ namespace EVWebAPI.Controllers
                     {_displayName} Team"
 
                 );
+                if (!response)
+                {
 
-                await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Forgot Password", null, null, null, filters: request.ToFilterLog("Details - "));
-                passwordSent = true;
+                    passwordSent = false;
+                    await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Forgot Password failed", null, null, null, filters: request.ToFilterLog("Details - "));
+
+                }
+                else
+                {
+
+                    await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Email Send Failed", null, null, null, filters: request.ToFilterLog("Details - "));
+                    passwordSent = true;
+
+                }
             }
             if (!usernameSent && !passwordSent)
                 throw new BadRequestException("Invalid action. Use 'username', 'password', or 'both'.");

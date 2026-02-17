@@ -29,12 +29,12 @@ namespace EVWebApi.Interfaces.Repositories
         //----------------------- doc download link----------------
 
         Task CreateDocDownloadLinkAsync(IEnumerable<DocDownloadLink> entities);
-        Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int userid);
+        Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int? userid);
 
         Task<DocDownloadLink>GetByIdDownloadLinkAsync(int docid,int userid);
         Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId, IEnumerable<int> documentIds);
 
-        Task<int> CounterDocumentDownload(int docid, int userid);
+        Task<int> CounterDocumentDownload(int docid, int? userid);
 
     }
 }

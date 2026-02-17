@@ -5,7 +5,7 @@ namespace EVWebApi.Interfaces.Repositories
 {
     public interface IEmailSender
     {
-        Task SendAsync(
+        Task<bool> SendAsync(
                 string toEmail,
                string? ReplyTo,
                string? UserName,

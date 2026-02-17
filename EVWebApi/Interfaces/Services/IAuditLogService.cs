@@ -7,7 +7,7 @@ namespace EVWebApi.Interfaces.Services
     public interface IAuditLogService
     {
         Task LogAsync(
-                  int userId,
+                  int? userId,
                   string username,
                   string module,
                   string action,
@@ -17,12 +17,12 @@ namespace EVWebApi.Interfaces.Services
                   string? filters = null
               );
 
-        Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,int userid,string usertype, CancellationToken cancellationToken = default);
+        Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,int? userid,string usertype, CancellationToken cancellationToken = default);
         //export to csv
         Task ExportLogsToCsvAsync(
             int pagenumber,
             int pagesize,
-            int userid, string usertype,
+            int? userid, string usertype,
             Stream outputStream,
             string? search = null,
             DateTime? fromDate = null,

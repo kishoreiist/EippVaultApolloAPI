@@ -60,4 +60,15 @@
     </Content>
   </ItemGroup>
 
+
+
+  <ItemGroup>
+    <None Update="keys\jwt_private.pem">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="keys\jwt_public.pem">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

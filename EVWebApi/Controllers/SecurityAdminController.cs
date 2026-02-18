@@ -71,7 +71,7 @@ namespace EVWebApi.Controllers
         }
 
         //UNLOCK  USER
-        [HttpPost("unlock_users/{userId}")]
+        [HttpPut("unlock_users/{userId}")]
         public async Task<IActionResult> UnlockUser(int userId)
         {
             try
@@ -97,7 +97,7 @@ namespace EVWebApi.Controllers
         }
 
         //remove blacklist
-        [HttpPost("remove_blacklist/{ip}")]
+        [HttpPut("remove_blacklist/{ip}")]
         public async Task<IActionResult> RemoveBlacklistedIp(string ip)
         {
             try

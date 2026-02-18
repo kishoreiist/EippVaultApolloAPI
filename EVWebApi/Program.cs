@@ -1,3 +1,4 @@
+using EVWebApi.BackgroundServices;
 using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.Interfaces.Repositories;
@@ -22,6 +23,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL;
 using Syncfusion.Licensing;
 using System.Reflection.Metadata;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 
@@ -60,6 +62,7 @@ builder.Services.AddScoped<IMfaRepository, MfaRepository>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IMetadataRepository, MetadataRepository>();
 builder.Services.AddScoped<ICabinetRepository, CabinetRepository>();
+builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
 
 // 4. Add Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -91,6 +94,9 @@ builder.Services.AddScoped<IMetadataReaderService, TxtMetadataReaderService>();
 builder.Services.AddScoped<IMetadataReaderFactoryService, MetadataReaderFactoryService>();
 
 builder.Services.AddScoped<ISecurityFailureService, SecurityFailureService>();
+builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddHostedService<SessionCleanupService>();
+
 builder.Services.Configure<AllowedIpSettings>(
     builder.Configuration.GetSection("Allowed"));
 
@@ -99,6 +105,10 @@ builder.Services.Configure<AllowedIpSettings>(
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var publicKeyPath = builder.Configuration["Jwt:PublicKeyPath"];
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(File.ReadAllText(publicKeyPath));
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             RoleClaimType = ClaimTypes.Role,
@@ -110,7 +120,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+            //IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+            IssuerSigningKey = new RsaSecurityKey(rsa)
         };
     });
 
@@ -239,8 +250,7 @@ app.UseMiddleware<SecurityFailureTrackingMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 app.UseAuthentication();
-
-
+app.UseMiddleware<SessionValidationMiddleware>();
 app.UseAuthorization();
 
 

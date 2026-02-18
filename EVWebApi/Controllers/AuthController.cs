@@ -7,10 +7,13 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
 using EVWebAPI.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using static SkiaSharp.HarfBuzz.SKShaper;
 
 namespace EVWebAPI.Controllers
@@ -29,8 +32,9 @@ namespace EVWebAPI.Controllers
 
         private readonly ILogger<AuthController> _logger;
         private readonly IAuditLogService _auditlogservice;
+        private readonly ISessionService _sessionService;
         public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger, 
-            IUserService userService, IAuditLogService auditlogservice, IEmailSender emailSender, IConfiguration config)
+            IUserService userService, IAuditLogService auditlogservice, IEmailSender emailSender, IConfiguration config, ISessionService sessionService)
         {
             ArgumentNullException.ThrowIfNull(authService);
             ArgumentNullException.ThrowIfNull(mfaService);
@@ -46,6 +50,7 @@ namespace EVWebAPI.Controllers
             _emailSender = emailSender;
             _frontendRoot = config["Frontend:BaseUrl"];
             _displayName = config["Email:DisplayName"];
+            _sessionService = sessionService;
         }
 
         [HttpPost("login")]
@@ -426,6 +431,34 @@ namespace EVWebAPI.Controllers
             return Ok(new { message = "Password reset successfully." });
         }
 
+        //logout
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var jtiClaim = User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+
+            if (userIdClaim == null || jtiClaim == null)
+                return Unauthorized();
+
+            await _sessionService.LogoutAsync(
+                int.Parse(userIdClaim),
+                Guid.Parse(jtiClaim));
+
+            return Ok(new { message = "Logged out successfully" });
+        }
+        //logout alll
+        [Authorize]
+        [HttpPost("logout-all")]
+        public async Task<IActionResult> LogoutAll()
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            await _sessionService.LogoutAllAsync(userId);
+
+            return Ok(new { message = "Logged out from all devices" });
+        }
 
     }
 }

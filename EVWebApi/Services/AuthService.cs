@@ -5,6 +5,7 @@ using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
+using EVWebApi.Models.Security;
 using EVWebApi.Services;
 using EVWebAPI.Controllers;
 using Humanizer;
@@ -13,6 +14,7 @@ using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto.Generators;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using static SkiaSharp.HarfBuzz.SKShaper;
 
@@ -28,10 +30,11 @@ public class AuthService : IAuthService
     private readonly string _displayName;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ISecurityFailureService _securityserv;
+    private readonly ISessionService _sessionService;
     private readonly AppDbContext _context;
     public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService, ILogger<AuthService> logger,
         IAuditLogService auditlogservice, IHttpContextAccessor httpContextAccessor, IEmailSender emailSender, 
-        ISecurityFailureService securityserv, AppDbContext context)
+        ISecurityFailureService securityserv, AppDbContext context, ISessionService sessionService)
     {
         _userRepo = userRepo;
         _config = config;
@@ -45,6 +48,7 @@ public class AuthService : IAuthService
         _displayName = config["Email:DisplayName"];
         _securityserv = securityserv;
         _context = context;
+        _sessionService = sessionService;
         // _notificationService = notificationService;
     }
     public async Task<AuthResult> AuthenticateAsync(LoginRequestDTO dto)
@@ -161,30 +165,36 @@ public class AuthService : IAuthService
         .Where(x => x.UserId == user.UserId)
         .Select(x => x.Group.UserType)
         .FirstOrDefaultAsync() ?? string.Empty;
-        return GenerateJwtToken(user, userType);
+
+        //creating a session
+        var session = await _sessionService.CreateLoginSessionAsync(user);
+
+        return GenerateJwtToken(user, userType,session);
     }
 
-    private string GenerateJwtToken(User user, string userType) {
+    private string GenerateJwtToken(User user, string userType,UserSession session) {
 
 
         if (user == null)
             throw new BadRequestException("User object is null");
 
-        var key = _config["Jwt:Key"];
+        //var key = _config["Jwt:Key"];
         var issuer = _config["Jwt:Issuer"];
         var audience = _config["Jwt:Audience"];
 
-        if (string.IsNullOrEmpty(key))
-            throw new InvalidOperationException("JWT Key is missing in configuration.");
+        //if (string.IsNullOrEmpty(key))
+        //    throw new InvalidOperationException("JWT Key is missing in configuration.");
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        //var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        //var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-        //var userType = string.Empty;
-        //if (user.UserGroup?.Group != null && user.UserGroup.Group.UserType != null)
-        //    userType = user.UserGroup.Group.UserType;
+        // Using RSA asymmetric keys for signing JWTs---RsaSha256
+        var rsa = RSA.Create();
+        var privateKeyPath = _config["Jwt:PrivateKeyPath"];
+        rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
 
-
+        var securityKey = new RsaSecurityKey(rsa);
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
 
         var claims = new [] {
             new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
@@ -192,7 +202,8 @@ public class AuthService : IAuthService
             new Claim("userId", user.UserId.ToString()),
             new Claim("username", user.Username),
             new Claim(ClaimTypes.Role, userType),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim("session_id", session.SessionId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Jti, session.JwtId.ToString()),
         };
 
 
@@ -212,16 +223,22 @@ public class AuthService : IAuthService
             throw new BadRequestException("User object is null");
 
 
-        var key = _config["Jwt:Key"];
+        //var key = _config["Jwt:Key"];
         var issuer = _config["Jwt:Issuer"];
         var audience = _config["Jwt:Audience"];
+        var privateKeyPath = _config["Jwt:PrivateKeyPath"];
 
-        if (string.IsNullOrEmpty(key))
-            throw new InvalidOperationException("JWT Key is missing in configuration.");
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        //if (string.IsNullOrEmpty(key))
+        //    throw new InvalidOperationException("JWT Key is missing in configuration.");
 
+        //var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        //var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
+
+        var securityKey = new RsaSecurityKey(rsa);
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
 
         var claims = new[] {
         new Claim("userId", user.UserId.ToString()), 
@@ -247,14 +264,21 @@ public class AuthService : IAuthService
         }
         // repeting same block to add security as password reset endpoint is open to the public(can't do authroization)
 
-        var jwtSecret = _config.GetValue<string>("Jwt:Key");
+        //var jwtSecret = _config.GetValue<string>("Jwt:Key");
         var tokenHandler = new JwtSecurityTokenHandler();
+
+        var publicKeyPath = _config["Jwt:PublicKeyPath"];
+
+        // Load PUBLIC key for validation
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(File.ReadAllText(publicKeyPath));
 
 
         var validationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            //IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            IssuerSigningKey = new RsaSecurityKey(rsa),
             ValidateIssuer = true,
             ValidIssuer = _config.GetValue<string>("Jwt:Issuer"),
             ValidateAudience = true,

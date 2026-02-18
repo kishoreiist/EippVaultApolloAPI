@@ -29,8 +29,6 @@ namespace EVWebApi.Services
         public SecurityFailureService(AppDbContext context)
         {
             _context = context;
-
-
         }
 
         public async Task RegisterFailureAsync(int? userId, string? ip, string endpoint)
@@ -129,7 +127,6 @@ namespace EVWebApi.Services
                     await ApplyUserLock(userId, endpoint, isTemporary: true, ip, now);
                     record.IsActive = false;
                     return;
-
                 }
             }
         }

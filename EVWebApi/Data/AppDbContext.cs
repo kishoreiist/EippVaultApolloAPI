@@ -40,6 +40,7 @@ namespace EVWebApi.Data
         public DbSet<UserFailureRecord> UserFailureRecords { get; set; }
         public DbSet<IpPermanentLockLog> IpPermanentLockLogs { get; set; }
         public DbSet<IpFailureRecord> IpFailureRecords { get; set; }
+        public DbSet<UserSession> UserSessions { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
            
@@ -71,6 +72,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<UserFailureRecord>().ToTable("user_failure_record");
             modelBuilder.Entity<IpPermanentLockLog>().ToTable("ip_permanent_lock_log");
             modelBuilder.Entity<IpFailureRecord>().ToTable("ip_failure_record");
+            modelBuilder.Entity<UserSession>().ToTable("user_sessions");
 
             // -------------------
             // Primary Keys
@@ -81,6 +83,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<Cabinet>().HasKey(u => u.CabinetId);
             modelBuilder.Entity<DocumentTypes>().HasKey(d => d.Id);
             modelBuilder.Entity<CabinetGroupingRule>().HasKey(d => d.Id);
+            modelBuilder.Entity<UserSession>().HasKey(d => d.Id);
 
             modelBuilder.Entity<UserGroup>()
                 .HasKey(ug => new { ug.UserId, ug.GroupId });
@@ -269,7 +272,24 @@ namespace EVWebApi.Data
                  .WithMany() 
                  .HasForeignKey(e => e.UserId);
             });
-           
+
+
+            modelBuilder.Entity<UserSession>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Id)
+                    .HasColumnName("id")
+                    .ValueGeneratedOnAdd();
+
+                entity.HasIndex(x => x.UserId);
+                entity.HasIndex(x => x.ExpiresAt);
+                entity.HasIndex(x => new { x.UserId, x.IsRevoked });
+
+                entity.Property(x => x.JwtId)
+                    .IsRequired()
+                    .HasMaxLength(100);
+            });
+
         }
     }
 }

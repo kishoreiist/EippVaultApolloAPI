@@ -296,11 +296,11 @@ namespace EVWebAPI.Controllers
                 //    Expires = DateTime.UtcNow.AddHours(4)
                 //});
 
-                Response.Cookies.Append(
-                    "access_token",
-                    authResult.AccessToken,
-                    _cookieHelper.Build(DateTime.UtcNow.AddMinutes(15), HttpContext)
-                );
+                //Response.Cookies.Append(
+                //    "access_token",
+                //    authResult.AccessToken,
+                //    _cookieHelper.Build(DateTime.UtcNow.AddMinutes(15), HttpContext)
+                //);
 
                 Response.Cookies.Append(
                     "refresh_token",
@@ -328,7 +328,7 @@ namespace EVWebAPI.Controllers
                 }
 
 
-                return Ok(new { user = userDto });
+                return Ok(new { user = userDto, accessToken= authResult.AccessToken });
             }
             catch (Exception ex)
             {

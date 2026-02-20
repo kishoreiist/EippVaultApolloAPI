@@ -75,4 +75,9 @@ namespace EVWebApi.Exceptions
         public LockedException(string message)
             : base(message, 423) { }
     }
+    public class IpBlacklistedException:AppException
+    {
+        public IpBlacklistedException(string message)
+            : base(message, 403) { }
+    }
 }

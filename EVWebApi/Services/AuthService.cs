@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.Exceptions;
@@ -10,6 +11,7 @@ using EVWebApi.Services;
 using EVWebAPI.Controllers;
 using Humanizer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto.Generators;
 using System.IdentityModel.Tokens.Jwt;
@@ -31,10 +33,12 @@ public class AuthService : IAuthService
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ISecurityFailureService _securityserv;
     private readonly ISessionService _sessionService;
+    private readonly IUserSessionRepository _sessionRepo;
     private readonly AppDbContext _context;
+    private readonly IMemoryCache _cache;
     public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService, ILogger<AuthService> logger,
         IAuditLogService auditlogservice, IHttpContextAccessor httpContextAccessor, IEmailSender emailSender, 
-        ISecurityFailureService securityserv, AppDbContext context, ISessionService sessionService)
+        ISecurityFailureService securityserv, AppDbContext context, ISessionService sessionService, IUserSessionRepository sessionRepo, IMemoryCache cache)
     {
         _userRepo = userRepo;
         _config = config;
@@ -49,6 +53,8 @@ public class AuthService : IAuthService
         _securityserv = securityserv;
         _context = context;
         _sessionService = sessionService;
+        _sessionRepo = sessionRepo;
+        _cache = cache;
         // _notificationService = notificationService;
     }
     public async Task<AuthResult> AuthenticateAsync(LoginRequestDTO dto)
@@ -155,21 +161,47 @@ public class AuthService : IAuthService
         };
 
     }
+    //-------------------------JWT TOKEN GENERATION-----------------
 
-    public async Task<string> GenerateJwtAfterMfaAsync(string email) {
+    //public string GenerateRefreshToken()
+    //{
+    //    var randomBytes = new byte[64];
+    //    using var rng = RandomNumberGenerator.Create();
+    //    rng.GetBytes(randomBytes);
+    //    return Convert.ToBase64String(randomBytes);
+    //}
+
+    //public string HashToken(string token)
+    //{
+    //    using var sha = SHA256.Create();
+    //    var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(token));
+    //    return Convert.ToBase64String(bytes);
+    //}
+
+    public async Task<VerifyMfaResponseDto> GenerateJwtAfterMfaAsync(string email) {
         var user = await _userRepo.GetByEmailAsync(email);
         if (user == null)
             throw new NotFoundException("User not found");
 
-        var userType = await _context.UserGroups
-        .Where(x => x.UserId == user.UserId)
-        .Select(x => x.Group.UserType)
-        .FirstOrDefaultAsync() ?? string.Empty;
+        //var userType = await _context.UserGroups
+        //.Where(x => x.UserId == user.UserId)
+        //.Select(x => x.Group.UserType)
+        //.FirstOrDefaultAsync() ?? string.Empty;
 
-        //creating a session
-        var session = await _sessionService.CreateLoginSessionAsync(user);
+        var userType = await _userRepo.GetUserType(user.UserId);
 
-        return GenerateJwtToken(user, userType,session);
+        //creting access & refresh token and session
+        var refreshToken = RefreshTokenHelper.GenerateRefreshToken();
+        var refreshTokenHash = RefreshTokenHelper.HashToken(refreshToken);
+
+        var session = await _sessionService.CreateLoginSessionAsync(user, refreshTokenHash);
+        var accessToken = GenerateJwtToken(user, userType, session);
+        return new VerifyMfaResponseDto
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            SessionId = session.SessionId
+        };
     }
 
     private string GenerateJwtToken(User user, string userType,UserSession session) {
@@ -211,12 +243,65 @@ public class AuthService : IAuthService
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            //expires: DateTime.UtcNow.AddHours(1),
+            expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: credentials
         );
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    public async Task<RefreshResultDTO> RefreshAsync(string refreshToken)
+    {
+        var hashedToken = RefreshTokenHelper.HashToken(refreshToken);
+
+        var session = await _sessionRepo.GetByRefreshTokenHashAsync(hashedToken);
+
+        if (session == null)
+            return new RefreshResultDTO { Success = false };
+
+        if (session.IsRevoked)
+            return new RefreshResultDTO { Success = false };
+
+        if (session.ExpiresAt < DateTime.UtcNow)
+            return new RefreshResultDTO { Success = false };
+
+        // Idle timeout check (20 minutes)
+        if (session.LastActivityAt.AddMinutes(20) < DateTime.UtcNow)
+        {
+            //session.IsRevoked = true;
+            session.RevokedAt = DateTime.UtcNow;
+            await _sessionRepo.UpdateAsync(session);
+
+            return new RefreshResultDTO { Success = false };
+        }
+
+        var user = await _userRepo.GetByIdAsync(session.UserId);
+        if (user == null)
+            return new RefreshResultDTO { Success = false };
+
+        var userType = await _userRepo.GetUserType(user.UserId);
+
+        // ROTATE refresh token
+        var newRefreshToken = RefreshTokenHelper.GenerateRefreshToken();
+        var newRefreshHash = RefreshTokenHelper.HashToken(newRefreshToken);
+        _cache.Set(newRefreshHash, user.UserId, TimeSpan.FromMinutes(5));
+        session.RefreshTokenHash = newRefreshHash;
+        session.JwtId = Guid.NewGuid();
+        session.LastActivityAt = DateTime.UtcNow;
+
+        await _sessionRepo.UpdateAsync(session);
+
+        var newAccessToken = GenerateJwtToken(user, userType, session);
+
+        return new RefreshResultDTO
+        {
+            Success = true,
+            AccessToken = newAccessToken,
+            RefreshToken = newRefreshToken
+        };
+    }
+
+    //-------------------------------------------------------//
     public string GeneratePasswordResetJwtAsync(User user)
     {
         if (user == null)
@@ -395,7 +480,8 @@ public class AuthService : IAuthService
         {
             return true;
         }
-        else { return false; }
+        else 
+        { return false; }
 
     }
 

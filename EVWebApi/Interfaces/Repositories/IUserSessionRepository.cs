@@ -11,5 +11,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task RevokeAsync(Guid sessionId);
         Task RevokeAllAsync(int userId);
         Task<UserSession?> GetByJwtIdAsync(int userId, Guid jwtId);
+
+        Task<UserSession?> GetByRefreshTokenHashAsync(string tokenHash);
     }
 }

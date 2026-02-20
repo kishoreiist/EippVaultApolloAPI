@@ -1,6 +1,7 @@
 using EVWebApi.BackgroundServices;
 using EVWebApi.Data;
 using EVWebApi.DTOs;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Interfaces.Services.MetaDataReaders;
@@ -15,7 +16,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
@@ -25,6 +29,8 @@ using System.Reflection.Metadata;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.RateLimiting;
+
 
 
 
@@ -97,9 +103,14 @@ builder.Services.AddScoped<ISecurityFailureService, SecurityFailureService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
 
+builder.Services.AddScoped<BuildCookieOptionHelper>();
+
+
+
+builder.Services.AddMemoryCache();
+
 builder.Services.Configure<AllowedIpSettings>(
     builder.Configuration.GetSection("Allowed"));
-
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -122,6 +133,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             //IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
             IssuerSigningKey = new RsaSecurityKey(rsa)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Try header first 
+                var token = context.Request.Headers["Authorization"]
+                    .FirstOrDefault()?.Split(" ").Last();
+
+                // If no header, try cookie
+                if (string.IsNullOrEmpty(token))
+                {
+                    token = context.Request.Cookies["access_token"];
+                }
+
+                context.Token = token;
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -220,6 +250,14 @@ builder.Services.AddHsts(options =>
     options.IncludeSubDomains = true;
     options.Preload = true;
 });
+// Rate Limiting for refresh endpoint
+
+builder.Services.AddScoped<RefreshRateLimitPolicy>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy<string, RefreshRateLimitPolicy>("RefreshPolicy");
+});
+
 
 var app = builder.Build();
 
@@ -229,18 +267,18 @@ if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
 app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
 }
 
-//app.UseSwagger();
-//app.UseSwaggerUI();
 
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseCors("RestrictedCors");
 
 //middlewares

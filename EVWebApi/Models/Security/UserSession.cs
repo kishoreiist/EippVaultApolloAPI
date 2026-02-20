@@ -18,11 +18,18 @@ namespace EVWebApi.Models.Security
         public DateTime ExpiresAt { get; set; }
         [Column("revoked_at")]
         public DateTime? RevokedAt { get; set; }
-        [Column("is_revoked")]
-        public bool IsRevoked { get; set; }
+        //[Column("is_revoked")]
+        [NotMapped]
+        public bool IsRevoked => RevokedAt != null;
+
         [Column("ip_address")]
         public string? IpAddress { get; set; }
         [Column("device_info")]
         public string? DeviceInfo { get; set; }
+        [Column("refresh_token_hash")]
+        public string RefreshTokenHash { get; set; }
+        [Column("last_activity_at")]
+        public DateTime LastActivityAt { get; set; }
+
     }
 }

@@ -5,7 +5,7 @@ namespace EVWebApi.Interfaces.Services
 {
     public interface ISessionService
     {
-        Task<UserSession> CreateLoginSessionAsync(User user);
+        Task<UserSession> CreateLoginSessionAsync(User user, string refreshTokenHash);
         Task LogoutAsync(int userId, Guid jwtId);
         Task LogoutAllAsync(int userId);
     }

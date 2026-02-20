@@ -34,7 +34,7 @@ namespace EVWebApi.Services
         public async Task<PagedResponse<BlacklistDto>> GetBlacklistedIpsAsync(BlacklistQueryParameters query)
         {
             var ips = _context.IpSecurity
-                 //.Where(x => x.LastActivityAt != null)
+                 .Where(x => x.Status!=IpSecurityStatus.Normal)
                  // .OrderByDescending(x => x.BlacklistedAt)
                  .AsNoTracking().AsQueryable();
 

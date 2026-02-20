@@ -1,4 +1,5 @@
-﻿using EVWebApi.Data;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using EVWebApi.Data;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
@@ -43,7 +44,7 @@ namespace EVWebApi.Repositories
                     .ThenInclude(ug => ug.Group)
                         .ThenInclude(g => g.GroupCabinets)
                             .ThenInclude(c=>c.Cabinet)
-                .Where(u => u.Status != UserStatus.Deleted)
+                .Where(u => u.Status != UserStatus.Deleted && u.Status != UserStatus.Locked)
                 .OrderBy(u=>u.UserId)
                 .AsQueryable();
         }
@@ -61,5 +62,13 @@ namespace EVWebApi.Repositories
             return await _context.SaveChangesAsync();
         }
 
+        public async Task<string> GetUserType(int userId)
+        {
+            var userType = await _context.UserGroups
+            .Where(x => x.UserId == userId)
+            .Select(x => x.Group.UserType)
+            .FirstOrDefaultAsync() ?? string.Empty;
+            return userType;
+        }
     }
 }

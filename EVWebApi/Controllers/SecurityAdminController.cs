@@ -12,7 +12,7 @@ using Syncfusion.EJ2.FileManager.Base;
 
 namespace EVWebApi.Controllers
 {
-    [Authorize(Roles = "admin,super_admin")]
+    //[Authorize(Roles = "admin,super_admin")]
     [ApiController]
     [Route("api/security")]
     public class SecurityAdminController : BaseController
@@ -104,7 +104,7 @@ namespace EVWebApi.Controllers
             {
                 await _securityService.RemoveBlackListIpAsync(ip);
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Security", "Removed IP from blacklist", ip);
-                return Ok("IP removed from blacklist.");
+                return Ok(new { Message = "IP removed from blacklist." });
 
             }
             catch (Exception ex)    

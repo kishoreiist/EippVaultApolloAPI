@@ -16,7 +16,7 @@ namespace EVWebApi.Services
             _http = http;
         }
 
-        public async Task<UserSession> CreateLoginSessionAsync(User user)
+        public async Task<UserSession> CreateLoginSessionAsync(User user, string refreshTokenHash)
         {
 
             // revoke previous session
@@ -30,9 +30,11 @@ namespace EVWebApi.Services
                 SessionId = Guid.NewGuid(),
                 UserId = user.UserId,
                 JwtId = Guid.NewGuid(),
+                RefreshTokenHash = refreshTokenHash,
                 CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddHours(1),
-                IsRevoked = false,
+                LastActivityAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddHours(4),
+                //IsRevoked = false,
                 RevokedAt =null,
                 IpAddress = RequestInfoHelper.GetIp(context),
                 DeviceInfo = RequestInfoHelper.GetDevice(context)
@@ -47,7 +49,7 @@ namespace EVWebApi.Services
             var session = await _repo.GetByJwtIdAsync(userId, jwtId);
             if (session == null) return;
 
-            session.IsRevoked = true;
+            //session.IsRevoked = true;
             session.RevokedAt = DateTime.UtcNow;
 
             await _repo.UpdateAsync(session);

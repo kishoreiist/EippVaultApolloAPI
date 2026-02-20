@@ -283,7 +283,7 @@ namespace EVWebApi.Data
 
                 entity.HasIndex(x => x.UserId);
                 entity.HasIndex(x => x.ExpiresAt);
-                entity.HasIndex(x => new { x.UserId, x.IsRevoked });
+               
 
                 entity.Property(x => x.JwtId)
                     .IsRequired()

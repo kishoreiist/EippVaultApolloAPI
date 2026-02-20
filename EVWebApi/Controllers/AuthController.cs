@@ -1,5 +1,8 @@
 ﻿using Azure;
+using Azure.Core;
+using DocumentFormat.OpenXml.Office2016.Excel;
 using EVWebApi.DTOs;
+using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
@@ -9,15 +12,19 @@ using EVWebApi.Services;
 using EVWebAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq.Dynamic.Core.Tokenizer;
 using System.Security.Claims;
 using static SkiaSharp.HarfBuzz.SKShaper;
 
 namespace EVWebAPI.Controllers
 {
+    [AllowAnonymous]
     [ApiController]
     [Route("api/auth")]
     public class AuthController : ControllerBase
@@ -33,8 +40,10 @@ namespace EVWebAPI.Controllers
         private readonly ILogger<AuthController> _logger;
         private readonly IAuditLogService _auditlogservice;
         private readonly ISessionService _sessionService;
+        private readonly BuildCookieOptionHelper _cookieHelper;
         public AuthController(IAuthService authService, IMfaService mfaService, IUserRepository userRepo, ILogger<AuthController> logger, 
-            IUserService userService, IAuditLogService auditlogservice, IEmailSender emailSender, IConfiguration config, ISessionService sessionService)
+            IUserService userService, IAuditLogService auditlogservice, IEmailSender emailSender, IConfiguration config, 
+            ISessionService sessionService, BuildCookieOptionHelper cookieHelper)
         {
             ArgumentNullException.ThrowIfNull(authService);
             ArgumentNullException.ThrowIfNull(mfaService);
@@ -51,6 +60,7 @@ namespace EVWebAPI.Controllers
             _frontendRoot = config["Frontend:BaseUrl"];
             _displayName = config["Email:DisplayName"];
             _sessionService = sessionService;
+            _cookieHelper = cookieHelper;
         }
 
         [HttpPost("login")]
@@ -267,14 +277,58 @@ namespace EVWebAPI.Controllers
                     return Unauthorized(new { message = "Invalid MFA code" });
                 }
 
-                var jwt = await _authService.GenerateJwtAfterMfaAsync(request.Email);
+                var authResult = await _authService.GenerateJwtAfterMfaAsync(request.Email);
                 var userDto = await _userService.GetByIdAsync(user.UserId);
-                _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
+                var isHttps = Request.IsHttps;//to hanlde http in demo
+                //Response.Cookies.Append("access_token", authResult.AccessToken, new CookieOptions
+                //{
+                //    HttpOnly = true,
+                //    Secure = isHttps,
+                //    SameSite = SameSiteMode.Strict,
+                //    Expires = DateTime.UtcNow.AddMinutes(15)
+                //});
 
+                //Response.Cookies.Append("refresh_token", authResult.RefreshToken, new CookieOptions
+                //{
+                //    HttpOnly = true,
+                //    Secure = isHttps,
+                //    SameSite = SameSiteMode.Strict,
+                //    Expires = DateTime.UtcNow.AddHours(4)
+                //});
+
+                Response.Cookies.Append(
+                    "access_token",
+                    authResult.AccessToken,
+                    _cookieHelper.Build(DateTime.UtcNow.AddMinutes(15), HttpContext)
+                );
+
+                Response.Cookies.Append(
+                    "refresh_token",
+                    authResult.RefreshToken,
+                    _cookieHelper.Build(DateTime.UtcNow.AddHours(4), HttpContext)
+                );
+
+                _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
                 var filters = request.ToFilterLog(" MFA Details -  ");
                 await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "MFA Verified", null, null, null, filters: filters);
 
-                return Ok(new { token = jwt, user = userDto });
+                //enabling token in response only for swagger
+                var isSwagger = Request.Headers["Referer"]
+                .ToString()
+                .Contains("/swagger");
+
+                if (isSwagger)
+                {
+                    return Ok(new
+                    {
+                        user=userDto,
+                        accessToken= authResult.AccessToken,
+                        refreshToken= authResult.RefreshToken
+                    });
+                }
+
+
+                return Ok(new { user = userDto });
             }
             catch (Exception ex)
             {
@@ -458,6 +512,76 @@ namespace EVWebAPI.Controllers
             await _sessionService.LogoutAllAsync(userId);
 
             return Ok(new { message = "Logged out from all devices" });
+        }
+
+        [EnableRateLimiting("RefreshPolicy")]
+        [HttpPost("refresh")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var refreshToken = Request.Cookies["refresh_token"];
+
+                if (string.IsNullOrEmpty(refreshToken))
+                    return Unauthorized(new { message = "Invalid refresh token" });
+
+                var result = await _authService.RefreshAsync(refreshToken);
+
+                if (!result.Success)
+                {
+                    _logger.LogWarning("Refresh token failed:Session expired / Invalid refresh token");
+                    return Forbid();
+                }
+                //Response.Cookies.Append("access_token", result.AccessToken, new CookieOptions
+                //{
+                //    HttpOnly = true,
+                //    Secure = Request.IsHttps,
+                //    SameSite = SameSiteMode.Strict,
+                //    Expires = DateTime.UtcNow.AddMinutes(15)
+                //});
+
+                //Response.Cookies.Append("refresh_token", result.RefreshToken, new CookieOptions
+                //{
+                //    HttpOnly = true,
+                //    Secure = Request.IsHttps,
+                //    SameSite = SameSiteMode.Strict,
+                //    Expires = DateTime.UtcNow.AddHours(4)
+                //});
+                Response.Cookies.Append(
+                    "access_token",
+                    result.AccessToken,
+                    _cookieHelper.Build(DateTime.UtcNow.AddMinutes(15), HttpContext)
+                );
+
+                Response.Cookies.Append(
+                    "refresh_token",
+                    result.RefreshToken,
+                    _cookieHelper.Build(DateTime.UtcNow.AddHours(4), HttpContext)
+                );
+
+
+
+                var isSwagger = Request.Headers["Referer"]
+                .ToString()
+                .Contains("/swagger");
+
+                if (isSwagger)
+                {
+                    return Ok(new
+                    {                    
+                        accessToken = result.AccessToken,
+                        refreshToken = result.RefreshToken
+                    });
+                }
+                return Ok();
+            }
+            catch (Exception)
+            {
+                return Unauthorized();
+            }
         }
 
     }

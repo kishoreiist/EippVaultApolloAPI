@@ -20,7 +20,7 @@ namespace EVWebApi.Repositories
             return await _context.UserSessions
                 .Where(x =>
                     x.UserId == userId &&
-                    !x.IsRevoked &&
+                    x.RevokedAt==null &&
                     x.ExpiresAt > DateTime.UtcNow)
                 .OrderByDescending(x => x.CreatedAt)
                 .FirstOrDefaultAsync();
@@ -48,7 +48,7 @@ namespace EVWebApi.Repositories
 
             if (session == null) return;
 
-            session.IsRevoked = true;
+            //session.IsRevoked = true;
             session.RevokedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
@@ -59,14 +59,14 @@ namespace EVWebApi.Repositories
             var sessions = await _context.UserSessions
                 .Where(x =>
                     x.UserId == userId &&
-                    (x.IsRevoked==false))
+                    x.RevokedAt==null)
                 .ToListAsync();
 
             if (!sessions.Any()) return;
 
             foreach (var s in sessions)
             {
-                s.IsRevoked = true;
+                //s.IsRevoked = true;
                 s.RevokedAt = DateTime.UtcNow;
             }
 
@@ -79,7 +79,8 @@ namespace EVWebApi.Repositories
                 .FirstOrDefaultAsync(x =>
                     x.UserId == userId &&
                     x.JwtId == jwtId &&
-                    !x.IsRevoked);
+                    x.RevokedAt==null
+                    );
         }
 
         public async Task UpdateAsync(UserSession session)
@@ -88,6 +89,13 @@ namespace EVWebApi.Repositories
             await _context.SaveChangesAsync();
         }
 
+        public async Task<UserSession?> GetByRefreshTokenHashAsync(string refreshTokenHash)
+        {
+            return await _context.UserSessions
+                .FirstOrDefaultAsync(s =>
+                    s.RefreshTokenHash == refreshTokenHash &&
+                    s.RevokedAt==null && s.ExpiresAt > DateTime.UtcNow);
+        }
 
     }
 }

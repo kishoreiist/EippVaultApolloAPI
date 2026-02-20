@@ -21,7 +21,7 @@ namespace EVWebApi.DTOs.User
         public int ? EmailGroupId { get; set; }
         public int GroupId { get; set; } = new();
 
-        public UserStatus Status { get; set; }
+       // public UserStatus Status { get; set; }
         public bool MfaEnabled { get; set; }
         public string? PhoneNumber { get; set; }
     }

@@ -40,9 +40,11 @@ namespace EVWebApi.Middleware
                 if (!string.IsNullOrEmpty(ip) &&
                     await failureService.IsIpBlacklistedAsync(ip))
                 {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsync("IP is blacklisted.");
-                    return;
+                    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    //await context.Response.WriteAsync("IP is blacklisted.");
+                    //return;
+                    throw new IpBlacklistedException("IP is blacklisted.");
+
                 }
             }
 
@@ -119,41 +121,46 @@ namespace EVWebApi.Middleware
                 && await failureService.IsUserLockedAsync(failedUserId.Value)
                 )
                 {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsync("Account is locked by Admin");
-                    return;
+                    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    //await context.Response.WriteAsync("Account is locked by Admin");
+                    //return;
+                    throw;
                 }
 
                 await failureService.RegisterFailureAsync(failedUserId, ip, endpoint); 
                 throw;
             }
 
-            catch(AccountNotActivatedException ex)
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsync("Account not activated");
-                return;
-            }
-            catch(AccountDeletedException ex)
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsync("Account is deleted/disabled");
-                return;
-            }
-            catch (AccountDisabledException ex)
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsync("Account is locked by Admin");
-                return;
-            }
-            catch (LockedException ex)
-            {
+            //catch(AccountNotActivatedException ex)
+            //{
+            //    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            //    //await context.Response.WriteAsync("Account not activated");
+            //    //return;
+            //    throw;
+            //}
+            //catch(AccountDeletedException ex)
+            //{
+            //    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            //    //await context.Response.WriteAsync("Account is deleted/disabled");
+            //    //return;
+            //    throw;
+            //}
+            //catch (AccountDisabledException ex)
+            //{
+            //    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            //    //await context.Response.WriteAsync("Account is locked by Admin");
+            //    //return;
+            //    throw;
+            //}
+            //catch (LockedException ex)
+            //{
 
-                 context.Response.StatusCode = StatusCodes.Status409Conflict;
-                 await context.Response.WriteAsync( "Your request is success,for further clarification check your email");
-                return ;
+            //    // context.Response.StatusCode = StatusCodes.Status409Conflict;
+            //    // await context.Response.WriteAsync( "Your request is success,for further clarification check your email");
+            //    //return ;
+            //    throw;
                 
-            }
+            //}
             catch(AuthenticationException ex)
             {
 

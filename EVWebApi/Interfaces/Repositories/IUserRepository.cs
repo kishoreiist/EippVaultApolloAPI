@@ -11,5 +11,6 @@ namespace EVWebApi.Interfaces.Repositories
         Task<int> SaveChangesAsync(); 
         IQueryable<User> Query();
         void SoftDelete(User user);
+        Task <string> GetUserType(int userId);
     }
 }

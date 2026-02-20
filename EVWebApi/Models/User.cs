@@ -1,12 +1,14 @@
 ﻿using EVWebApi.Helpers;
+using EVWebApi.Models.Security;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using static QRCoder.PayloadGenerator;
 
 namespace EVWebApi.Models
 {
-    public enum UserStatus { active, inactive, locked }
+    public enum UserStatus { New, Active, Disabled, Locked,Deleted }
     public enum MfaMethod { email, sms, authenticator }
 
 
@@ -25,7 +27,7 @@ namespace EVWebApi.Models
         public required string PasswordHash { get; set; }
 
         [Column("status")]
-        public UserStatus Status { get; set; } = UserStatus.active;
+        public UserStatus Status { get; set; }
         [Column("mfa_enabled")]
         public bool MfaEnabled { get; set; } = false;
         [Column("mfa_method")]
@@ -50,10 +52,15 @@ namespace EVWebApi.Models
             set => _email = EmailValidationHelper.Normalize(value);
         }
 
+        [Column("email_group_id")]
+        public int? EmailGroupId { get; set; }
 
+        [ForeignKey(nameof(EmailGroupId))]
+        public EmailGroup? EmailGroup { get; set; }
 
         // junction table
         public UserGroup? UserGroup { get; set; }
         public ICollection<UserMfaToken> MfaTokens { get; set; }
+        public ICollection<AccountLockAudit> LockAudits { get; set; }
     }
 }

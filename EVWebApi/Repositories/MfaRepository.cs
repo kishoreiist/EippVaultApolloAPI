@@ -30,53 +30,59 @@
         //    await _context.SaveChangesAsync();
         //}
 
-
-        public async Task SaveMfaTokenAsync(UserMfaToken input)
+        //generate mfa token 
+        public async Task SaveMfaTokenAsync(int userId, string code)
         {
-            // Normalize/validate inputs
-            var now = DateTime.UtcNow;
-            var userId = input.UserId;
-            var code = input.Token?.Trim();
-
             if (string.IsNullOrWhiteSpace(code))
-                throw new ArgumentException("Token cannot be empty.", nameof(input.Token));
-
+                throw new ArgumentException("Token cannot be empty.");
             // Look for existing token for this user
             var mfa = await _context.UserMfaTokens
                 .FirstOrDefaultAsync(t => t.UserId == userId);
+            
+            var now = DateTime.UtcNow;
 
             if (mfa == null)
             {
                 mfa = new UserMfaToken
                 {
-                    UserId = userId,
-                    Token = code,
-                    Used = false,
-                    CreatedAt = now,
-                    ExpiresAt = now.AddMinutes(5)
+                    UserId = userId
+                    //Token = code,
+                    //Used = false,
+                    //CreatedAt = now,
+                    //ExpiresAt = now.AddMinutes(5)
                 };
 
                 _context.UserMfaTokens.Add(mfa);
             }
-            else
-            {
+         
                 // Replace the existing token for this user
                 mfa.Token = code;
                 mfa.Used = false;
-                mfa.CreatedAt = now;              // optional, or keep original and add UpdatedAt
+                mfa.CreatedAt = now;              
                 mfa.ExpiresAt = now.AddMinutes(5);
-            }
+            
 
             await _context.SaveChangesAsync();
         }
 
+        //validate used token
+        public async Task MarkTokenAsUsedAsync(UserMfaToken token)
+        {
+            token.Used = true;
+            await _context.SaveChangesAsync();
+        }
 
         public async Task<string> GetMfaTokenAsync(int userId)
         {
-            return await _context.UserMfaTokens
-                .Where(x => x.UserId == userId)
+            return  await _context.UserMfaTokens
+                .Where(x => x.UserId == userId  &&!x.Used && x.ExpiresAt > DateTime.UtcNow)
                 .Select(x => x.Token)
                 .FirstOrDefaultAsync();
+
+            //return await _context.UserMfaTokens
+            //   .Where(x => x.UserId == userId)
+            //   .Select(x => x.Token)
+            //   .FirstOrDefaultAsync();
         }
 
         public async Task<UserMfaToken?> GetValidTokenAsync(int userId, string token)

@@ -18,7 +18,7 @@ namespace EVWebApi.Models
         [Column("version")]
         public int Version { get; set; }
         [Column("uploaded_by")]
-        public int UploadedBy { get; set; }
+        public int? UploadedBy { get; set; }
         [Column("uploaded_at")]
         public DateTime UploadedAt { get; set; }
         [Column("status")]

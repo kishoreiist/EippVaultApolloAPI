@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using EVWebApi.DTOs;
 using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
@@ -8,10 +9,12 @@ using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
+using Humanizer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
+using System.Security.Cryptography;
 using IEmailSender = EVWebApi.Interfaces.Repositories.IEmailSender;
 
 namespace EVWebApi.Services
@@ -24,7 +27,9 @@ namespace EVWebApi.Services
         private readonly string _frontendRoot;
         private readonly IEmailSender _emailSender;
         private readonly string  _displayName;
-        public UserService(IUnitOfWork uow, IMapper mapper, IAuthService authService, IConfiguration config, IEmailSender emailSender)
+        private readonly string _pdfviewer;
+        private readonly IUserRepository _userRepo;
+        public UserService(IUnitOfWork uow, IMapper mapper, IAuthService authService, IConfiguration config, IEmailSender emailSender, IUserRepository userRepo)
         {
             _uow = uow;
             _mapper = mapper;
@@ -32,6 +37,8 @@ namespace EVWebApi.Services
             _emailSender = emailSender;
             _frontendRoot = config["Frontend:BaseUrl"];
             _displayName = config["Email:DisplayName"];
+            _pdfviewer = config["PDFViewFEUrl:BaseUrl"];
+            _userRepo = userRepo;
 
         }
 
@@ -117,26 +124,29 @@ namespace EVWebApi.Services
             var userexists = await _uow.Users.GetByEmailAsync(normalizedEmail);
             if (userexists != null)
             {
-                if(userexists.Status == UserStatus.locked)
+                if(userexists.Status == UserStatus.Locked)
                     throw new LockedException($"User with email - {normalizedEmail}' exists but is in locked state.");
             
                 else
                     throw new ConflictException($"User mail '{normalizedEmail}' already exists");
             }
 
+            var systemPassword = GenerateSystemPassword();
 
             var user = new User
             {
                 Username = dto.Username,
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(systemPassword, workFactor: 12),
                 Email = normalizedEmail,
                 MfaEnabled = dto.MfaEnabled,
-                Status = dto.Status ? UserStatus.active : UserStatus.inactive,
+                //Status = dto.Status ? UserStatus.active : UserStatus.inactive,
+                Status = UserStatus.New, // New users,after paswrod reset becomes active
                 PhoneNumber = dto.PhoneNumber,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
+                EmailGroupId = dto.EmailGroupId,
                 UserGroup = new UserGroup
                 {
                     GroupId = dto.GroupId
@@ -147,13 +157,24 @@ namespace EVWebApi.Services
             await _uow.CompleteAsync();
 
             var updatedUser = await _uow.Users.GetByIdAsync(user.UserId);
+            var mappeduser = _mapper.Map<UserDto>(updatedUser);
 
+            // Generate password reset token and send welcome email
             var token = _authService.GeneratePasswordResetJwtAsync(updatedUser);
+            var resetUrl= string.Empty;
 
-            //var resetUrl = $"{_frontendRoot}reset_password?token={Uri.EscapeDataString(token)}";
-            var resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+            if (mappeduser.UserType=="external")
+            {
+                 resetUrl = $"{_pdfviewer}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+            }
+            else
+            {
+                 resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+            }
 
-            await _emailSender.SendAsync(
+            var send= await _emailSender.SendAsync(
+              ReplyTo:null,
+              UserName: null,
                toEmail: user.Email,
                 subject: $"Welcome to {_displayName}",
                 htmlBody: $@"
@@ -230,13 +251,18 @@ namespace EVWebApi.Services
             );
 
 
-            return _mapper.Map<UserDto>(updatedUser);
+            //return _mapper.Map<UserDto>(updatedUser);
+            if(!send)
+            {
+                throw new Exception("User created but failed to send welcome email.");
+            }
+            return mappeduser;
         }
 
 
         public async Task<UserDto> UpdateAsync(UpdateUserDto dto)
         {
-            var user = await _uow.Users.GetByIdAsync(dto.UserId);
+            var user = await _userRepo.GetByIdAsync(dto.UserId);
             if (user == null) 
                 throw new NotFoundException($"User with id {dto.UserId} not found");
 
@@ -257,15 +283,10 @@ namespace EVWebApi.Services
             if (dto.MfaEnabled.HasValue) user.MfaEnabled = dto.MfaEnabled.Value;
             if (dto.MfaMethod.HasValue) user.MfaMethod = dto.MfaMethod;
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PhoneNumber = dto.PhoneNumber;
-            if (dto.EmailVerified.HasValue) user.EmailVerified = dto.EmailVerified.Value;
-            if (dto.Status)
-            {
-                user.Status = UserStatus.active;
-            }
-            else
-            {
-                user.Status = UserStatus.inactive;
-            }
+            //if (dto.EmailVerified.HasValue) user.EmailVerified = dto.EmailVerified.Value;
+            if (dto.Status.HasValue) user.Status = dto.Status.Value;
+            
+
 
 
             if (dto.GroupId != 0)
@@ -283,7 +304,7 @@ namespace EVWebApi.Services
                     user.UserGroup.GroupId = dto.GroupId;
                 }
             }
-
+            if(dto.EmailGroupId.HasValue) user.EmailGroupId = dto.EmailGroupId;
             user.UpdatedAt = DateTime.UtcNow;
 
 
@@ -305,6 +326,22 @@ namespace EVWebApi.Services
            
             //_uow.Users.Remove(user);
             await _uow.CompleteAsync();
+        }
+
+        public async Task<List<EmailGroupUserDto>> GetUserByEmailGroupAsync(int groupid)
+        {
+            var users=await _uow.Groups.GetUsersByEmailGroupIdAsync(groupid);
+            if (!users.Any())
+                throw new Exception("No users found in this group");
+            return users;
+        }
+
+        //hlper method to generate random password
+        private static string GenerateSystemPassword()
+        {
+            return Convert.ToBase64String(
+                RandomNumberGenerator.GetBytes(64)
+            );
         }
     }
 }

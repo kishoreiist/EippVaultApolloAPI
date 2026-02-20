@@ -8,7 +8,7 @@ public class AuditLog {
     [Column("log_id")]
     public int LogId { get; set; }
     [Column("user_id")]
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
     [Column("action")]
     public string Action { get; set; }
     [Column("mfa_attempt")]

@@ -19,12 +19,22 @@ namespace EVWebApi.Interfaces.Repositories
         Task<string> GetDocumentName(int id);
         void AddDocumentRange(Document doc);
 
+        Task<int> GetDocumentIdFromPathAsync(string filePath); //need to check
         //--------NOTES----------------
         Task<List<NotesDto>> GetDocumentWithNotesAsync(int documentId);
         Task<Notes> AddNoteAsync(Notes note);
         void  UpdateNote(Notes note);
         void DeleteNote(Notes note);
         Task<Notes> GetNoteByIdAsync(long id);
+        //----------------------- doc download link----------------
+
+        Task CreateDocDownloadLinkAsync(IEnumerable<DocDownloadLink> entities);
+        Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int? userid);
+
+        Task<DocDownloadLink>GetByIdDownloadLinkAsync(int docid,int userid);
+        Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId, IEnumerable<int> documentIds);
+
+        Task<int> CounterDocumentDownload(int docid, int? userid);
 
     }
 }

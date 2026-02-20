@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Data;
 using EVWebApi.Interfaces.Repositories;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EVWebApi.Repositories
 {
@@ -29,9 +30,22 @@ namespace EVWebApi.Repositories
         }
 
 
+        //begin transaction
+        public async Task<IDbContextTransaction> BeginTransactionAsync()
+        {
+            return await _context.Database.BeginTransactionAsync();
+        }
+        //commit
         public async Task<int> CompleteAsync()
         {
             return await _context.SaveChangesAsync();
+        }
+
+        //rollback
+        public async Task RollbackTransactionAsync(IDbContextTransaction transaction)
+        {
+            if (transaction != null)
+                await transaction.RollbackAsync();
         }
     }
 }

@@ -1,16 +1,18 @@
 ﻿using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
+using EVWebApi.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Interfaces.Services
 {
     public interface IDocumentService
     {
-        Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int CurrentUserId);
+        Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int? CurrentUserId);
         Task<DocumentResponseDto> GetDocument(int id);
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
-        Task<PagedResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
+        Task<GroupedPaginationResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
         Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto);
         Task<DocumentStreamResultDTO?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
@@ -21,13 +23,14 @@ namespace EVWebApi.Interfaces.Services
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
         Task<List<string>> GetDocTypeAsync();
 
-        Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int currentuserid);
-        Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int currentuserid);
-        Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int userId);
+        Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid);
+        Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid);
+        Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int? userId);
 
         Task<List<string>> GetSuggestionsAsync(AutoSuggestionRequestDto dto);
         Task<object> GetAutoFillAsync(AutoFillRequestDto dto);
 
+        Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId);
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------
@@ -36,5 +39,18 @@ namespace EVWebApi.Interfaces.Services
         Task<NotesDto> CreateNoteAsync(NoteCreateDto dto, string CurrentUsername);
         Task<NotesDto> UpdateNoteAsync(NoteUpdateDto dto);
         Task<string> DeleteNoteAsync(long noteId);
+
+        //--------------DOCUMENT DOWNLOAD LINK------------
+        //Task IncrementDownloadCountAsync(int linkId);
+        //Task<DocDownloadLink?> ValidateLinkAsync(string token, string? password = null);
+        //Task<DownloadLinkDto> CreateLinkAsync(int documentId, int expiresInDays = 3, int maxDownloads = 2);
+
+
+        Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int? userid);
+
+        Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int? userid);
+
+        Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId);
+        Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto);
     }
 }

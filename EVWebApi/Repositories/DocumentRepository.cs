@@ -1,10 +1,12 @@
-﻿using EVWebApi.Data;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using EVWebApi.Data;
 using EVWebApi.DTOs.Document;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EVWebApi.Repositories
 {
@@ -17,7 +19,7 @@ namespace EVWebApi.Repositories
             _context = context;
         }
 
-            // ---------------- CREATE DOCUMENT -------------------
+        // ---------------- CREATE DOCUMENT -------------------
         public async Task<Document> CreateDocument(Document doc)
         {
             _context.Documents.Add(doc);
@@ -38,7 +40,7 @@ namespace EVWebApi.Repositories
                 .Include(d => d.MetadataList)
                 .Include(d => d.Notes)
                 .Include(d => d.DocumentType)
-                
+
                 .FirstOrDefaultAsync(d => d.DocumentId == id);
 
             if (doc == null)
@@ -102,7 +104,7 @@ namespace EVWebApi.Repositories
         public async Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId)
         {
             var files = await _context.Documents
-        .Where(d => d.CabinetId == cabinetId && d.Status=="active")
+        .Where(d => d.CabinetId == cabinetId && d.Status == "active")
         .Select(d => new DocumentFileExplorer
         {
             DocumentId = d.DocumentId,
@@ -115,7 +117,7 @@ namespace EVWebApi.Repositories
         }
 
 
-       //-----------GET NOTES BY DOC ID FROM DB------------------
+        //-----------GET NOTES BY DOC ID FROM DB------------------
         public override async Task<Document?> GetByIdAsync(int id)
         {
             return await Query()
@@ -180,7 +182,7 @@ namespace EVWebApi.Repositories
         //-----------CREATE-------------------
         public async Task<Notes> AddNoteAsync(Notes note)
         {
-            
+
             _context.Notes.Add(note);
             await _context.SaveChangesAsync();
             return note;
@@ -224,6 +226,96 @@ namespace EVWebApi.Repositories
         public async Task<Notes> GetNoteByIdAsync(long id)
         {
             return await _context.Notes.FindAsync(id);
+        }
+
+
+        //------------------GET DOC ID FROM FILE PATH-------------------
+        public async Task<int> GetDocumentIdFromPathAsync(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new BadRequestException("File path is empty");
+
+            // Normalize path (slashes)
+            var normalizedPath = filePath.Replace("\\", "/");
+
+            var doc = await _context.Documents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.FilePath.Replace("\\", "/") == normalizedPath);
+
+            return doc.DocumentId;
+        }
+
+        //--------DOCUMENT DOWNLOAD LINK----------------
+
+        public async Task CreateDocDownloadLinkAsync(IEnumerable<DocDownloadLink> entities)
+        {
+            await _context.DocumentLink.AddRangeAsync(entities);
+
+        }
+        //to fetch all active document download links for a user in pdf viewer app
+        public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int? userid)
+        {
+            var docLink = await _context.DocumentLink
+                .Where(d => d.UserId == userid)
+                .Where(d => d.ExpiryDate > DateTime.UtcNow)
+                .Where(d=>d.CurrentDownloads<d.MaxDownloads)
+                .OrderBy(d => d.ExpiryDate)
+                .Select(d => new DocDownloadGetDTO
+                {
+                    DocumentId = d.DocumentId,
+                    ExpiresAt = d.ExpiryDate,
+                    RemainingDownloads = d.MaxDownloads-d.CurrentDownloads,
+                    FileName = d.Document.FileName
+                })
+                 .ToListAsync();
+            //if (docLink == null || !docLink.Any())
+            //    throw new NotFoundException("No download link found for the user.");
+            return docLink;
+        }
+
+        public async Task<DocDownloadLink> GetByIdDownloadLinkAsync(int docid, int userid)
+        {
+            var docLink = await _context.DocumentLink
+                .FirstOrDefaultAsync(d => d.DocumentId == docid && d.UserId == userid);
+            if (docLink == null)
+                throw new NotFoundException("Download link not found.");
+            return docLink;
+        }
+
+        //to determine the active document ids in the list for which download email have sent
+        public async Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId,IEnumerable<int> documentIds)
+        {
+            if (documentIds == null || !documentIds.Any())
+                return new List<int>();
+
+            return await _context.DocumentLink
+                .Where(d =>
+                    d.UserId == userId &&
+                    documentIds.Contains(d.DocumentId) &&
+                    d.ExpiryDate > DateTime.UtcNow && d.CurrentDownloads<d.MaxDownloads)
+                .Select(d => d.DocumentId)
+                .ToListAsync();
+        }
+
+        //atomic  counter increment
+        public async Task<int> CounterDocumentDownload(int docid, int? userid)
+        {
+            var rowsincremented = await _context.DocumentLink
+            .Where(d =>
+                d.DocumentId == docid &&
+                d.UserId == userid &&
+                d.ExpiryDate > DateTime.UtcNow &&
+                d.CurrentDownloads < d.MaxDownloads)
+            .ExecuteUpdateAsync(setters =>
+                setters.SetProperty(
+                    d => d.CurrentDownloads,
+                    d => d.CurrentDownloads + 1)
+                .SetProperty(
+                    d => d.UpdatedAt,
+                    d => DateTime.UtcNow)
+
+                );
+            return rowsincremented;// can return count of updated rows , so can update more than 1 doc id
         }
     }
 }

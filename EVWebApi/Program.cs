@@ -179,8 +179,14 @@ builder.Services.Configure<FormOptions>(options =>
 var app = builder.Build();
 
 // Middleware
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+//app.UseSwagger();
+//app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseRouting();

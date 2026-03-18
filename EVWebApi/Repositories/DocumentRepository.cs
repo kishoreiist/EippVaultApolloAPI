@@ -253,7 +253,7 @@ namespace EVWebApi.Repositories
 
         }
         //to fetch all active document download links for a user in pdf viewer app
-        public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int userid)
+        public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int? userid)
         {
             var docLink = await _context.DocumentLink
                 .Where(d => d.UserId == userid)
@@ -298,7 +298,7 @@ namespace EVWebApi.Repositories
         }
 
         //atomic  counter increment
-        public async Task<int> CounterDocumentDownload(int docid, int userid)
+        public async Task<int> CounterDocumentDownload(int docid, int? userid)
         {
             var rowsincremented = await _context.DocumentLink
             .Where(d =>

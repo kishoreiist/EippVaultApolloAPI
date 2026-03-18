@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.Exceptions;
@@ -5,14 +6,19 @@ using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
+using EVWebApi.Models.Security;
 using EVWebApi.Services;
 using EVWebAPI.Controllers;
+using Humanizer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Org.BouncyCastle.Crypto.Generators;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using static SkiaSharp.HarfBuzz.SKShaper;
 
 public class AuthService : IAuthService
 {
@@ -21,13 +27,35 @@ public class AuthService : IAuthService
     private readonly IMfaService _mfaService;
     private readonly ILogger<AuthService> _logger;
     private readonly IAuditLogService _auditlogservice;
-
-    public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService, ILogger<AuthService> logger, IAuditLogService auditlogservice) {
+    private readonly IEmailSender _emailSender;
+    private readonly string _frontendRoot;
+    private readonly string _displayName;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ISecurityFailureService _securityserv;
+    private readonly ISessionService _sessionService;
+    private readonly IUserSessionRepository _sessionRepo;
+    private readonly AppDbContext _context;
+    private readonly IMemoryCache _cache;
+    public AuthService(IUserRepository userRepo, IConfiguration config, IMfaService mfaService, ILogger<AuthService> logger,
+        IAuditLogService auditlogservice, IHttpContextAccessor httpContextAccessor, IEmailSender emailSender, 
+        ISecurityFailureService securityserv, AppDbContext context, ISessionService sessionService, IUserSessionRepository sessionRepo, IMemoryCache cache)
+    {
         _userRepo = userRepo;
         _config = config;
         _mfaService = mfaService;
         _logger = logger;
         _auditlogservice = auditlogservice;
+        _httpContextAccessor = httpContextAccessor;
+
+        _emailSender = emailSender;
+        _frontendRoot = config["Frontend:BaseUrl"];
+        _displayName = config["Email:DisplayName"];
+        _securityserv = securityserv;
+        _context = context;
+        _sessionService = sessionService;
+        _sessionRepo = sessionRepo;
+        _cache = cache;
+        // _notificationService = notificationService;
     }
     public async Task<AuthResult> AuthenticateAsync(LoginRequestDTO dto)
     {
@@ -52,8 +80,40 @@ public class AuthService : IAuthService
         ? await _userRepo.GetByEmailAsync(email)
         : await _userRepo.GetByUsernameAsync(username!);
 
+        
+
+
         if (user == null)
-            throw new NotFoundException("User not found");
+            throw new AuthorizationException("Invalid credentials");//giving generic error message
+        
+        _httpContextAccessor.HttpContext!.Items["UserId"] = user.UserId;
+
+        if (user.Status == UserStatus.New)//to resrtict login for NEW user before passwrd reset
+            throw new AccountNotActivatedException("Account not activated");
+
+        if (user.Status == UserStatus.Disabled || user.Status == UserStatus.Deleted )//to resrtict login 
+            throw new AccountDeletedException("Non-Existing/Deleted/Disabled Account");
+
+
+
+        if (user.Status == UserStatus.Locked)//to resrtict login for users locked by admin(inactivated by user)
+        {
+            bool isLocked = await _securityserv.IsUserLockedAsync(user.UserId);
+            if (!isLocked)
+            {
+                // Transition from Locked -> New as lock expied, to allow password reset and reactivation by user
+                user.Status = UserStatus.New;
+                _userRepo.Update(user);
+                await _userRepo.SaveChangesAsync();
+
+                //  trigger the email 
+                await PasswordResetSendEmailAsync(user);
+
+                throw new LockedException("Your temporary lock has expired. A reactivation link has been sent to your email.");
+            }
+            throw new AccountDisabledException("Account is locked by admin");
+        }
+
 
         bool validPassword;
 
@@ -69,87 +129,201 @@ public class AuthService : IAuthService
         if (!validPassword)
             throw new AuthenticationException("Invalid email or password");
 
+        
+
+        //to allow login only with password
+        user.EmailVerified = true;
+        _userRepo.Update(user);
+        await _userRepo.SaveChangesAsync();
+
         if (user.MfaEnabled)
         {
-            //return "MFA_REQUIRED";
-
+           
             return new AuthResult
             {
                 MfaRequired = true,
                 UserId = user.UserId,
                 UserName = user.Username,
-                Email=user.Email
+                Email=user.Email,
+                EmailVerified = user.EmailVerified,
             };
         }
-        //return GenerateJwtToken(user);
-        //normal login
+
+        //normal login for first time user
         return new AuthResult
         {
-            MfaRequired = false,
-            Token = GenerateJwtToken(user),
+            MfaRequired = false,//as not activated
+            //Token = GenerateJwtToken(user),
             UserId = user.UserId,
             UserName = user.Username,
-            Email = user.Email
+            EmailVerified = user.EmailVerified,
+            Email = user.Email,
         };
 
     }
+    //-------------------------JWT TOKEN GENERATION-----------------
 
-    public async Task<string> GenerateJwtAfterMfaAsync(string email) {
+    //public string GenerateRefreshToken()
+    //{
+    //    var randomBytes = new byte[64];
+    //    using var rng = RandomNumberGenerator.Create();
+    //    rng.GetBytes(randomBytes);
+    //    return Convert.ToBase64String(randomBytes);
+    //}
+
+    //public string HashToken(string token)
+    //{
+    //    using var sha = SHA256.Create();
+    //    var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(token));
+    //    return Convert.ToBase64String(bytes);
+    //}
+
+    public async Task<VerifyMfaResponseDto> GenerateJwtAfterMfaAsync(string email) {
         var user = await _userRepo.GetByEmailAsync(email);
         if (user == null)
             throw new NotFoundException("User not found");
-        return GenerateJwtToken(user);
+
+        //var userType = await _context.UserGroups
+        //.Where(x => x.UserId == user.UserId)
+        //.Select(x => x.Group.UserType)
+        //.FirstOrDefaultAsync() ?? string.Empty;
+
+        var userType = await _userRepo.GetUserType(user.UserId);
+
+        //creting access & refresh token and session
+        var refreshToken = RefreshTokenHelper.GenerateRefreshToken();
+        var refreshTokenHash = RefreshTokenHelper.HashToken(refreshToken);
+
+        var session = await _sessionService.CreateLoginSessionAsync(user, refreshTokenHash);
+        var accessToken = GenerateJwtToken(user, userType, session);
+        return new VerifyMfaResponseDto
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            SessionId = session.SessionId
+        };
     }
 
-    private string GenerateJwtToken(User user) {
+    private string GenerateJwtToken(User user, string userType,UserSession session) {
 
 
         if (user == null)
             throw new BadRequestException("User object is null");
 
-        var key = _config["Jwt:Key"];
+        //var key = _config["Jwt:Key"];
         var issuer = _config["Jwt:Issuer"];
         var audience = _config["Jwt:Audience"];
 
-        if (string.IsNullOrEmpty(key))
-            throw new InvalidOperationException("JWT Key is missing in configuration.");
+        //if (string.IsNullOrEmpty(key))
+        //    throw new InvalidOperationException("JWT Key is missing in configuration.");
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        //var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        //var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        // Using RSA asymmetric keys for signing JWTs---RsaSha256
+        var rsa = RSA.Create();
+        var privateKeyPath = _config["Jwt:PrivateKeyPath"];
+        rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
+
+        var securityKey = new RsaSecurityKey(rsa);
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
 
         var claims = new [] {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
+            new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
             new Claim("userId", user.UserId.ToString()),
             new Claim("username", user.Username),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Role, userType),
+            new Claim("session_id", session.SessionId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Jti, session.JwtId.ToString()),
         };
-       
+
+
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            //expires: DateTime.UtcNow.AddHours(1),
+            expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: credentials
         );
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    public async Task<RefreshResultDTO> RefreshAsync(string refreshToken)
+    {
+        var hashedToken = RefreshTokenHelper.HashToken(refreshToken);
+
+        var session = await _sessionRepo.GetByRefreshTokenHashAsync(hashedToken);
+
+        if (session == null)
+            return new RefreshResultDTO { Success = false };
+
+        if (session.IsRevoked)
+            return new RefreshResultDTO { Success = false };
+
+        if (session.ExpiresAt < DateTime.UtcNow)
+            return new RefreshResultDTO { Success = false };
+
+        // Idle timeout check (20 minutes)
+        if (session.LastActivityAt.AddMinutes(20) < DateTime.UtcNow)
+        {
+            //session.IsRevoked = true;
+            session.RevokedAt = DateTime.UtcNow;
+            await _sessionRepo.UpdateAsync(session);
+
+            return new RefreshResultDTO { Success = false };
+        }
+
+        var user = await _userRepo.GetByIdAsync(session.UserId);
+        if (user == null)
+            return new RefreshResultDTO { Success = false };
+
+        var userType = await _userRepo.GetUserType(user.UserId);
+
+        // ROTATE refresh token
+        var newRefreshToken = RefreshTokenHelper.GenerateRefreshToken();
+        var newRefreshHash = RefreshTokenHelper.HashToken(newRefreshToken);
+        _cache.Set(newRefreshHash, user.UserId, TimeSpan.FromMinutes(5));
+        session.RefreshTokenHash = newRefreshHash;
+        session.JwtId = Guid.NewGuid();
+        session.LastActivityAt = DateTime.UtcNow;
+
+        await _sessionRepo.UpdateAsync(session);
+
+        var newAccessToken = GenerateJwtToken(user, userType, session);
+
+        return new RefreshResultDTO
+        {
+            Success = true,
+            AccessToken = newAccessToken,
+            RefreshToken = newRefreshToken
+        };
+    }
+
+    //-------------------------------------------------------//
     public string GeneratePasswordResetJwtAsync(User user)
     {
         if (user == null)
             throw new BadRequestException("User object is null");
 
 
-        var key = _config["Jwt:Key"];
+        //var key = _config["Jwt:Key"];
         var issuer = _config["Jwt:Issuer"];
         var audience = _config["Jwt:Audience"];
+        var privateKeyPath = _config["Jwt:PrivateKeyPath"];
 
-        if (string.IsNullOrEmpty(key))
-            throw new InvalidOperationException("JWT Key is missing in configuration.");
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        //if (string.IsNullOrEmpty(key))
+        //    throw new InvalidOperationException("JWT Key is missing in configuration.");
 
+        //var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        //var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
+
+        var securityKey = new RsaSecurityKey(rsa);
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
 
         var claims = new[] {
         new Claim("userId", user.UserId.ToString()), 
@@ -168,21 +342,28 @@ public class AuthService : IAuthService
     }
     public async Task PasswordResetAsync(string token, string password)
     {
-       
+
         if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(password))
         {
             throw new BadRequestException("Token and new password are required.");
         }
         // repeting same block to add security as password reset endpoint is open to the public(can't do authroization)
 
-        var jwtSecret = _config.GetValue<string>("Jwt:Key");
+        //var jwtSecret = _config.GetValue<string>("Jwt:Key");
         var tokenHandler = new JwtSecurityTokenHandler();
 
-        
+        var publicKeyPath = _config["Jwt:PublicKeyPath"];
+
+        // Load PUBLIC key for validation
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(File.ReadAllText(publicKeyPath));
+
+
         var validationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            //IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            IssuerSigningKey = new RsaSecurityKey(rsa),
             ValidateIssuer = true,
             ValidIssuer = _config.GetValue<string>("Jwt:Issuer"),
             ValidateAudience = true,
@@ -196,7 +377,7 @@ public class AuthService : IAuthService
 
         try
         {
-         
+
             principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
 
             var purposeClaim = principal.FindFirst("purpose");
@@ -221,22 +402,86 @@ public class AuthService : IAuthService
             throw new AuthorizationException("Invalid password reset token.");
         }
 
-       
+
         var user = await _userRepo.GetByIdAsync(userId);
 
         if (user == null)
         {
             throw new NotFoundException("User not found.");
         }
+        if (user.Status == UserStatus.Active || user.Status==UserStatus.New)
+        {
+            var validatedPassword = PasswordValidationHelper.Validate(password, user.Username, user.FirstName, user.LastName, user.Email);
 
+            if (!validatedPassword.IsValid)
+            {
+                throw new BadRequestException(validatedPassword.Error);
+            }
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
+            user.Status = UserStatus.Active; // Ensure account is active after password reset
+
+            _userRepo.Update(user);
+            await _userRepo.SaveChangesAsync();
+
+
+            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Reset Password");
+        }
+        else
+        {
+             throw new AuthorizationException("Unauthorized action");
+        }
+    
+    }
+    public async Task<bool> PasswordResetSendEmailAsync(User user)
+    {
+
+
+        var token = GeneratePasswordResetJwtAsync(user);
+
+        var resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";
+        string htmlbody;
+        string subject;
+
+            subject = $"{_displayName} - Security Alert: Account Locked";
+            htmlbody = $"""
+                <p>Dear User,</p>
+                <p>Multiple failed login attempts were detected. For your security, your account has been deactivated.</p>
+                <p><strong>To reactivate your account, please reset your password using the below button.</strong></p>
+                <!-- Button -->
+                    <table width='100%' cellpadding='0' cellspacing='0' style='margin:32px 0;'>
+                      <tr>
+                        <td align='left'>
+                          <a href='{resetUrl}' target='_blank'
+                             style='background:#2563eb;color:#ffffff;
+                                    text-decoration:none;padding:14px 32px;
+                                    border-radius:6px;font-size:16px;
+                                    display:inline-block;'>
+                            Reset Password
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                <p>This link expires in 30 minutes.</p>
+                <br/><br/>
+                    Regards,<br/>
+                    {_displayName} Team
+                """;
         
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
 
-        _userRepo.Update(user);
-        await _userRepo.SaveChangesAsync();
+        var sent = await _emailSender.SendAsync(
+             ReplyTo: null,
+             UserName: null,
+           toEmail: user.Email,
+            subject: subject,
+           htmlBody: htmlbody
+        );
 
-
-        await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Reset Password");
+        if (sent)
+        {
+            return true;
+        }
+        else 
+        { return false; }
 
     }
 

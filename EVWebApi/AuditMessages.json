@@ -13,7 +13,8 @@
 
       "Document Retrieved": "{username} accessed documents in the {cabinetName} cabinet. {filters}",
       "Viewed Document": "{username} accessed document in the {cabinetName} cabinet. File Name : {target}",
-      "PDF View": "{username} viewed pdf document.",
+      "Document View": "{username} viewed a document.",
+      "Document Download": "{username} downloaded a document.",
       "Document Updated": "{username} modified a document in the  {cabinetName} cabinet.",
       "Document Uploaded": "{username} successfully uploaded a document to the {cabinetName} cabinet. {filters} , File Name : '{target}'",
       "Document Upload Failed": "{username} attempted to upload document to the {cabinetName} cabinet,the operation failed.  Error details : {target}.",
@@ -30,12 +31,18 @@
       "Download": "{username} downloaded the document.",
       "PDF SPLIT": "{username} splitted and extracted Pages {target}, in {cabinetName} cabinet.",
       "Excel Patch": "{username} updated a excel document in {cabinetName} cabinet.",
+      "Excel open": "{username} have viewed an excel document with {filters}.",
+      "Excel open fail": "{username} have tried viewing an excel document with {filters} but failed.",
+
+
       "Email Sent": "{username} send an email.{filters}",
+      "Email Send Failed": "{username} request to send an email but failed.{filters}",
+
       "Login Successful": "{username} authenticated successfully. {filters}",
       "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
       "MFA Verified": "MFA verified successfully & authentication token issued for {username}. {filters}",
       "Logout Successful": "User {username} logged out successfully.",
-
+      "Initial Login Successful": "{username} initial login after account creation is sucessful. {filters}",
 
       "Download items Generated": "{username} fetched all accessible documents",
       "Document Link Email Sent": "{username} send an document download link email to the users in email group {target}.",
@@ -43,7 +50,12 @@
 
       "Forgot Password": "{username} requested a password reset link. {filters}",
       "Forgot Username": "{username} requested username details via forgot username. {filters}",
-      "Reset Password": "{username} has successfully reset the account password. {filters}"
+      "Reset Password": "{username} has successfully reset the account password. {filters}",
+
+      "BlackList IPs Retrieved": "{username} fetched all blacklisted ip details. {filters}",
+      "Locked users Retrieved": "{username} fetched all locked users details. {filters}",
+      "UnLocked Users": "{username} unlocked a locked user.Details: {target}.",
+      "Removed IP from blacklist": "{username} whitelisted an blocked ip address. Details: {target}."
     },
     "Default": {
       "Message": "Executed action: {action} on module: {module}. Record: {target}.Details - {filters}"

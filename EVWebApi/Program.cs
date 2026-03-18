@@ -1,5 +1,7 @@
+using EVWebApi.BackgroundServices;
 using EVWebApi.Data;
 using EVWebApi.DTOs;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Interfaces.Services.MetaDataReaders;
@@ -9,18 +11,26 @@ using EVWebApi.Models;
 using EVWebApi.Repositories;
 using EVWebApi.Services;
 using EVWebApi.Services.MetadataReaders;
+using EVWebApi.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
-using System.Reflection.Metadata;
-using System.Text;
 using Syncfusion.Licensing;
+using System.Reflection.Metadata;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.RateLimiting;
+
 
 
 
@@ -58,6 +68,7 @@ builder.Services.AddScoped<IMfaRepository, MfaRepository>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IMetadataRepository, MetadataRepository>();
 builder.Services.AddScoped<ICabinetRepository, CabinetRepository>();
+builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
 
 // 4. Add Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -71,6 +82,7 @@ builder.Services.AddScoped<IMfaService, MfaService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IDocumentGroupingService, DocumentGroupingService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<ISecurityAdminService, SecurityAdminService>();
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddHttpContextAccessor();
@@ -87,20 +99,59 @@ builder.Services.AddScoped<IMetadataReaderService, XmlMetadataReaderService>();
 builder.Services.AddScoped<IMetadataReaderService, TxtMetadataReaderService>();
 builder.Services.AddScoped<IMetadataReaderFactoryService, MetadataReaderFactoryService>();
 
+builder.Services.AddScoped<ISecurityFailureService, SecurityFailureService>();
+builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddHostedService<SessionCleanupService>();
+
+builder.Services.AddScoped<BuildCookieOptionHelper>();
+
+
+
+builder.Services.AddMemoryCache();
+
+builder.Services.Configure<AllowedIpSettings>(
+    builder.Configuration.GetSection("Allowed"));
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var publicKeyPath = builder.Configuration["Jwt:PublicKeyPath"];
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(File.ReadAllText(publicKeyPath));
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.NameIdentifier,
+
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+            //IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+            IssuerSigningKey = new RsaSecurityKey(rsa)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Try header first 
+                var token = context.Request.Headers["Authorization"]
+                    .FirstOrDefault()?.Split(" ").Last();
+
+                // If no header, try cookie
+                if (string.IsNullOrEmpty(token))
+                {
+                    token = context.Request.Cookies["access_token"];
+                }
+
+                context.Token = token;
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -118,26 +169,40 @@ builder.Services.AddControllers()
                 false // do not allow integers
             )
         );
-    });
+    }); 
 
 // 7. Enable CORS (allow frontend)
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("RestrictedCors", policy =>
+
+    //"AllowAll", policy =>
     {
-        //policy.AllowAnyOrigin()
-        //      .AllowAnyMethod()
-        //      .AllowAnyHeader();
 
-        policy.SetIsOriginAllowed(origin => true)
-          .AllowAnyMethod()
-          .AllowAnyHeader()
-          .AllowCredentials();
+    //policy.SetIsOriginAllowed(origin => true)
+    //  .AllowAnyMethod()
+    //  .AllowAnyHeader()
+    //  .AllowCredentials();
 
-        // policy.WithOrigins("https://yourfrontenddomain.com", "http://localhost:4200")////need to change before last deplymnt
-        //.AllowAnyMethod()
-        //.AllowAnyHeader()
-        //.AllowCredentials();
+    policy.SetIsOriginAllowed(origin =>
+    {
+        if (string.IsNullOrWhiteSpace(origin))
+            return false;
+
+        if (origin.StartsWith("http://localhost"))
+            return true;
+
+        var allowed = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? Array.Empty<string>();
+
+        return allowed.Any(o =>
+                string.Equals(o, origin, StringComparison.OrdinalIgnoreCase));
+    })
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .AllowCredentials();
+
     });
 });
 
@@ -176,28 +241,57 @@ builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 200 * 1024 * 1024; // 200 MB
 });
+
+
+
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365); // 1 year
+    options.IncludeSubDomains = true;
+    options.Preload = true;
+});
+// Rate Limiting for refresh endpoint
+
+builder.Services.AddScoped<RefreshRateLimitPolicy>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy<string, RefreshRateLimitPolicy>("RefreshPolicy");
+});
+
+
 var app = builder.Build();
 
-// Middleware
+// swagger conditional enable
 if (app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-//app.UseSwagger();
-//app.UseSwaggerUI();
+app.UseForwardedHeaders();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+
 
 app.UseHttpsRedirection();
 app.UseRouting();
-app.UseCors("AllowAll");
+app.UseRateLimiter();
+app.UseCors("RestrictedCors");
+
+//middlewares
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SecurityFailureTrackingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 
 app.UseAuthentication();
+app.UseMiddleware<SessionValidationMiddleware>();
 app.UseAuthorization();
 
-// Map Controllers
+
 app.MapControllers();
 
 app.Run();

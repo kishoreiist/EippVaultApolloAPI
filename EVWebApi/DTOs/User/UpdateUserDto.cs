@@ -14,13 +14,13 @@ namespace EVWebApi.DTOs.User
 
         public int GroupId { get; set; }
 
-        public bool Status { get; set; }
+        public UserStatus? Status { get; set; }
 
         public int? EmailGroupId { get; set; }
         public bool? MfaEnabled { get; set; }
         public MfaMethod? MfaMethod { get; set; }
         public string? PhoneNumber { get; set; }
-        public bool? EmailVerified { get; set; }
+        //public bool? EmailVerified { get; set; }
 
     }
 }

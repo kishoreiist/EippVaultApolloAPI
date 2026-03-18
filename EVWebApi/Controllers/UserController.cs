@@ -26,17 +26,28 @@ namespace EVWebApi.Controllers
            
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] UserQueryParameters query)
         {
-            var users = await _userService.GetAllAsync(query);
-            string filterDetails = query.ToFilterLog();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "All Records Retrieved", null,filters: filterDetails);
-            return Ok(users);
+            try
+            {
+                var users = await _userService.GetAllAsync(query);
+                string filterDetails = query.ToFilterLog();
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "All Records Retrieved", null, filters: filterDetails);
+                return Ok(users);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "User Fetch failed",
+                    Error = ex.Message
+                });
+            }
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
@@ -46,16 +57,27 @@ namespace EVWebApi.Controllers
             return Ok(user);
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
-            var created = await _userService.CreateAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "User created", created.Username);
-            return CreatedAtAction(nameof(Get), new { id = created.UserId }, created);
+            try
+            {
+                var created = await _userService.CreateAsync(dto);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "User", "User created", created.Username);
+                return CreatedAtAction(nameof(Get), new { id = created.UserId }, created);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "User creation failed",
+                    Error = ex.Message
+                });
+            }
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
@@ -66,7 +88,7 @@ namespace EVWebApi.Controllers
             return Ok(updated);
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

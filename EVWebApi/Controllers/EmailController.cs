@@ -1,4 +1,5 @@
 ﻿using EVWebApi.DTOs;
+using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
@@ -35,7 +36,7 @@ namespace EVWebApi.Controllers
 
             try
             {
-                await _emailSender.SendAsync(
+                var send=await _emailSender.SendAsync(
                     toEmail: request.To,
                     ReplyTo: null,
                     UserName:null,
@@ -44,10 +45,18 @@ namespace EVWebApi.Controllers
                     attachmentFilePaths: request.AttachmentPaths,
                     ccEmails: request.Cc
                 );
-                var filters = request.ToFilterLog("Details - ");
+                if (send)
+                {
 
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email", "Email Sent", null, null, null, filters: filters);
-                return Ok(new { message = "Email sent successfully." });
+                    var filters = request.ToFilterLog("Details - ");
+
+                    await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email", "Email Sent", null, null, null, filters: filters);
+                    return Ok(new { message = "Email sent successfully." });
+                }
+                else
+                {
+                    throw new BadRequestException("Failed to send email");
+                }
             }
             catch (Exception ex)
             {

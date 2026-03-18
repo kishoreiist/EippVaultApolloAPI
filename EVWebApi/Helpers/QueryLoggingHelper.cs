@@ -31,7 +31,10 @@ namespace EVWebApi.Helpers
             "ResetCode",
             "Password",
             "Action",
-            "TotalProcessed"
+            "TotalProcessed",
+            "DocumentId",
+            "RowCount",
+            "StartRow"
 
         };
 

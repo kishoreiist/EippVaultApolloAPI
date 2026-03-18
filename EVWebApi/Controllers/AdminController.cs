@@ -13,7 +13,7 @@ namespace EVWebApi.Controllers
     [Authorize]
     [ApiController]
     [Route("api/admin")]
-    public class AdminController : ControllerBase
+    public class AdminController : BaseController
     {
         private readonly IAuditLogService _auditLogService;
         private readonly NpgsqlDataSource _dataSource;
@@ -23,21 +23,22 @@ namespace EVWebApi.Controllers
             _dataSource = dataSource;
         }
 
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("logs")]
         public async Task<IActionResult> GetAuditLogs([FromQuery] AuditLogQueryParameters query)
         {
-            var result = await _auditLogService.GetLogsAsync(query);
+            var result = await _auditLogService.GetLogsAsync(query, CurrentUserId, CurrentUserType);
             return Ok(result);
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("privileges")]
         public async Task<IActionResult> GetPrivilegeConfiguration()
         {
             var result = await _auditLogService.GetPrivilegeConfigurationAsync();
             return Ok(result);
         }
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("logs/export")]
         public async Task ExportCsv(
             [FromQuery] int pagenumber,
@@ -51,11 +52,12 @@ namespace EVWebApi.Controllers
             Response.Headers.Add("Content-Disposition", "attachment; filename=audit_logs.csv");
             await _auditLogService.ExportLogsToCsvAsync(
                 pagenumber,
-                pagesize,
+                pagesize, CurrentUserId, CurrentUserType,
                 Response.Body,
                 search,
                 fromDate,
                 toDate
+               
             );
         }
 

@@ -1,4 +1,5 @@
-﻿using EVWebApi.Data;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using EVWebApi.Data;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
@@ -43,13 +44,14 @@ namespace EVWebApi.Repositories
                     .ThenInclude(ug => ug.Group)
                         .ThenInclude(g => g.GroupCabinets)
                             .ThenInclude(c=>c.Cabinet)
-                .Where(u => u.Status != UserStatus.locked)
+                .Where(u => u.Status != UserStatus.Deleted && u.Status != UserStatus.Locked)
+                .OrderBy(u=>u.UserId)
                 .AsQueryable();
         }
 
         public void SoftDelete(User user)
         {
-            user.Status = UserStatus.locked;
+            user.Status = UserStatus.Deleted;
             user.UpdatedAt = DateTime.UtcNow;
             
             _dbSet.Update(user);
@@ -60,5 +62,13 @@ namespace EVWebApi.Repositories
             return await _context.SaveChangesAsync();
         }
 
+        public async Task<string> GetUserType(int userId)
+        {
+            var userType = await _context.UserGroups
+            .Where(x => x.UserId == userId)
+            .Select(x => x.Group.UserType)
+            .FirstOrDefaultAsync() ?? string.Empty;
+            return userType;
+        }
     }
 }

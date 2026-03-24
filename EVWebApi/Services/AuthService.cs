@@ -71,27 +71,30 @@ public class AuthService : IAuthService
         return await AuthenticateAsync(username, email, dto.Password);
     }
 
-    public async Task<AuthResult> AuthenticateAsync(string? username,string? email, string password) 
+    public async Task<AuthResult> AuthenticateAsync(string? username, string? email, string password)
     {
         if (string.IsNullOrWhiteSpace(username) && string.IsNullOrWhiteSpace(email))
             throw new ArgumentException("Either username or email must be provided");
-        
+
         var user = email is not null
         ? await _userRepo.GetByEmailAsync(email)
         : await _userRepo.GetByUsernameAsync(username!);
 
-        
+
 
 
         if (user == null)
+        {
+            await Task.Delay(Random.Shared.Next(400, 900));
             throw new AuthorizationException("Invalid credentials");//giving generic error message
-        
+        }
+
         _httpContextAccessor.HttpContext!.Items["UserId"] = user.UserId;
 
         if (user.Status == UserStatus.New)//to resrtict login for NEW user before passwrd reset
             throw new AccountNotActivatedException("Account not activated");
 
-        if (user.Status == UserStatus.Disabled || user.Status == UserStatus.Deleted )//to resrtict login 
+        if (user.Status == UserStatus.Disabled || user.Status == UserStatus.Deleted)//to resrtict login 
             throw new AccountDeletedException("Non-Existing/Deleted/Disabled Account");
 
 
@@ -127,8 +130,10 @@ public class AuthService : IAuthService
             throw new AuthenticationException("Password verification failed");
         }
         if (!validPassword)
+        {
+            await Task.Delay(Random.Shared.Next(400, 900));
             throw new AuthenticationException("Invalid email or password");
-
+        }
         
 
         //to allow login only with password
@@ -181,7 +186,7 @@ public class AuthService : IAuthService
     public async Task<VerifyMfaResponseDto> GenerateJwtAfterMfaAsync(string email) {
         var user = await _userRepo.GetByEmailAsync(email);
         if (user == null)
-            throw new NotFoundException("User not found");
+            throw new NotFoundException("Invalid Credentials");
 
         //var userType = await _context.UserGroups
         //.Where(x => x.UserId == user.UserId)
@@ -210,15 +215,9 @@ public class AuthService : IAuthService
         if (user == null)
             throw new BadRequestException("User object is null");
 
-        //var key = _config["Jwt:Key"];
         var issuer = _config["Jwt:Issuer"];
         var audience = _config["Jwt:Audience"];
 
-        //if (string.IsNullOrEmpty(key))
-        //    throw new InvalidOperationException("JWT Key is missing in configuration.");
-
-        //var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        //var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
         // Using RSA asymmetric keys for signing JWTs---RsaSha256
         var rsa = RSA.Create();
@@ -407,7 +406,7 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            throw new NotFoundException("User not found.");
+            throw new NotFoundException("Invalid Credentials");
         }
         if (user.Status == UserStatus.Active || user.Status==UserStatus.New)
         {

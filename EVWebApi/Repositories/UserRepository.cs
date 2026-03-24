@@ -70,5 +70,12 @@ namespace EVWebApi.Repositories
             .FirstOrDefaultAsync() ?? string.Empty;
             return userType;
         }
+
+        public async Task<User?> GetByIdIncludingLockedAsync(int id)
+        {
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.UserId == id
+                                      && u.Status != UserStatus.Deleted);
+        }
     }
 }

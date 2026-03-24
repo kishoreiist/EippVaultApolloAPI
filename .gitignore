@@ -56,3 +56,11 @@ dist/
 
 # Docker
 docker-compose.override.yml
+# JWT Keys
+keys/
+*.pem
+
+# Build folders
+bin/
+obj/
+

@@ -137,7 +137,8 @@ namespace EVWebApi.Services
 
         public async Task<bool> UnlockUserAsync(int userId,int? currentuserid)
         {
-            var user = await _userRepo.GetByIdAsync(userId);
+            //var user = await _userRepo.GetByIdAsync(userId);
+            var user = await _userRepo.GetByIdIncludingLockedAsync(userId);
             if (user == null || user.Status!=UserStatus.Locked)
                 throw new NotFoundException($"No existing lock for this user.");
 

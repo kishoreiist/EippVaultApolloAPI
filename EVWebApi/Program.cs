@@ -104,7 +104,8 @@ builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
 
 builder.Services.AddScoped<BuildCookieOptionHelper>();
-
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ICloudFareTurnstileService, CloudFareTurnstileService>();
 
 
 builder.Services.AddMemoryCache();
@@ -284,6 +285,8 @@ app.UseCors("RestrictedCors");
 //middlewares
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<BotDetectionMiddleware>();
+
 app.UseMiddleware<SecurityFailureTrackingMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 

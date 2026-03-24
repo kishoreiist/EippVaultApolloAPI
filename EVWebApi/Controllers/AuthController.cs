@@ -5,6 +5,7 @@ using EVWebApi.DTOs;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
+using EVWebApi.Helpers.Security;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -69,7 +70,7 @@ namespace EVWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 
-        public async Task<IActionResult> Login([FromBody] LoginRequestDTO request, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Login([FromBody] LoginRequestDTO request, [FromServices] ICloudFareTurnstileService turnstileService, CancellationToken cancellationToken = default )
         {
             Response.Headers.CacheControl = "no-store";
             Response.Headers.Pragma = "no-cache";
@@ -79,12 +80,43 @@ namespace EVWebAPI.Controllers
             if (!ModelState.IsValid) 
                 throw new ValidationException("Invalid login payload");
 
-          
+            //added for fingerprint login limiting
+            var fingerprint = RequestFingerprintHelper.GetFingerprint(HttpContext);
+            FingerprintLoginAttemptTracker.RegisterAttempt(fingerprint);
+            if (FingerprintLoginAttemptTracker.IsLimitExceeded(fingerprint))
+            {
+                _logger.LogWarning("Login threshold exceeded");
+
+                await Task.Delay(800, cancellationToken);
+
+                return StatusCode(StatusCodes.Status429TooManyRequests, new
+                {
+                    message = "Too many login attempts. Please try again shortly."
+                });
+            }
+
+            //captcha triggr
+            bool captchaRequired = FingerprintLoginAttemptTracker.IsCaptchaRequired(fingerprint);
+
+            if (captchaRequired)
+            {
+                if (string.IsNullOrEmpty(request.CaptchaToken))
+                {
+                    return StatusCode(StatusCodes.Status428PreconditionRequired, new { status = "CAPTCHA_REQUIRED", message = "Captcha required" });
+                }
+
+                var isHuman = await turnstileService.ValidateAsync(request.CaptchaToken);
+                if (!isHuman)
+                {
+                    return StatusCode(StatusCodes.Status400BadRequest, new { status = "CAPTCHA_FAILED", message = "Failed CAPTCHA verification" });
+                }
+                FingerprintLoginAttemptTracker.Reset(fingerprint);
+            }
+
             var result = await _authService.AuthenticateAsync(request);
             var Reqfilters = request.ToFilterLog("Login Detail :  ");
             
-            //try
-            //{
+           
                 if (result.MfaRequired)
                 {
                     _logger.LogInformation("MFA required for {UserName}", result.UserName);
@@ -106,22 +138,6 @@ namespace EVWebAPI.Controllers
 
                 }
             throw new AuthenticationException("Invalid email or password");
-            //else
-            //{
-            //    throw new AuthenticationException("Invalid email or password");
-
-            //}
-            //}
-            //catch (Exception ex)
-            //{
-            //_logger.LogError(ex, "Error during MFA initiation for {UserName}", result.UserName);
-            //return StatusCode(500, new
-            //{
-            //    Message = $"Error during MFA initiation for {result.UserName}",
-            //    Error = ex.Message
-            //});
-            //}
-
 
         }
 
@@ -143,7 +159,7 @@ namespace EVWebAPI.Controllers
             var user = await _userRepo.GetByEmailAsync(request.Email);
 
             if (user == null)
-                throw new NotFoundException("User not found");
+                throw new NotFoundException("Invalid Credentials");
             if (user.EmailVerified || request.IsResend==true)
             {
                 if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
@@ -280,27 +296,6 @@ namespace EVWebAPI.Controllers
                 var authResult = await _authService.GenerateJwtAfterMfaAsync(request.Email);
                 var userDto = await _userService.GetByIdAsync(user.UserId);
                 var isHttps = Request.IsHttps;//to hanlde http in demo
-                //Response.Cookies.Append("access_token", authResult.AccessToken, new CookieOptions
-                //{
-                //    HttpOnly = true,
-                //    Secure = isHttps,
-                //    SameSite = SameSiteMode.Strict,
-                //    Expires = DateTime.UtcNow.AddMinutes(15)
-                //});
-
-                //Response.Cookies.Append("refresh_token", authResult.RefreshToken, new CookieOptions
-                //{
-                //    HttpOnly = true,
-                //    Secure = isHttps,
-                //    SameSite = SameSiteMode.Strict,
-                //    Expires = DateTime.UtcNow.AddHours(4)
-                //});
-
-                //Response.Cookies.Append(
-                //    "access_token",
-                //    authResult.AccessToken,
-                //    _cookieHelper.Build(DateTime.UtcNow.AddMinutes(15), HttpContext)
-                //);
 
                 Response.Cookies.Append(
                     "refresh_token",

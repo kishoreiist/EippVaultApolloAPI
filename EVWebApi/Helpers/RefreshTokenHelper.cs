@@ -6,12 +6,7 @@ namespace EVWebApi.Helpers
 {
     public class RefreshTokenHelper
     {
-        //public static string HashToken(string token)
-        //{
-        //    using var sha =SHA256.Create();
-        //    var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(token));
-        //    return Convert.ToBase64String(bytes);
-        //}
+
         public static string HashToken(string token)
         {
             byte[] inputBytes = Encoding.UTF8.GetBytes(token);

@@ -12,5 +12,6 @@ namespace EVWebApi.Interfaces.Repositories
         IQueryable<User> Query();
         void SoftDelete(User user);
         Task <string> GetUserType(int userId);
+        Task<User?> GetByIdIncludingLockedAsync(int id);
     }
 }

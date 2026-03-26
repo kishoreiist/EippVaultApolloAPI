@@ -41,6 +41,8 @@ namespace EVWebApi.Data
         public DbSet<IpPermanentLockLog> IpPermanentLockLogs { get; set; }
         public DbSet<IpFailureRecord> IpFailureRecords { get; set; }
         public DbSet<UserSession> UserSessions { get; set; }
+        public DbSet<UserPasswordHistory> UserPasswords { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
            
@@ -73,6 +75,8 @@ namespace EVWebApi.Data
             modelBuilder.Entity<IpPermanentLockLog>().ToTable("ip_permanent_lock_log");
             modelBuilder.Entity<IpFailureRecord>().ToTable("ip_failure_record");
             modelBuilder.Entity<UserSession>().ToTable("user_sessions");
+            modelBuilder.Entity<UserPasswordHistory>().ToTable("user_password_history");
+
 
             // -------------------
             // Primary Keys
@@ -84,6 +88,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<DocumentTypes>().HasKey(d => d.Id);
             modelBuilder.Entity<CabinetGroupingRule>().HasKey(d => d.Id);
             modelBuilder.Entity<UserSession>().HasKey(d => d.Id);
+            modelBuilder.Entity<UserPasswordHistory>().HasKey(d => d.Id);
 
             modelBuilder.Entity<UserGroup>()
                 .HasKey(ug => new { ug.UserId, ug.GroupId });
@@ -219,6 +224,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<UserMfaToken>().Property(e => e.ExpiresAt).HasColumnName("expires_at");
             modelBuilder.Entity<UserMfaToken>().Property(e => e.UserId).HasColumnName("user_id");
             modelBuilder.Entity<UserMfaToken>().Property(e => e.Used).HasColumnName("used");
+            modelBuilder.Entity<User>().Property(u => u.PasswordChangedAt).HasColumnName("password_changed_at");
 
 
             modelBuilder.Entity<User>()

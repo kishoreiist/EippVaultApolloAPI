@@ -1,4 +1,5 @@
 ﻿using EVWebApi.Models;
+using EVWebApi.Models.Security;
 using EVWebApi.Repositories;
 
 namespace EVWebApi.Interfaces.Repositories
@@ -13,5 +14,11 @@ namespace EVWebApi.Interfaces.Repositories
         void SoftDelete(User user);
         Task <string> GetUserType(int userId);
         Task<User?> GetByIdIncludingLockedAsync(int id);
+
+        //user passwrd history
+        Task DeleteOlderPasswordsAsync(int userId, int keepLast);
+        Task AddPasswordHistoryAsync(UserPasswordHistory entity);
+        Task<List<UserPasswordHistory>> GetLast5PasswordsAsync(int userId);
+
     }
 }

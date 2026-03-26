@@ -30,7 +30,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
-
+using Prometheus;
 
 
 
@@ -275,7 +275,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-
+app.UseHttpMetrics();
 
 app.UseHttpsRedirection();
 app.UseRouting();
@@ -294,6 +294,8 @@ app.UseAuthentication();
 app.UseMiddleware<SessionValidationMiddleware>();
 app.UseAuthorization();
 
+app.UseMiddleware<MetricsAuthorizationMiddleware>();
+app.MapMetrics();
 
 app.MapControllers();
 

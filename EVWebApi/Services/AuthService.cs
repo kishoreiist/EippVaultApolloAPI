@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.Data;
 using EVWebApi.DTOs;
+using EVWebApi.Enums;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
@@ -80,13 +81,10 @@ public class AuthService : IAuthService
         ? await _userRepo.GetByEmailAsync(email)
         : await _userRepo.GetByUsernameAsync(username!);
 
-
-
-
         if (user == null)
         {
             await Task.Delay(Random.Shared.Next(400, 900));
-            throw new AuthorizationException("Invalid credentials");//giving generic error message
+            throw new NotFoundException("Invalid credentials");//giving generic error message
         }
 
         _httpContextAccessor.HttpContext!.Items["UserId"] = user.UserId;
@@ -110,7 +108,7 @@ public class AuthService : IAuthService
                 await _userRepo.SaveChangesAsync();
 
                 //  trigger the email 
-                await PasswordResetSendEmailAsync(user);
+                await PasswordResetSendEmailAsync(user, PasswordEmailType.AccountLocked);
 
                 throw new LockedException("Your temporary lock has expired. A reactivation link has been sent to your email.");
             }
@@ -134,13 +132,21 @@ public class AuthService : IAuthService
             await Task.Delay(Random.Shared.Next(400, 900));
             throw new AuthenticationException("Invalid email or password");
         }
-        
 
-        //to allow login only with password
+        if (user.PasswordChangedAt.HasValue && user.PasswordChangedAt.Value.AddDays(90) < DateTime.UtcNow)
+        {
+            //to allow login only with password
+            user.EmailVerified = true;
+            _userRepo.Update(user);
+            await _userRepo.SaveChangesAsync();
+            await PasswordResetSendEmailAsync(user, PasswordEmailType.PasswordExpired);
+
+            throw new PasswordExpiredException($"Password expired. Reset link sent to email- {user.Email}");
+        }
+
         user.EmailVerified = true;
         _userRepo.Update(user);
         await _userRepo.SaveChangesAsync();
-
         if (user.MfaEnabled)
         {
            
@@ -405,33 +411,84 @@ public class AuthService : IAuthService
         var user = await _userRepo.GetByIdAsync(userId);
 
         if (user == null)
-        {
-            throw new NotFoundException("Invalid Credentials");
-        }
-        if (user.Status == UserStatus.Active || user.Status==UserStatus.New)
-        {
-            var validatedPassword = PasswordValidationHelper.Validate(password, user.Username, user.FirstName, user.LastName, user.Email);
+            throw new NotFoundException("Invalid Creentials");
 
-            if (!validatedPassword.IsValid)
+        if (user.Status != UserStatus.Active && user.Status != UserStatus.New)
+            throw new AuthorizationException("Unauthorized action");
+
+        var validatedPassword = PasswordValidationHelper.Validate(password, user.Username, user.FirstName, user.LastName, user.Email);
+        if (!validatedPassword.IsValid)
+            throw new BadRequestException(validatedPassword.Error);
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            // Prevent reuse (last 5)
+            var lastPasswords = await _userRepo.GetLast5PasswordsAsync(user.UserId);
+
+            foreach (var old in lastPasswords)
             {
-                throw new BadRequestException(validatedPassword.Error);
+                if (BCrypt.Net.BCrypt.Verify(password, old.PasswordHash))
+                    throw new PasswordReuseException("You cannot reuse your last 5 passwords.");
             }
+
+            //Save current password to history
+            await _userRepo.AddPasswordHistoryAsync(new UserPasswordHistory
+            {
+                UserId = user.UserId,
+                PasswordHash = user.PasswordHash,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            //Update new password
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
-            user.Status = UserStatus.Active; // Ensure account is active after password reset
+            user.Status = UserStatus.Active;
+            user.PasswordChangedAt = DateTime.UtcNow;
 
             _userRepo.Update(user);
+
+            // Keep only last 5
+            await _userRepo.DeleteOlderPasswordsAsync(user.UserId, 5);
+
             await _userRepo.SaveChangesAsync();
 
+            await transaction.CommitAsync();
 
-            await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Reset Password");
+            await _auditlogservice.LogAsync(
+                user.UserId,
+                user.Username,
+                "Login",
+                "Reset Password");
         }
-        else
+        catch
         {
-             throw new AuthorizationException("Unauthorized action");
+            await transaction.RollbackAsync();
+            throw;
         }
-    
+
+        //if (user.Status == UserStatus.Active || user.Status==UserStatus.New)
+        //{
+        //    var validatedPassword = PasswordValidationHelper.Validate(password, user.Username, user.FirstName, user.LastName, user.Email);
+
+        //    if (!validatedPassword.IsValid)
+        //    {
+        //        throw new BadRequestException(validatedPassword.Error);
+        //    }
+        //    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
+        //    user.Status = UserStatus.Active; // Ensure account is active after password reset
+
+        //    _userRepo.Update(user);
+        //    await _userRepo.SaveChangesAsync();
+
+
+        //    await _auditlogservice.LogAsync(user.UserId, user.Username, "Login", "Reset Password");
+        //}
+        //else
+        //{
+        //     throw new AuthorizationException("Unauthorized action");
+        //}
+
     }
-    public async Task<bool> PasswordResetSendEmailAsync(User user)
+    public async Task<bool> PasswordResetSendEmailAsync(User user, PasswordEmailType type)
     {
 
 
@@ -441,32 +498,43 @@ public class AuthService : IAuthService
         string htmlbody;
         string subject;
 
-            subject = $"{_displayName} - Security Alert: Account Locked";
-            htmlbody = $"""
+        switch (type)
+        {
+            case PasswordEmailType.PasswordExpired:
+                subject = $"{_displayName} - Password Expired";
+                htmlbody = $"""
                 <p>Dear User,</p>
-                <p>Multiple failed login attempts were detected. For your security, your account has been deactivated.</p>
-                <p><strong>To reactivate your account, please reset your password using the below button.</strong></p>
-                <!-- Button -->
-                    <table width='100%' cellpadding='0' cellspacing='0' style='margin:32px 0;'>
-                      <tr>
-                        <td align='left'>
-                          <a href='{resetUrl}' target='_blank'
-                             style='background:#2563eb;color:#ffffff;
-                                    text-decoration:none;padding:14px 32px;
-                                    border-radius:6px;font-size:16px;
-                                    display:inline-block;'>
-                            Reset Password
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
+                <p>Your password has expired (90 days policy).</p>
+                <p>Please reset your password using the button below.</p>
+                {BuildResetButton(resetUrl)}
                 <p>This link expires in 30 minutes.</p>
-                <br/><br/>
-                    Regards,<br/>
-                    {_displayName} Team
+                <br/><br/>Regards,<br/>{_displayName} Team
                 """;
-        
+                break;
 
+            case PasswordEmailType.AccountLocked:
+                subject = $"{_displayName} - Security Alert: Account Locked";
+                htmlbody = $"""
+                <p>Dear User,</p>
+                <p>Multiple failed login attempts were detected.</p>
+                <p>Your account has been temporarily locked.</p>
+                <p><strong>To reactivate your account, please reset your password using the below button.</strong></p>
+                {BuildResetButton(resetUrl)}
+                <p>This link expires in 30 minutes.</p>
+                <br/><br/>Regards,<br/>{_displayName} Team
+                """;
+                break;
+            default:
+                subject = $"{_displayName} - Reset Password";
+                htmlbody = $"""
+                <p>Dear User,</p>
+                <p>Please reset your password.</p>
+                {BuildResetButton(resetUrl)}
+                <p>This link expires in 30 minutes.</p>
+                <br/><br/>Regards,<br/>{_displayName} Team
+                """;
+                break;
+        }
         var sent = await _emailSender.SendAsync(
              ReplyTo: null,
              UserName: null,
@@ -479,9 +547,27 @@ public class AuthService : IAuthService
         {
             return true;
         }
-        else 
+        else
         { return false; }
 
+    }
+    private string BuildResetButton(string url)
+    {
+        return $"""
+        <table width='100%' cellpadding='0' cellspacing='0' style='margin:32px 0;'>
+          <tr>
+            <td align='left'>
+              <a href='{url}' target='_blank'
+                 style='background:#2563eb;color:#ffffff;
+                        text-decoration:none;padding:14px 32px;
+                        border-radius:6px;font-size:16px;
+                        display:inline-block;'>
+                Reset Password
+              </a>
+            </td>
+          </tr>
+        </table>
+        """;
     }
 
 }

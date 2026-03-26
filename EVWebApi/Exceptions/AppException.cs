@@ -80,4 +80,15 @@ namespace EVWebApi.Exceptions
         public IpBlacklistedException(string message)
             : base(message, 403) { }
     }
+    public class PasswordExpiredException : AppException
+    {
+        public bool ForcedPasswordReset { get; } = true;
+        public PasswordExpiredException(string message)
+            : base(message, 403) { }
+    }
+    public class PasswordReuseException : AppException
+    {
+        public PasswordReuseException(string message)
+            : base(message, 400) { }
+    }
 }

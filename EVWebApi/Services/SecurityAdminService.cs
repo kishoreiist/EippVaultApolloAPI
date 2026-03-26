@@ -157,7 +157,7 @@ namespace EVWebApi.Services
                 lockEntry.LockedUntil = DateTime.UtcNow;
                 user.Status = UserStatus.New;
                 await _context.SaveChangesAsync();
-                await _authService.PasswordResetSendEmailAsync(user);
+                await _authService.PasswordResetSendEmailAsync(user,Enums.PasswordEmailType.AccountLocked);
                 await transaction.CommitAsync();
                 return true;
             }

@@ -1,4 +1,5 @@
 ﻿using EVWebApi.DTOs;
+using EVWebApi.Enums;
 using EVWebApi.Models;
 
 namespace EVWebApi.Interfaces.Services
@@ -12,7 +13,9 @@ namespace EVWebApi.Interfaces.Services
         Task PasswordResetAsync(string token, string password);
 
         Task<RefreshResultDTO> RefreshAsync(string refreshToken);
-        Task<bool> PasswordResetSendEmailAsync(User user);
+        //Task<bool> PasswordResetSendEmailAsync(User user);
+        Task<bool> PasswordResetSendEmailAsync(User user, PasswordEmailType type);
+
 
     }
 }

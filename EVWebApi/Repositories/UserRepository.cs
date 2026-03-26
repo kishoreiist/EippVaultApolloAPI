@@ -2,6 +2,7 @@
 using EVWebApi.Data;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
+using EVWebApi.Models.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace EVWebApi.Repositories
@@ -76,6 +77,30 @@ namespace EVWebApi.Repositories
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.UserId == id
                                       && u.Status != UserStatus.Deleted);
+        }
+
+        //USER PASSWORD METHODS
+        public async Task<List<UserPasswordHistory>> GetLast5PasswordsAsync(int userId)
+        {
+            return await _context.UserPasswords
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(5)
+                .ToListAsync();
+        }
+        public async Task AddPasswordHistoryAsync(UserPasswordHistory entity)
+        {
+            await _context.UserPasswords.AddAsync(entity);
+        }
+        public async Task DeleteOlderPasswordsAsync(int userId, int keepLast)
+        {
+            var toDelete = await _context.UserPasswords
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedAt)
+                .Skip(keepLast)
+                .ToListAsync();
+
+            _context.UserPasswords.RemoveRange(toDelete);
         }
     }
 }

@@ -41,6 +41,8 @@ namespace EVWebApi.Models
 
 
         public DateTime CreatedAt { get; set; }
+        public DateTime? PasswordChangedAt { get; set; } = DateTime.UtcNow;
+
         public DateTime UpdatedAt { get; set; }
 
         //email entity level normalization

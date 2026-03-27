@@ -1,6 +1,7 @@
 ﻿using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace EVWebApi.Controllers
 {
@@ -11,7 +12,10 @@ namespace EVWebApi.Controllers
         protected string CurrentUsername =>
              User.FindFirst("username")?.Value ?? string.Empty;
 
+        //protected string CurrentUserType =>
+        //     User.FindFirst("usertype")?.Value ?? string.Empty;
+
         protected string CurrentUserType =>
-             User.FindFirst("usertype")?.Value ?? string.Empty;
+            User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
     }
 }

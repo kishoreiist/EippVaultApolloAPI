@@ -123,7 +123,7 @@ namespace EVWebApi.Controllers
                 return Ok(response);
 
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(500, "An error occurred while fetching dashboard data.");
 

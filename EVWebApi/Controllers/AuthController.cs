@@ -106,19 +106,34 @@ namespace EVWebAPI.Controllers
                 }
 
                 var isHuman = await turnstileService.ValidateAsync(request.CaptchaToken);
+                //------------------------testing-------------------------------//
+                //bool isHuman;
+                //if (request.CaptchaToken == "DUMMY_TOKEN_123")
+                //{
+                //    isHuman = true; // Force success for testing
+                //}
+                //else
+                //{
+                //    isHuman = await turnstileService.ValidateAsync(request.CaptchaToken);
+                //}
+                //-----------------------------------------------------------------///
                 if (!isHuman)
                 {
+                    //FingerprintLoginAttemptTracker.RegisterAttempt(fingerprint);
                     return StatusCode(StatusCodes.Status400BadRequest, new { status = "CAPTCHA_FAILED", message = "Failed CAPTCHA verification" });
                 }
                 FingerprintLoginAttemptTracker.Reset(fingerprint);
             }
+            try
+            {
 
-            var result = await _authService.AuthenticateAsync(request);
-            var Reqfilters = request.ToFilterLog("Login Detail :  ");
-            
+                var result = await _authService.AuthenticateAsync(request);
+                var Reqfilters = request.ToFilterLog("Login Detail :  ");
+                
            
                 if (result.MfaRequired)
                 {
+                    FingerprintLoginAttemptTracker.Reset(fingerprint);
                     _logger.LogInformation("MFA required for {UserName}", result.UserName);
                     // 202 Accepted: MFA flow was started (token generation & sending)
                     await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Login Successful", null, null, null, filters: Reqfilters);
@@ -130,6 +145,7 @@ namespace EVWebAPI.Controllers
                 }
                 else if (result.EmailVerified && !result.MfaRequired)
                 {
+                    FingerprintLoginAttemptTracker.Reset(fingerprint);
                     await _auditlogservice.LogAsync(result.UserId, result.UserName, "Login", "Initial Login Successful", null, null, null, filters: Reqfilters);
 
                     _logger.LogInformation("User {UserName} authenticated successfully", result.UserName);
@@ -137,8 +153,15 @@ namespace EVWebAPI.Controllers
                     return Ok(new { status = "MFA Enabled",email = result.Email });
 
                 }
-            throw new AuthenticationException("Invalid email or password");
+                //FingerprintLoginAttemptTracker.RegisterAttempt(fingerprint);
+                throw new AuthenticationException("Invalid email or password");
 
+            }
+            catch (AuthenticationException)
+            {
+
+                throw;
+            }
         }
 
 
@@ -164,7 +187,8 @@ namespace EVWebAPI.Controllers
             {
                 if (request.Method.Equals("GOOGLE", StringComparison.OrdinalIgnoreCase))
                 {
-                    var issuer = string.IsNullOrWhiteSpace(request.Issuer) ? "MyApp" : request.Issuer;
+                    //var issuer = string.IsNullOrWhiteSpace(request.Issuer) ? "MyApp" : request.Issuer;
+                    var issuer = _displayName;
 
 
                     if (user.MfaEnabled && user.MfaMethod == MfaMethod.authenticator)

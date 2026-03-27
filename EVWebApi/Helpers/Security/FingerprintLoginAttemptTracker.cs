@@ -15,12 +15,13 @@ namespace EVWebApi.Helpers.Security
         {
             var queue = _attempts.GetOrAdd(fingerprint, _ => new ConcurrentQueue<DateTime>());
             queue.Enqueue(DateTime.UtcNow);
+            Cleanup(fingerprint);
         }
 
         public static bool IsCaptchaRequired(string fingerprint)
         {
             Cleanup(fingerprint);
-            return _attempts.TryGetValue(fingerprint, out var q) && q.Count > CaptchaThreshold;
+            return _attempts.TryGetValue(fingerprint, out var q) && q.Count >= CaptchaThreshold;
         }
 
         public static bool IsLimitExceeded(string fingerprint)

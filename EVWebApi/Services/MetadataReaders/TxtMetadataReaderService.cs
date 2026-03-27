@@ -41,9 +41,12 @@ namespace EVWebApi.Services.MetadataReaders
             var lines = new List<string>();
 
             using var reader = new StreamReader(file.OpenReadStream());
-            while (!reader.EndOfStream && lines.Count < 5)
+            //while (!reader.EndOfStream && lines.Count < 5)
+            while (lines.Count < 5)
             {
                 var line = await reader.ReadLineAsync();
+                if (line == null)
+                    break;
                 if (!string.IsNullOrWhiteSpace(line))
                     lines.Add(line);
             }

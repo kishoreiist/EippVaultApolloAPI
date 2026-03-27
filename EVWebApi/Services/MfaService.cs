@@ -106,7 +106,8 @@ public class MfaService : IMfaService
             Enabled = false
         });
 
-        string issuer = "MyApp";
+        //string issuer = "MyApp";
+        string issuer = _displayName;
 
         string otpauthUrl = $"otpauth://totp/{issuer}:{email}?secret={base32Secret}&amp;issuer={issuer}";
 

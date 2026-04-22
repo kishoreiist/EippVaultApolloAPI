@@ -21,19 +21,19 @@
       "Document Delete": "{username} deleted a record from the {cabinetName} page.",
       "Batch Document Delete": "{username} deleted records from the {cabinetName} page. {filters}",
       "Export Merged PDF": "{username} exported pdf files in {cabinetName} cabinet.",
-      "Export ZIP File": "{username} exported pdf files in {cabinetName} cabinet into zip file.",
+      "Export File": "{username} exported datas in {cabinetName} cabinet into zip/excel file.",
       "File Explorer Accessed": "{username} accessed the files in {cabinetName} folder.",
       "Document Batch Upload": "{username} attempted to upload a batch of documents in {cabinetName} cabinet.{filters}",
       "Note Retrieved": "{username} retrieved note details",
       "Note Created": "{username} created a new note. Note Content - {target}",
       "Note Modified": "{username} updated a note. Note Content - {target}",
       "Note Deleted": "{username} deleted a note. Note Content - {target}",
-      "Download": "{username} downloaded the document.",
+      "Download-External": "External user - {username} downloaded the document.",
       "PDF SPLIT": "{username} splitted and extracted Pages {target}, in {cabinetName} cabinet.",
       "Excel Patch": "{username} updated a excel document in {cabinetName} cabinet.",
       "Excel open": "{username} have viewed an excel document with {filters}.",
       "Excel open fail": "{username} have tried viewing an excel document with {filters} but failed.",
-
+      "Export Excel": "{username} exported {module} data into excel file.",
 
       "Email Sent": "{username} send an email.{filters}",
       "Email Send Failed": "{username} request to send an email but failed.{filters}",
@@ -46,7 +46,7 @@
 
       "Download items Generated": "{username} fetched all accessible documents",
       "Document Link Email Sent": "{username} send an document download link email to the users in email group {target}.",
-      "Document Download Failed": "{username} attempted to download document & the operation failed.  Error details : {target}.",
+      "Download-External Failed": "External user -{username} attempted to download document & the operation failed.  Error details : {target}.",
 
       "Forgot Password": "{username} requested a password reset link. {filters}",
       "Forgot Username": "{username} requested username details via forgot username. {filters}",
@@ -54,7 +54,7 @@
 
       "BlackList IPs Retrieved": "{username} fetched all blacklisted ip details. {filters}",
       "Locked users Retrieved": "{username} fetched all locked users details. {filters}",
-      "UnLocked Users": "{username} unlocked a locked user.Details: {target}.",
+      "UnLocked User": "{username} unlocked a locked user.Details: {target}.",
       "Removed IP from blacklist": "{username} whitelisted an blocked ip address. Details: {target}."
     },
     "Default": {

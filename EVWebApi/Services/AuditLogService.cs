@@ -3,12 +3,15 @@ using EVWebApi.Data;
 using EVWebApi.DTOs.Audit;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
+using EVWebApi.DTOs.User;
 using EVWebApi.Helpers;
+using EVWebApi.Helpers.ExportToExcel;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Org.BouncyCastle.Utilities;
+using Syncfusion.XlsIO;
 using System.Text;
 using System.Threading;
 
@@ -95,16 +98,18 @@ namespace EVWebApi.Services
 
             // FILTERS
 
+
             if (query.FromDate.HasValue)
+            {
+                //var from = query.FromDate.Value.Date;
                 auditQuery = auditQuery.Where(a => a.Timestamp >= query.FromDate.Value);
+            }
 
             if (query.ToDate.HasValue)
             {
-                //auditQuery = auditQuery.Where(a => a.Timestamp <= query.ToDate.Value);
-                var toDateEnd = query.ToDate.Value.Date.AddDays(1).AddTicks(-1);
-                auditQuery = auditQuery.Where(a => a.Timestamp <= toDateEnd);
+                var to = query.ToDate.Value.Date.AddDays(1);
+                auditQuery = auditQuery.Where(a => a.Timestamp < to);
             }
-
             if (!string.IsNullOrWhiteSpace(query.search))
             {
                 string term = query.search.ToLower();
@@ -148,7 +153,6 @@ namespace EVWebApi.Services
                 PageSize = query.PageSize
             };
 
-            //return (logs, totalCount);
         }
 
         // EXPORT TO CSV
@@ -172,41 +176,46 @@ namespace EVWebApi.Services
             //int pagenumber = 0;
             //const int pagesize = 10; // reasonable chunk size
 
+            int page = pagenumber; // start from query param
             while (true)
             {
-
                 var query = new AuditLogQueryParameters
                 {
-                    PageNumber = pagenumber,
+                    PageNumber = page,
                     PageSize = pagesize,
                     search = search,
                     FromDate = fromDate,
                     ToDate = toDate
                 };
-                var result = await GetLogsAsync(query, userid, usertype);
+
+                var result = await GetLogsAsync(query, userid, usertype, cancellationToken);
                 var logsChunk = result.Data;
+
                 if (logsChunk == null || !logsChunk.Any())
                     break;
-                //var (logsChunk, _) = await GetLogsAsync(offset, limit, userName, module, action, fromDate, toDate, cancellationToken);
-                //if (logsChunk == null || !logsChunk.Any()) break;
 
                 foreach (var log in logsChunk)
                 {
-                        await writer.WriteLineAsync(
-                            $"{log.Timestamp:yyyy-MM-dd HH:mm:ss}," +
-                            $"{log.UserId}," + 
-                            $"\"{(log.UserName ?? string.Empty).Replace("\"", "\"\"")}\"," + 
-                            $"\"{(log.Module ?? string.Empty).Replace("\"", "\"\"")}\"," + 
-                            $"\"{(log.Action ?? string.Empty).Replace("\"", "\"\"")}\"," + 
-                            $"{(log.Target?.ToString() ?? string.Empty)}," +
-                            $"\"{(log.Details ?? string.Empty).Replace("\"", "\"\"")}\"," +
-                            $"{(log.IpAddress ?? string.Empty)}" 
+                    await writer.WriteLineAsync(
+                        $"{log.Timestamp:yyyy-MM-dd HH:mm:ss}," +
+                        $"{log.UserId}," +
+                        $"\"{(log.UserName ?? "").Replace("\"", "\"\"")}\"," +
+                        $"\"{(log.Module ?? "").Replace("\"", "\"\"")}\"," +
+                        $"\"{(log.Action ?? "").Replace("\"", "\"\"")}\"," +
+                        $"{log.Target}," +
+                        $"\"{(log.Details ?? "").Replace("\"", "\"\"")}\"," +
+                        $"{log.IpAddress}"
                     );
                 }
 
-                if (logsChunk.Count() < pagesize) break;
-                pagenumber += pagesize;
-            }
+                await writer.FlushAsync(); // make sure data is written to stream
+
+                if (logsChunk.Count() < pagesize)
+                    break;
+
+                page++; // increment page number by 1, not pagesize
+            
+        }
             //return Encoding.UTF8.GetBytes(sb.ToString());
             await writer.FlushAsync();
         }
@@ -257,6 +266,87 @@ namespace EVWebApi.Services
            .ToListAsync()
             };
         }
+
+        //export to excl
+
+        public async Task<(byte[], string)> AuditLogsExportToExcel(
+    AuditLogQueryParameters query, int? userId, string userType)
+        {
+            const int batchSize = 2000; // Industry-standard batch size
+            int pageNumber = 1;
+            query.PageSize = batchSize;
+
+            var columns = new List<string>
+            {
+                "UserName", "Action", "IP Address", "Module", "Timestamp", "Message"
+            };
+
+            using var excelEngine = new ExcelEngine();
+            IApplication app = excelEngine.Excel;
+            app.DefaultVersion = ExcelVersion.Xlsx;
+
+            var workbook = app.Workbooks.Create(1);
+            IWorksheet sheet = workbook.Worksheets[0];
+            sheet.Name = "AuditLogs";
+
+            // Write header
+            for (int c = 0; c < columns.Count; c++)
+                sheet.Range[1, c + 1].Text = columns[c];
+
+            sheet.Range[1, 1, 1, columns.Count].CellStyle.Font.Bold = true;
+
+            int row = 2;
+
+            while (true)
+            {
+                query.PageNumber = pageNumber;
+
+                var pagedLogs = await GetLogsAsync(query, userId, userType);
+
+                if (pagedLogs.Data == null || !pagedLogs.Data.Any())
+                    break;
+                var istZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+                foreach (var log in pagedLogs.Data)
+                {
+                    for (int c = 0; c < columns.Count; c++)
+                    {
+                        var value = ExcelColumnsHelper.GetLogColumnValue(log, columns[c]);
+
+                        //sheet.Range[row, c + 1].Text =
+                        //    value is DateTime dt ? dt.ToString("dd/MM/yyyy HH:mm:ss") : value?.ToString();
+
+                        if (value is DateTime dt)
+                        {
+                            var istTime = TimeZoneInfo.ConvertTimeFromUtc(dt, istZone);
+
+                            sheet.Range[row, c + 1].Text =
+                                istTime.ToString("dd/MM/yyyy HH:mm:ss");
+                        }
+                        else
+                        {
+                            sheet.Range[row, c + 1].Text = value?.ToString();
+                        }
+                    }
+                    row++;
+                }
+
+                // If fewer rows than batch, we are done
+                if (pagedLogs.Data.Count < batchSize)
+                    break;
+
+                pageNumber++;
+            }
+
+            sheet.UsedRange.AutofitColumns();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+
+            string fileName = $"AuditLogs_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.xlsx";
+
+            return (stream.ToArray(), fileName);
+        }
+
 
     }
 }

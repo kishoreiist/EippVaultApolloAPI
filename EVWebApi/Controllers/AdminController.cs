@@ -1,6 +1,8 @@
 ﻿using EVWebApi.DTOs.Audit;
+using EVWebApi.DTOs.User;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
+using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
@@ -27,7 +29,7 @@ namespace EVWebApi.Controllers
         [HttpGet("logs")]
         public async Task<IActionResult> GetAuditLogs([FromQuery] AuditLogQueryParameters query)
         {
-            var result = await _auditLogService.GetLogsAsync(query, CurrentUserId, CurrentUserType);
+            var result = await _auditLogService.GetLogsAsync(query, 43, "super_admin");
             return Ok(result);
         }
 
@@ -39,10 +41,10 @@ namespace EVWebApi.Controllers
             return Ok(result);
         }
         [Authorize(Roles = "admin,super_admin")]
-        [HttpGet("logs/export")]
-        public async Task ExportCsv(
-            [FromQuery] int pagenumber,
-            [FromQuery] int pagesize,
+        [HttpGet("export_csv")]
+        public async Task<IActionResult> ExportCsv(
+            [FromQuery] int pagenumber=1,
+            [FromQuery] int pagesize=100,
             [FromQuery] string? search = null,
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null
@@ -59,8 +61,20 @@ namespace EVWebApi.Controllers
                 toDate
                
             );
+            return new EmptyResult();
         }
 
+
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpPost("export_excel")]
+        public async Task<IActionResult> ExportLogs([FromQuery] AuditLogQueryParameters query)
+        {
+            var (bytes, fileName) = await _auditLogService.AuditLogsExportToExcel(query, CurrentUserId, CurrentUserType);
+            await _auditLogService.LogAsync(CurrentUserId, CurrentUsername, "Audit Logs", "Export Excel");
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
 
 
         [HttpGet("dashboard")]

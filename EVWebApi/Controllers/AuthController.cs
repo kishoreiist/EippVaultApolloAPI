@@ -320,11 +320,15 @@ namespace EVWebAPI.Controllers
                 var authResult = await _authService.GenerateJwtAfterMfaAsync(request.Email);
                 var userDto = await _userService.GetByIdAsync(user.UserId);
                 var isHttps = Request.IsHttps;//to hanlde http in demo
+                
+                // Always clear stale tokens first
+                Response.Cookies.Delete("access_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
+                Response.Cookies.Delete("refresh_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
 
                 Response.Cookies.Append(
                     "refresh_token",
                     authResult.RefreshToken,
-                    _cookieHelper.Build(DateTime.UtcNow.AddHours(4), HttpContext)
+                    _cookieHelper.Build(authResult.ExpiresAt, HttpContext)
                 );
 
                 _logger.LogInformation("MFA verified and JWT issued for {Email} using {Method}", request.Email, request.Method);
@@ -552,23 +556,16 @@ namespace EVWebAPI.Controllers
                 if (!result.Success)
                 {
                     _logger.LogWarning("Refresh token failed:Session expired / Invalid refresh token");
-                    return Forbid();
-                }
-                //Response.Cookies.Append("access_token", result.AccessToken, new CookieOptions
-                //{
-                //    HttpOnly = true,
-                //    Secure = Request.IsHttps,
-                //    SameSite = SameSiteMode.Strict,
-                //    Expires = DateTime.UtcNow.AddMinutes(15)
-                //});
+                    
 
-                //Response.Cookies.Append("refresh_token", result.RefreshToken, new CookieOptions
-                //{
-                //    HttpOnly = true,
-                //    Secure = Request.IsHttps,
-                //    SameSite = SameSiteMode.Strict,
-                //    Expires = DateTime.UtcNow.AddHours(4)
-                //});
+                    return StatusCode(403, new
+                    {
+                        Message = $"Refresh token failed:Session expired / Invalid refresh token"
+                       
+                    });
+                }
+                Response.Cookies.Delete("refresh_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
+                Response.Cookies.Delete("access_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
                 Response.Cookies.Append(
                     "access_token",
                     result.AccessToken,
@@ -578,7 +575,7 @@ namespace EVWebAPI.Controllers
                 Response.Cookies.Append(
                     "refresh_token",
                     result.RefreshToken,
-                    _cookieHelper.Build(DateTime.UtcNow.AddHours(4), HttpContext)
+                    _cookieHelper.Build(result.ExpiresAt, HttpContext)
                 );
 
 

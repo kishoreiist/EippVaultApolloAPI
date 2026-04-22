@@ -194,11 +194,6 @@ public class AuthService : IAuthService
         if (user == null)
             throw new NotFoundException("Invalid Credentials");
 
-        //var userType = await _context.UserGroups
-        //.Where(x => x.UserId == user.UserId)
-        //.Select(x => x.Group.UserType)
-        //.FirstOrDefaultAsync() ?? string.Empty;
-
         var userType = await _userRepo.GetUserType(user.UserId);
 
         //creting access & refresh token and session
@@ -211,7 +206,8 @@ public class AuthService : IAuthService
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
-            SessionId = session.SessionId
+            SessionId = session.SessionId,
+            ExpiresAt=session.ExpiresAt
         };
     }
 
@@ -243,13 +239,19 @@ public class AuthService : IAuthService
             new Claim(JwtRegisteredClaimNames.Jti, session.JwtId.ToString()),
         };
 
+        //making access token expiry never exceeds session expiry
+        var accessExpiry = DateTime.UtcNow.AddMinutes(15);
+
+        if (accessExpiry > session.ExpiresAt)
+        {
+            accessExpiry = session.ExpiresAt;
+        }
 
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,
-            //expires: DateTime.UtcNow.AddHours(1),
-            expires: DateTime.UtcNow.AddMinutes(15),
+            expires: accessExpiry,
             signingCredentials: credentials
         );
         return new JwtSecurityTokenHandler().WriteToken(token);
@@ -261,24 +263,21 @@ public class AuthService : IAuthService
 
         var session = await _sessionRepo.GetByRefreshTokenHashAsync(hashedToken);
 
-        if (session == null)
+        if (session == null || session.ExpiresAt < DateTime.UtcNow )
             return new RefreshResultDTO { Success = false };
 
         if (session.IsRevoked)
             return new RefreshResultDTO { Success = false };
 
-        if (session.ExpiresAt < DateTime.UtcNow)
-            return new RefreshResultDTO { Success = false };
-
         // Idle timeout check (20 minutes)
-        if (session.LastActivityAt.AddMinutes(20) < DateTime.UtcNow)
-        {
-            //session.IsRevoked = true;
-            session.RevokedAt = DateTime.UtcNow;
-            await _sessionRepo.UpdateAsync(session);
+        //if (session.LastActivityAt.AddMinutes(20) < DateTime.UtcNow)
+        //{
+        //    //session.IsRevoked = true;
+        //    session.RevokedAt = DateTime.UtcNow;
+        //    await _sessionRepo.UpdateAsync(session);
 
-            return new RefreshResultDTO { Success = false };
-        }
+        //    return new RefreshResultDTO { Success = false };
+        //}
 
         var user = await _userRepo.GetByIdAsync(session.UserId);
         if (user == null)
@@ -302,7 +301,8 @@ public class AuthService : IAuthService
         {
             Success = true,
             AccessToken = newAccessToken,
-            RefreshToken = newRefreshToken
+            RefreshToken = newRefreshToken,
+            ExpiresAt=session.ExpiresAt
         };
     }
 
@@ -490,8 +490,6 @@ public class AuthService : IAuthService
     }
     public async Task<bool> PasswordResetSendEmailAsync(User user, PasswordEmailType type)
     {
-
-
         var token = GeneratePasswordResetJwtAsync(user);
 
         var resetUrl = $"{_frontendRoot}reset_password?email={user.Email}&token={Uri.EscapeDataString(token)}";

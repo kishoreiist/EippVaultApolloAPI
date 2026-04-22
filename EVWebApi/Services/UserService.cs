@@ -6,6 +6,7 @@ using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
+using EVWebApi.Helpers.ExportToExcel;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -45,27 +46,27 @@ namespace EVWebApi.Services
 
         public async Task<PagedResponse<UserDto>> GetAllAsync(UserQueryParameters query)
         {
-            var usersQuery = _uow.Users.Query();
+            //var usersQuery = _uow.Users.Query();
+            var usersQuery = ApplyUserFilters(query);
+            //if (!string.IsNullOrWhiteSpace(query.Username))
+            //    usersQuery = usersQuery.Where(u => u.Username.Contains(query.Username));
 
-            if (!string.IsNullOrWhiteSpace(query.Username))
-                usersQuery = usersQuery.Where(u => u.Username.Contains(query.Username));
+            //if (!string.IsNullOrWhiteSpace(query.FirstName))
+            //    usersQuery = usersQuery.Where(u => u.FirstName.ToLower().Contains(query.FirstName.ToLower()));
 
-            if (!string.IsNullOrWhiteSpace(query.FirstName))
-                usersQuery = usersQuery.Where(u => u.FirstName.ToLower().Contains(query.FirstName.ToLower()));
+            //if (!string.IsNullOrWhiteSpace(query.LastName))
+            //    usersQuery = usersQuery.Where(u => u.LastName.ToLower().Contains(query.LastName.ToLower()));
 
-            if (!string.IsNullOrWhiteSpace(query.LastName))
-                usersQuery = usersQuery.Where(u => u.LastName.ToLower().Contains(query.LastName.ToLower()));
+            //if (!string.IsNullOrWhiteSpace(query.Email))
+            //    usersQuery = usersQuery.Where(u => u.Email.ToLower().Contains(query.Email.ToLower()));
 
-            if (!string.IsNullOrWhiteSpace(query.Email))
-                usersQuery = usersQuery.Where(u => u.Email.ToLower().Contains(query.Email.ToLower()));
-
-            if (!string.IsNullOrWhiteSpace(query.PhoneNumber))
-                usersQuery = usersQuery.Where(u => u.PhoneNumber.Contains(query.PhoneNumber));
+            //if (!string.IsNullOrWhiteSpace(query.PhoneNumber))
+            //    usersQuery = usersQuery.Where(u => u.PhoneNumber.Contains(query.PhoneNumber));
 
 
-            if (query.GroupId.HasValue)
-                usersQuery = usersQuery.Where(u => u.UserGroup != null &&
-                             u.UserGroup.Group.GroupId==query.GroupId.Value);
+            //if (query.GroupId.HasValue)
+            //    usersQuery = usersQuery.Where(u => u.UserGroup != null &&
+            //                 u.UserGroup.Group.GroupId==query.GroupId.Value);
 
             //  TOTAL count BEFORE pagination
             var totalRecords = await usersQuery.CountAsync();
@@ -83,10 +84,10 @@ namespace EVWebApi.Services
             if (query.PageNumber > totalPages && totalPages > 0)
                 query.PageNumber = totalPages;
             // APPLY PAGINATION
-            var pagedUsers = usersQuery
+            var pagedUsers = await usersQuery
                 .Skip((query.PageNumber - 1) * query.PageSize)
                 .Take(query.PageSize)
-                .ToList();
+                .ToListAsync();
 
         
         // MAP TO DTO
@@ -328,6 +329,41 @@ namespace EVWebApi.Services
             await _uow.CompleteAsync();
         }
 
+
+        public async Task<(byte[], string)> UsersExportToExcel(UserQueryParameters query)
+        {
+           
+            // force no pagination
+            query.PageNumber = 1;
+            query.PageSize = int.MaxValue;
+
+            var usersQuery = ApplyUserFilters(query);
+            var users = await usersQuery
+                .AsNoTracking()
+                .ToListAsync();
+            var columns = new List<string>
+            {
+                "FirstName",
+                "LastName",
+                "Username",
+                "Email",
+                "PhoneNumber",
+                "Status",
+                "GroupName",
+                "CreatedAt"
+
+            };
+
+            var excel = ExportExcelBuildHelper.BuildExcel(
+                users,
+                columns,
+                (u, col) => ExcelColumnsHelper.GetUserColumnValue(u, col)
+            );
+
+            return (excel, $"Users__{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.xlsx");
+        }
+
+
         public async Task<List<EmailGroupUserDto>> GetUserByEmailGroupAsync(int groupid)
         {
             var users=await _uow.Groups.GetUsersByEmailGroupIdAsync(groupid);
@@ -336,12 +372,40 @@ namespace EVWebApi.Services
             return users;
         }
 
-        //hlper method to generate random password
+        //---------------------hlper methods-----------------
+        //to generate random password
         private static string GenerateSystemPassword()
         {
             return Convert.ToBase64String(
                 RandomNumberGenerator.GetBytes(64)
             );
+        }
+        //to apply query params
+        private IQueryable<User> ApplyUserFilters(UserQueryParameters query)
+        {
+            var usersQuery = _uow.Users.Query();
+
+            if (!string.IsNullOrWhiteSpace(query.Username))
+                usersQuery = usersQuery.Where(u => u.Username.Contains(query.Username));
+
+            if (!string.IsNullOrWhiteSpace(query.FirstName))
+                usersQuery = usersQuery.Where(u => u.FirstName.ToLower().Contains(query.FirstName.ToLower()));
+
+            if (!string.IsNullOrWhiteSpace(query.LastName))
+                usersQuery = usersQuery.Where(u => u.LastName.ToLower().Contains(query.LastName.ToLower()));
+
+            if (!string.IsNullOrWhiteSpace(query.Email))
+                usersQuery = usersQuery.Where(u => u.Email.ToLower().Contains(query.Email.ToLower()));
+
+            if (!string.IsNullOrWhiteSpace(query.PhoneNumber))
+                usersQuery = usersQuery.Where(u => u.PhoneNumber.Contains(query.PhoneNumber));
+
+            if (query.GroupId.HasValue)
+                usersQuery = usersQuery.Where(u =>
+                    u.UserGroup != null &&
+                    u.UserGroup.Group.GroupId == query.GroupId.Value);
+
+            return usersQuery;
         }
     }
 }

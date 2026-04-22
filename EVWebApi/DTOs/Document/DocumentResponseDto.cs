@@ -6,7 +6,7 @@
         public int CabinetId { get; set; }
         public string FileName { get; set; }
         public string FilePath { get; set; }
-        public int Version { get; set; }
+        public int? Version { get; set; }
         public string Status { get; set; }
         public DateTime UploadedAt { get; set; }
         public string? DocumentType { get; set; }
@@ -32,8 +32,8 @@
         public string? CheckNumber { get; set; }
         public decimal? PaidAmount { get; set; }
         public int NotesCount { get; set; }
-        //public List<NotesDto>?Notes { get; set; }
-
+        //public List<NotesDto>?Notes { get; set; } 
+        public string[] Actions { get; internal set; }
 
 
 

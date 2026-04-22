@@ -11,6 +11,7 @@ namespace EVWebApi.Interfaces.Repositories
         IGroupRepository Groups { get; }
         ICabinetRepository Cabinets { get; }
         IDocumentRepository Documents { get; }
+        IDocVersionRepository DocumentVersions { get; }
         Task<int> CompleteAsync();
         Task<IDbContextTransaction> BeginTransactionAsync();
         Task RollbackTransactionAsync(IDbContextTransaction transaction);

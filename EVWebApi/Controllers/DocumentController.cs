@@ -7,6 +7,8 @@ using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Services;
+using EVWebAPI.Controllers;
+using Humanizer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -28,11 +30,14 @@ namespace EVWebApi.Controllers
         private readonly IDocumentService _documentService;
         private readonly IAuditLogService _auditlogservice;
         private readonly IDocumentRepository _documentRepo;
-        public DocumentController(IDocumentService documentService, IAuditLogService auditLogService, IDocumentRepository documentRepo)
+        private readonly ILogger<DocumentController> _logger;
+        public DocumentController(IDocumentService documentService, IAuditLogService auditLogService, IDocumentRepository documentRepo, 
+            ILogger<DocumentController> logger)
         {
             _documentService = documentService;
             _auditlogservice = auditLogService;
             _documentRepo = documentRepo;
+            _logger = logger;
         }
 
         //Upload Document
@@ -46,7 +51,18 @@ namespace EVWebApi.Controllers
                 var result = await _documentService.UploadDocumentChunks(dto, CurrentUserId);
                 if (dto.TotalChunks == null || dto.ChunkIndex == dto.TotalChunks - 1)
                 {
+                    _logger.LogInformation("File uploaded: {FileName} Size: {FileSize} UserId: {UserId}", result.FileName, dto.File.Length, CurrentUserId);
                     await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Uploaded", result.FileName, result.CabinetId, filters: filterDetails);
+                }
+                if (result.Actions != null)
+                {
+                    return StatusCode(409, new
+                    {
+                        message = "Duplicate found",
+                        requiresAction=true,
+                        documentId = result.DocumentId,
+                        actions = result.Actions
+                    });
                 }
                 return Ok(result);
             }
@@ -76,23 +92,20 @@ namespace EVWebApi.Controllers
                 if (dto.Files == null || dto.Files.Count == 0)
                     return BadRequest("At least one document file is required");
 
-                //if (!dto.MetadataFile.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-                //    return BadRequest("Metadata file must be a CSV");
-
                 var result = await _documentService.BatchUploadDocuments(dto, CurrentUserId);
 
                 string filterDetails = result.ToFilterLog("Upload Status - ");
 
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Batch Upload", null, dto.CabinetId, filters: filterDetails);
-                if (result.Success == 0 && result.Failed > 0)
-                {
-                    return UnprocessableEntity(result);
+                //if (result.Success == 0 && result.Failed > 0)
+                //{
+                //    return UnprocessableEntity(result);
 
-                }
-                if (result.Success > 0 && result.Failed > 0)
-                {
-                    return StatusCode(207, result); // Partial success
-                }
+                //}
+                //if (result.Success > 0 && result.Failed > 0)
+                //{
+                //    return StatusCode(207, result); // Partial success
+                //}
 
                 return Ok(result);
             }
@@ -131,11 +144,24 @@ namespace EVWebApi.Controllers
         [HttpGet("grouped/{cabinetId}")]
         public async Task<IActionResult> GetGroupedDocumentsByCabinetId(int cabinetId, [FromQuery] DocumentQueryParameters query)
         {
+            try
+            {
+
             var docs = await _documentService.GetGroupedDocuments(cabinetId, query);
             string filterDetails = query.ToFilterLog();
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Retrieved", null, cabinetId, null, filters: filterDetails);
 
             return Ok(docs);
+
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "Document grouping failed",
+                    Error = ex.Message
+                });
+            }
         }
 
 
@@ -161,8 +187,6 @@ namespace EVWebApi.Controllers
         {
             var download = await _documentService.GetDocumentStream(id);
             if (download == null) return NotFound();
-
-            //var fileStream = new FileStream(download.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1024 * 1024, useAsync: true);
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Download");
 
             var contentType = FileContentTypeDetectHelper.GetContentType(download.FileName);
@@ -176,7 +200,7 @@ namespace EVWebApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateDocument(int id, [FromBody] UpdateDocumentDto dto)
         {
-            var updated = await _documentService.UpdateDocumentAsync(id, dto);
+            var updated = await _documentService.UpdateDocumentAsync(id, dto, CurrentUserId);
 
             if (updated == null)
                 return NotFound(new { message = "Document not found" });
@@ -267,7 +291,7 @@ namespace EVWebApi.Controllers
 
 
         [HttpPost("export_zip")]
-        public async Task<IActionResult> ExportInvoicesZip([FromBody] BatchDocDto dto)
+        public async Task<IActionResult> ExportZip([FromBody] BatchDocDto dto)
         {
             if (dto.DocumentIds == null || !dto.DocumentIds.Any())
                 return BadRequest("No document IDs provided.");
@@ -279,12 +303,31 @@ namespace EVWebApi.Controllers
                 CurrentUserId,
                 CurrentUsername,
                 "Document",
-                "Export ZIP File", null, dto.CabinetId
+                "Export File", null, dto.CabinetId
             );
 
 
             return File(zip_stream.ZipStream, "application/zip", zip_stream.ZipFileName);
 
+        }
+
+        //export to excel
+        [HttpPost("export_excel")]
+        public async Task<IActionResult> ExportExcel([FromBody] ExportExcelDocDto dto)
+        {
+
+            var excel = await _documentService.GetExportExcel(dto);
+
+            await _auditlogservice.LogAsync(
+                CurrentUserId,
+                CurrentUsername,
+                "Document",
+                "Export File", null, dto.CabinetId
+            );
+            return File(
+                excel.Excel,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                excel.FileName);
         }
 
         //----------------------------NOTES----------------------------------
@@ -472,7 +515,7 @@ namespace EVWebApi.Controllers
 
         }
 
-        ////download encrypted one
+        //download encrypted one
         [HttpGet("download_record/{id}")]
         public async Task<IActionResult> DownloadEncryptedDocument(int id)
         {
@@ -483,9 +526,8 @@ namespace EVWebApi.Controllers
                 // var contentType = FileContentTypeDetectHelper.GetContentType(result.ProtectedFilePath);
                 /// return File(stream, "application/octet-stream", contentType, enableRangeProcessing: true);
 
-
                 if (result == null) return NotFound();
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Download");
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Download-External");
 
                 var contentType = FileContentTypeDetectHelper.GetContentType(result.FilePath);
 
@@ -493,7 +535,7 @@ namespace EVWebApi.Controllers
             }
             catch (Exception ex)
             {
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Download Failed", ex.Message);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Download-External Failed", ex.Message);
                 return StatusCode(500, new
                 {
                     message = "An error occurred while downloading the document",
@@ -542,7 +584,7 @@ namespace EVWebApi.Controllers
             }
             catch (Exception ex)
             {
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open fail", null, null, filters: filterDetails);
+               await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open fail", null, null, filters: filterDetails);
                 return StatusCode(500, new
                 {
                     message = "An error occurred while opening the Excel sheet",
@@ -551,6 +593,8 @@ namespace EVWebApi.Controllers
             }
 
         }
+
+        
     }
 
 }

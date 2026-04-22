@@ -20,7 +20,8 @@
                 SameSite = isHttps
                     ? SameSiteMode.None   // required for cross-domain in prod
                     : SameSiteMode.Lax,   // safe for HTTP dev
-                Expires = expiry
+                Expires = expiry,
+                Path = "/"
             };
         }
     }

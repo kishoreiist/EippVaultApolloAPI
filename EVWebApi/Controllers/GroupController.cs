@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.Controllers
 {
-    [Authorize(Roles = "admin,super_admin")]
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
 
@@ -34,6 +34,7 @@ namespace EVWebApi.Controllers
             return Ok(groups);
         }
 
+
         [HttpGet("{id}")]
         public async Task<IActionResult> Get(int id)
         {
@@ -54,6 +55,7 @@ namespace EVWebApi.Controllers
             }
         }
 
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateGroupDto dto)
         {
@@ -73,7 +75,7 @@ namespace EVWebApi.Controllers
             }
         }
 
-   
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateGroupDto dto)
         {
@@ -95,7 +97,7 @@ namespace EVWebApi.Controllers
 
         }
 
-       
+        [Authorize(Roles = "admin,super_admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -119,6 +121,17 @@ namespace EVWebApi.Controllers
             }
         }
 
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpPost("export_excel")]
+        public async Task<IActionResult> ExportUsers([FromQuery] GroupQueryParameters query)
+        {
+            var (bytes, fileName) = await _groupService.GroupsExportToExcel(query);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Groups", "Export Excel");
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
+
         [HttpGet("dropdown")]
         public async Task<IActionResult> GetGroupsForDropdown()
         {
@@ -134,7 +147,7 @@ namespace EVWebApi.Controllers
         {
             var created = await _groupService.CreateEmailGroupAsync(dto);
 
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Created", created.GroupName);
+           await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Created", created.GroupName);
 
             return Ok(created);
         }
@@ -150,7 +163,7 @@ namespace EVWebApi.Controllers
         public async Task<IActionResult> UpdateEmailGroup([FromBody] EmailGroupDto dto)
         {
             var updated = await _groupService.UpdateEmailGroupAsync(dto);
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Updated", updated.GroupName);
+           await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Updated", updated.GroupName);
             return Ok(updated);
 
         }
@@ -161,7 +174,7 @@ namespace EVWebApi.Controllers
             try
             {
                 await _groupService.DeleteEmailGroupAsync(id);
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Deleted");
+               await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email Group", "Record Deleted");
                 return NoContent();
             }
             catch (ConflictException ex)

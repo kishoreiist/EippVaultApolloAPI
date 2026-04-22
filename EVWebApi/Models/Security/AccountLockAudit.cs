@@ -18,12 +18,12 @@ namespace EVWebApi.Models.Security
         [Column("reason")]
         public string? Reason { get; set; }
         [Column("locked_at")]
-        public DateTimeOffset LockedAt { get; set; }
+        public DateTime LockedAt { get; set; }
         [Column("locked_until")]
 
-        public DateTimeOffset? LockedUntil { get; set; }
+        public DateTime? LockedUntil { get; set; }
         [Column("unlocked_at")]
-        public DateTimeOffset? UnlockedAt { get; set; }
+        public DateTime? UnlockedAt { get; set; }
       
         [MaxLength(50)]
         [Column("unlocked_by")]

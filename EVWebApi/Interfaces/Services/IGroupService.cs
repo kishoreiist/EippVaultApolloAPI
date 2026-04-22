@@ -14,6 +14,8 @@ namespace EVWebApi.Interfaces.Services
         Task DeleteAsync(int id);
         Task<List<GroupListDto>> GetGroupsForDropdownAsync();
 
+        Task<(byte[], string)> GroupsExportToExcel(GroupQueryParameters query);
+
         //------------------email grp-------------------------
 
         Task<EmailGroupDto> CreateEmailGroupAsync(CreateEmailGroupDto dto);

@@ -5,16 +5,21 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using DocumentFormat.OpenXml.Bibliography;
 using DocumentFormat.OpenXml.InkML;
+using DocumentFormat.OpenXml.Office.SpreadSheetML.Y2024.WorkbookCompatibilityVersion;
 using DocumentFormat.OpenXml.Office2010.Excel;
 using DocumentFormat.OpenXml.Spreadsheet;
 using DocumentFormat.OpenXml.Wordprocessing;
+using EVWebApi.Controllers;
+using EVWebApi.Data;
 using EVWebApi.DTOs;
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
+using EVWebApi.DTOs.Plan;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
+using EVWebApi.Helpers.ExportToExcel;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Interfaces.Services.MetaDataReaders;
@@ -25,11 +30,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Mono.TextTemplating.CodeCompilation;
 using Npgsql;
-using Org.BouncyCastle.Cms;
-using Org.BouncyCastle.Crypto.IO;
 using PdfSharpCore.Pdf;
+using PdfSharpCore.Pdf.Content.Objects;
 using PdfSharpCore.Pdf.IO;
+using SkiaSharp;
 using Syncfusion.EJ2.Charts;
 using Syncfusion.EJ2.Spreadsheet;
 using Syncfusion.XlsIO;
@@ -48,9 +54,8 @@ using System.Text.Json;
 using static PdfSharpCore.Pdf.PdfDictionary;
 using static SkiaSharp.HarfBuzz.SKShaper;
 using Document = EVWebApi.Models.Document;
+using ValidationException = EVWebApi.Exceptions.ValidationException;
 
-//using PdfSharpPdf = PdfSharpCore.Pdf;
-//using PdfSharpIO = PdfSharpCore.Pdf.IO;
 
 namespace EVWebApi.Services
 {
@@ -61,20 +66,27 @@ namespace EVWebApi.Services
         private readonly IMetadataRepository _metadataRepo;
         private readonly IMetadataReaderFactoryService _metadataReaderFactory;
         public readonly IDocumentGroupingService _docGrpService;
+        public readonly IStorageQuotaService _storageQuotaService;
         private readonly IWebHostEnvironment _env;
         private readonly string _uploadRoot;
         private readonly string _tempRoot;
         private readonly string _storageRoot;
+        private readonly string _clientName;
+        private readonly string _versionRoot;
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
 
         private readonly IEmailSender _emailSender;
         private readonly NpgsqlDataSource _dataSource;
-
+        public readonly IDocVersionService _docVersionService;
+        public readonly IDocVersionRepository _docVersionRepo;
+        private new readonly AppDbContext _context;
+        private readonly ILogger<DocumentController> _logger;
 
         public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IMetadataReaderFactoryService metadataReaderFactory,
             IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService, NpgsqlDataSource dataSource
-            , IEmailSender emailSender, IUserRepository userrepo)
+            , IEmailSender emailSender, IUserRepository userrepo, IStorageQuotaService storageQuotaService, IDocVersionService docVersionService,
+            IDocVersionRepository docVersionRepository, AppDbContext context, ILogger<DocumentController> logger)
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
@@ -82,90 +94,100 @@ namespace EVWebApi.Services
             _env = env;
             _uow = uow;
             _mapper = mapper;
-            _uploadRoot = config["UploadSettings:RootPath"];
+            _context = context;
+            _uploadRoot = config["DocumentSettings:UploadPath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
-            _tempRoot = config["UploadSettings:TempPath"];
+            _tempRoot = config["DocumentSettings:TempPath"];
+            _versionRoot = config["DocumentSettings:VersionPath"];
+            _clientName = config["DocumentSettings:ClientName"];
+
+
             _docGrpService = docGrpService;
             _dataSource = dataSource;
             _emailSender = emailSender;
             _userrepo = userrepo;
+            _storageQuotaService = storageQuotaService;
+            _docVersionService = docVersionService;
+            _docVersionRepo = docVersionRepository;
+            _logger = logger;
         }
 
         // ---------------------- SINGLE UPLOAD ----------------------
-        public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto, int? currentuserid)
-        {
-            if (dto.File == null)
-                throw new BadRequestException("File is required");
+        //public async Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto, int? currentuserid)
+        //{
+        //    if (dto.File == null)
+        //        throw new BadRequestException("File is required");
 
-            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
-            if (cabinet == null)
-                throw new Exception("Invalid CabinetId");
+        //    var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
+        //    if (cabinet == null)
+        //        throw new Exception("Invalid CabinetId");
+        //    await _storageQuotaService.ValidateAndConsumeStorage(dto.File.Length);
+        //    DocumentTypes? docType = null;
+        //    if (!string.IsNullOrWhiteSpace(dto.DocumentType))
+        //    {
+        //        docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+        //    }
 
-            DocumentTypes? docType = null;
-            if (!string.IsNullOrWhiteSpace(dto.DocumentType))
-            {
-                docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
-            }
-
-            // string storageRoot =Path.Combine(_env.WebRootPath, "storage/Uploads");
-            string folderName = cabinet.CabinetName;
-            string basePath = _uploadRoot;
-            string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
-            string datePath = Path.Combine(basePath, dateFolder);
-            string cabinetFolder = Path.Combine(datePath, folderName);
+        //    // string storageRoot =Path.Combine(_env.WebRootPath, "storage/Uploads");
+        //    string folderName = cabinet.CabinetName;
+        //    string basePath = _uploadRoot;
+        //    string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        //    string datePath = Path.Combine(basePath, dateFolder);
+        //    string cabinetFolder = Path.Combine(datePath, folderName);
 
 
 
-            if (!Directory.Exists(cabinetFolder))
-                Directory.CreateDirectory(cabinetFolder);
+        //    if (!Directory.Exists(cabinetFolder))
+        //        Directory.CreateDirectory(cabinetFolder);
 
-            // Versioning logic
-            int version = await _repo.GetLatestVersion(dto.CabinetId, dto.File.FileName) + 1;
+        //    // Versioning logic
+        //    int version = await _repo.GetLatestVersion(dto.CabinetId, dto.File.FileName) + 1;
 
-            // Create unique filename
-            string fileName = $"{Path.GetFileNameWithoutExtension(dto.File.FileName)}_v{version}{Path.GetExtension(dto.File.FileName)}";
-            string fullPath = Path.Combine(cabinetFolder, fileName);
+        //    // Create unique filename
+        //    string fileName = $"{Path.GetFileNameWithoutExtension(dto.File.FileName)}_v{version}{Path.GetExtension(dto.File.FileName)}";
+        //    string fullPath = Path.Combine(cabinetFolder, fileName);
 
-            // Save file physically
-            using (var stream = new FileStream(fullPath, FileMode.Create))
-            {
-                await dto.File.CopyToAsync(stream);
-            }
+        //    // Save file physically
+        //    using (var stream = new FileStream(fullPath, FileMode.Create))
+        //    {
+        //        await dto.File.CopyToAsync(stream);
+        //    }
 
-            // Save to DB
-            var doc = await _repo.CreateDocument(new Document
-            {
-                CabinetId = dto.CabinetId,
-                FileName = fileName,
-                FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
-                UploadedBy = currentuserid,
-                Version = version,
-                Status = "active",
-                UploadedAt = DateTime.UtcNow,
-                DocumentTypeId = docType?.Id,
-                DocumentType = null,
-                InvoiceNumber = dto.InvoiceNumber,
-                VendorNumber = dto.VendorNumber,
-                InvoiceDate = dto.InvoiceDate,
-                Amount = dto.Amount,
-                GST = dto.GST,
-                StatementDate = dto.StatementDate,
-                PaidAmount = dto.PaidAmount,
-                Department = dto.Department,
-                Designation = dto.Designation,
-                Name = dto.Name,
-                EmployeeId = dto.EmployeeId,
-                PoNumber = dto.PoNumber,
-                ContactNumber = dto.ContactNumber,
-                DOB = dto.DOB,
-                DOJ = dto.DOJ,
-                CheckNumber = dto.CheckNumber
-            });
-
-            if (doc == null)
-                throw new ServerException("Failed to save document");
-            return _mapper.Map<DocumentResponseDto>(doc);
-        }
+        //    // Save to DB
+        //    var doc = await _repo.CreateDocument(new Document
+        //    {
+        //        CabinetId = dto.CabinetId,
+        //        FileName = fileName,
+        //        //FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
+        //        FilePath = $@"\{dateFolder}\{folderName}\{fileName}",
+        //        UploadedBy = currentuserid,
+        //        Version = version,
+        //        Status = "active",
+        //        UploadedAt = DateTime.UtcNow,
+        //        DocumentTypeId = docType?.Id,
+        //        DocumentType = null,
+        //        InvoiceNumber = dto.InvoiceNumber,
+        //        VendorNumber = dto.VendorNumber,
+        //        InvoiceDate = dto.InvoiceDate,
+        //        Amount = dto.Amount,
+        //        GST = dto.GST,
+        //        StatementDate = dto.StatementDate,
+        //        PaidAmount = dto.PaidAmount,
+        //        Department = dto.Department,
+        //        Designation = dto.Designation,
+        //        Name = dto.Name,
+        //        EmployeeId = dto.EmployeeId,
+        //        PoNumber = dto.PoNumber,
+        //        ContactNumber = dto.ContactNumber,
+        //        DOB = dto.DOB,
+        //        DOJ = dto.DOJ,
+        //        CheckNumber = dto.CheckNumber
+        //    });
+        //    await _uow.CompleteAsync();
+        //    if (doc == null)
+        //        throw new ServerException("Failed to save document");
+        //    return _mapper.Map<DocumentResponseDto>(doc);
+        //}
 
 
         // ---------------------- GET DOCUMENT BY Doc Id ----------------------
@@ -509,7 +531,7 @@ namespace EVWebApi.Services
                        PaidAmount = first.PaidAmount,
                        GST = first.GST,
                        CheckNumber = first.CheckNumber,
-                       Version = first.Version,
+                       Version =first.Version,
                        Status = first.Status,
                        CabinetId = first.CabinetId,
 
@@ -566,7 +588,12 @@ namespace EVWebApi.Services
                 throw new NotFoundException("Document not found");
 
             var relativePath = doc.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
-            var fullPath = Path.Combine(_storageRoot, relativePath);
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
 
             if (!fullPath.StartsWith(_storageRoot))
                 throw new SecurityException("Invalid file path");
@@ -599,7 +626,11 @@ namespace EVWebApi.Services
             if (doc == null) return null;
 
             var rootPath = doc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
-            var fullPath = Path.Combine(_storageRoot, rootPath);
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, rootPath);
 
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
@@ -761,67 +792,188 @@ namespace EVWebApi.Services
 
         }
 
-        //--------------------- EDIT ---------------------------------
+        //-------------------------export to excel-------------------
 
-        public async Task<DocumentResponseDto> UpdateDocumentAsync(int id, UpdateDocumentDto dto)
+        private List<Document> GroupDocumentsForExport(
+            List<Document> documents,
+            List<string> groupingKey)
         {
-            var document = await _uow.Documents.GetDocument(id);
+            return documents
+                .GroupBy(d =>
+                    string.Join("||", groupingKey.Select(k =>
+                        d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
+                .Select(g =>
+                {
+                    var first = g.First();
 
-            if (document == null || document.Status == "inactive")
-                throw new NotFoundException($"Document with id {id} not found");
+                    first.DocType = string.Join(", ",
+                        g.Select(d => d.DocumentType?.Label)
+                         .Where(x => !string.IsNullOrEmpty(x))
+                         .Distinct());
 
+                    return first;
+                })
+                .ToList();
+        }
+        public async Task<(byte[] Excel,string FileName)> GetExportExcel(ExportExcelDocDto dto)
+        {
+            var documents = await _repo.ExcelExportQuery(dto);
+            var keys = await _docGrpService.GetDynamicGroupingKeyAsync(dto.CabinetId);
 
-            if (dto.CabinetId != 0)
-                document.CabinetId = dto.CabinetId;
+            var hasDocType = documents.Any(d => d.DocumentTypeId != null);
+            var needGrouping = documents
+                .GroupBy(d => string.Join("||", keys.Select(k =>
+                 d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
+                .Any(g => g.Count() > 1);
 
-            if (!string.IsNullOrWhiteSpace(dto.FileName))
-                document.FileName = dto.FileName;
-
-            if (!string.IsNullOrWhiteSpace(dto.FilePath))
-                document.FilePath = dto.FilePath;
-
-            // Metadata update (if applicable)---------------------------need to check with sir
-            //if (dto.Metadata != null && dto.Metadata.Any())
-            //{
-            //    // Your own logic here
-            //    // Example: Replace metadata entries
-            //    document.Metadata = dto.Metadata.Select(m => new Metadata
-            //    {
-            //        Key = m.Key,
-            //        Value = m.Value
-            //    }).ToList();
-            //}
-
-            if (dto.InvoiceNumber != null) document.InvoiceNumber = dto.InvoiceNumber;
-            if (dto.PoNumber != null) document.PoNumber = dto.PoNumber;
-            if (dto.VendorNumber != null) document.VendorNumber = dto.VendorNumber;
-            if (dto.EmployeeId != null) document.EmployeeId = dto.EmployeeId;
-            if (dto.Name != null) document.Name = dto.Name;
-            if (dto.ContactNumber != null) document.ContactNumber = dto.ContactNumber;
-            if (dto.Designation != null) document.Designation = dto.Designation;
-            if (dto.Department != null) document.Department = dto.Department;
-            if (dto.Region != null) document.Region = dto.Region;
-            if (dto.InvoiceDate.HasValue) document.InvoiceDate = dto.InvoiceDate.Value;
-            if (dto.StatementDate.HasValue) document.StatementDate = dto.StatementDate.Value;
-            if (dto.DOJ.HasValue) document.DOJ = dto.DOJ.Value;
-            if (dto.DOB.HasValue) document.DOB = dto.DOB.Value;
-            if (dto.Amount.HasValue) document.Amount = dto.Amount.Value;
-            if (dto.GST.HasValue) document.GST = dto.GST.Value;
-            if (dto.CheckNumber != null) document.CheckNumber = dto.CheckNumber;
-            if (dto.PaidAmount.HasValue) document.PaidAmount = dto.PaidAmount.Value;
-
-            DocumentTypes? docType = null;
-            if (!string.IsNullOrWhiteSpace(dto.DocumentType))
+            if (needGrouping)
             {
-                docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
-                document.DocumentTypeId = docType.Id;
-                //document.DocumentType = null;
+                documents = GroupDocumentsForExport(documents, keys);
+            }
+            else if (hasDocType)
+            {
+                foreach (var doc in documents)
+                {
+                    doc.DocType = doc.DocumentType?.Label;
+                }
+            }
+            if (hasDocType && !keys.Contains("DocType"))
+            {
+                keys.Add("DocType");
             }
 
-            _uow.Documents.Update(document);
-            await _uow.CompleteAsync();
+            using var excelEngine = new ExcelEngine();
+            var app = excelEngine.Excel;
+            app.DefaultVersion = ExcelVersion.Xlsx;
+
+            var workbook = app.Workbooks.Create(1);
+            var sheet = workbook.Worksheets[0];
+            sheet.Name = "Documents";
+
+            // header
+         
+            for (int col = 0; col < keys.Count; col++)
+            {
+                sheet.Range[1, col + 1].Text = keys[col];
+            }
+
+            sheet.Range[1, 1, 1, keys.Count].CellStyle.Font.Bold = true;
+
+
+            int row = 2;
+            foreach (var doc in documents)
+            {
+                for (int col = 0; col < keys.Count; col++)
+                {
+                    var value = DocumentColumnHelper.GetColumnValue(doc,keys[col]);
+
+                    sheet.Range[row, col + 1].Text =
+                        value is DateTime dt
+                            ? dt.ToString("dd/MM/yyyy")
+                            : value?.ToString();
+                }
+                row++;
+            }
+
+            sheet.UsedRange.AutofitColumns();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+
+            var cabinetName = await _uow.Cabinets.GetCabinetNameAsync(dto.CabinetId) ?? "UnknownCabinet";
+            var safeCabinetName = string.Concat(cabinetName.Split(Path.GetInvalidFileNameChars()));
+            var fileName = $"{safeCabinetName}_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.xlsx";
+
+            return (stream.ToArray(), fileName);
+        }
+
+        //--------------------- EDIT ---------------------------------
+
+        public async Task<DocumentResponseDto> UpdateDocumentAsync(int id, UpdateDocumentDto dto, int? userId)
+        {
+            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
+            if (cabinet == null)
+                throw new BadRequestException("Invalid CabinetId");
+
+            var document = await _uow.Documents.GetByIdAsync(id);
+            if (document == null || document.Status == "inactive")
+                throw new NotFoundException($"Document with id {id} not found");
+            //checking for lock
+            var userLock = await _docVersionService.CheckDocLockValidityAsync(document.DocumentId, userId);
+            //if(userLock == null)
+            //    throw new ConflictException("Document is currently being edited by another user/No active lock for User.");
+            using var transaction = await _uow.BeginTransactionAsync();
+            try
+            {
+
+                //versioning
+                var latestVersion = await _repo.GetLatestVersion(id) + 1;
+
+                if (dto.CabinetId != 0)
+                    document.CabinetId = dto.CabinetId;
+
+                if (!string.IsNullOrWhiteSpace(dto.FileName))
+                    document.FileName = dto.FileName;
+
+                if (!string.IsNullOrWhiteSpace(dto.FilePath))
+                    document.FilePath = dto.FilePath;
+
+
+                if (dto.InvoiceNumber != null) document.InvoiceNumber = dto.InvoiceNumber;
+                if (dto.PoNumber != null) document.PoNumber = dto.PoNumber;
+                if (dto.VendorNumber != null) document.VendorNumber = dto.VendorNumber;
+                if (dto.EmployeeId != null) document.EmployeeId = dto.EmployeeId;
+                if (dto.Name != null) document.Name = dto.Name;
+                if (dto.ContactNumber != null) document.ContactNumber = dto.ContactNumber;
+                if (dto.Designation != null) document.Designation = dto.Designation;
+                if (dto.Department != null) document.Department = dto.Department;
+                if (dto.Region != null) document.Region = dto.Region;
+                if (dto.InvoiceDate.HasValue) document.InvoiceDate = dto.InvoiceDate.Value;
+                if (dto.StatementDate.HasValue) document.StatementDate = dto.StatementDate.Value;
+                if (dto.DOJ.HasValue) document.DOJ = dto.DOJ.Value;
+                if (dto.DOB.HasValue) document.DOB = dto.DOB.Value;
+                if (dto.Amount.HasValue) document.Amount = dto.Amount.Value;
+                if (dto.GST.HasValue) document.GST = dto.GST.Value;
+                if (dto.CheckNumber != null) document.CheckNumber = dto.CheckNumber;
+                if (dto.PaidAmount.HasValue) document.PaidAmount = dto.PaidAmount.Value;
+                document.Version = latestVersion;
+                DocumentTypes? docType = null;
+                if (!string.IsNullOrWhiteSpace(dto.DocumentType))
+                {
+                    docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+                    document.DocumentTypeId = docType.Id;
+                    //document.DocumentType = null;
+                }
+
+                _uow.Documents.Update(document);
+                var versionEntity = _mapper.Map<DocumentVersion>(document);//need to check
+                var version=await _docVersionService.CreateVersionAsync(versionEntity, latestVersion);
+
+                document.Version = version.VersionId;
+                version.Action = "modified";
+
+                await _uow.CompleteAsync();
+                await transaction.CommitAsync();
+                //await EnforceVersionLimit(document.DocumentId);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            finally
+            {
+                if (userLock != null && userLock.LockedBy == userId)
+                {
+                    _docVersionRepo.RemoveLock(userLock);
+                    await _uow.CompleteAsync();
+                }
+            }
+
             return _mapper.Map<DocumentResponseDto>(document);
         }
+        
 
 
         //############################NOTES#################################
@@ -901,24 +1053,50 @@ namespace EVWebApi.Services
             if (dto.MetadataFile == null || dto.Files == null || dto.Files.Count == 0)
                 throw new ArgumentException("CSV or PDF files are missing.");
 
-
-            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
-            if (cabinet == null)
-                throw new Exception("Invalid CabinetId");
+            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId)
+                ?? throw new Exception("Invalid CabinetId");
 
             var extension = Path.GetExtension(dto.MetadataFile.FileName).ToLower();
             var reader = _metadataReaderFactory.GetReader(extension);
 
             var metadataResult = await reader.ReadAsync(dto.MetadataFile);
+
             if (metadataResult.TotalRecords == 0 || metadataResult.Records.Count == 0)
-                throw new ArgumentException("Unable to read the metadata file", string.Join("; ", metadataResult.Errors));
+                throw new ArgumentException("Unable to read metadata file");
 
             var summary = new BatchResponseDTO();
             summary.Failed += metadataResult.Errors.Count;
             summary.FailedDocDetails.AddRange(metadataResult.Errors);
 
             var processedFiles = new List<string>();
+            var batchKeys = new HashSet<string>();
+
             int totalCount = 0;
+
+            
+            var planDetails = await _storageQuotaService.GetPlanUsageAsync();
+            decimal remainingBytes = planDetails.RemaianingBytes;
+
+            
+            var existingDocs = await _repo.GetDocumentsForDuplicateCheck(dto.CabinetId);
+            CabinetDuplicateRulesHelper.TryGetRules(dto.CabinetId, out var fields);
+
+            var existingDocMap = existingDocs
+                .GroupBy(d => _repo.GenerateDuplicateKeyFromDocument(d, fields))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            string CabName = cabinet.CabinetName;
+            string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+            string finalFolder = Path.Combine(uploadRootTemplate, CabName, dateFolder);
+
+            if (!Directory.Exists(finalFolder))
+                Directory.CreateDirectory(finalFolder);
+
+            var docTypeCache = new Dictionary<string, DocumentTypes>();
 
             foreach (var record in metadataResult.Records)
             {
@@ -926,111 +1104,136 @@ namespace EVWebApi.Services
 
                 try
                 {
-                    // 2. Find the physical file in the uploaded list matching the 'FileName' column in CSV
                     var physicalFile = dto.Files.FirstOrDefault(f =>
                         f.FileName.Equals(record.FileName, StringComparison.OrdinalIgnoreCase));
 
                     if (physicalFile == null)
                     {
-                        summary.FailedDocDetails.Add($"Row {totalCount}:File '{record.FileName}' not found in the uploaded batch.");
                         summary.Failed++;
+                        summary.FailedDocDetails.Add($"Row {totalCount}: File not found {record.FileName}");
                         continue;
                     }
 
-                    // 3. Save File to Storage
+                    
+                    if (physicalFile.Length > remainingBytes)
+                    {
+                        summary.Failed++;
+                        summary.FailedDocDetails.Add($"Quota exceeded: {record.FileName}");
+                        continue;
+                    }
 
-                    string folderName = cabinet.CabinetName;
-                    string basePath = _uploadRoot;
-                    string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
-                    string datePath = Path.Combine(basePath, dateFolder);
-                    string cabinetFolder = Path.Combine(datePath, folderName);
+                    var key = _repo.GenerateDuplicateKeyFromRecord(record, fields);
 
-                    if (!Directory.Exists(cabinetFolder))
-                        Directory.CreateDirectory(cabinetFolder);
+                    //to chechk db duplicate existence
+                    if (existingDocMap.ContainsKey(key))
+                    {
+                        summary.Failed++;
+                        summary.FailedDocDetails.Add($" {record.FileName} : Skipped upload as duplicate record with same index data found in system.");
+                        continue;
+                    }
+                    // to chechk is repetateion /duplicate row in csv
+                    if (batchKeys.Contains(key))
+                    {
+                        summary.Failed++;
+                        summary.FailedDocDetails.Add($" {record.FileName}:Duplicate row found within the batch");
+                        continue;
+                    }
 
-                    // Versioning logic
-                    int version = await _repo.GetLatestVersion(dto.CabinetId, record.FileName) + 1;
-
-                    // Create unique filename
-                    string fileName = $"{Path.GetFileNameWithoutExtension(record.FileName)}_v{version}{Path.GetExtension(record.FileName)}";
-                    string fullPath = Path.Combine(cabinetFolder, fileName);
+                    batchKeys.Add(key);
+                    
+                    var ext = Path.GetExtension(record.FileName);
+                    var baseName = Path.GetFileNameWithoutExtension(record.FileName);
+                    string fileName = $"{baseName}_v1{ext}";
+                    string fullPath = Path.Combine(finalFolder, fileName);
 
                     using (var stream = new FileStream(fullPath, FileMode.Create))
                     {
                         await physicalFile.CopyToAsync(stream);
-
                     }
+
                     processedFiles.Add(fullPath);
+
+                  
                     DocumentTypes? docType = null;
                     if (!string.IsNullOrWhiteSpace(record.DocumentType))
                     {
-                        docType = await _uow.Documents.GetOrCreateDocLabelAsync(record.DocumentType);
-
+                        if (!docTypeCache.TryGetValue(record.DocumentType, out docType))
+                        {
+                            docType = await _uow.Documents.GetOrCreateDocLabelAsync(record.DocumentType);
+                            docTypeCache[record.DocumentType] = docType;
+                        }
                     }
 
-                    // 4. Map to Database Entity
+                    
                     var document = new Document
                     {
                         CabinetId = dto.CabinetId,
-                        //FileName = physicalFile.FileName,
                         FileName = fileName,
-                        FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
-                        Version = version,
+                        FilePath = $@"{CabName}\{dateFolder}\{fileName}",
                         Status = "active",
-                        // Metadata fields from CSV
+                        UploadedBy = currentuserid,
+                        UploadedAt = DateTime.UtcNow,
+                        DocumentTypeId = docType?.Id,
+
                         InvoiceNumber = record.InvoiceNumber,
-                        PoNumber = record.PoNumber,
                         VendorNumber = record.VendorNumber,
-                        EmployeeId = record.EmployeeId,
-                        Name = record.Name,
-                        ContactNumber = record.ContactNumber,
-                        Designation = record.Designation,
-                        Department = record.Department,
                         InvoiceDate = record.InvoiceDate,
-                        StatementDate = record.StatementDate,
-                        DOJ = record.DOJ,
-                        DOB = record.DOB,
                         Amount = record.Amount,
                         GST = record.GST,
-                        CheckNumber = record.CheckNumber,
+                        StatementDate = record.StatementDate,
                         PaidAmount = record.PaidAmount,
-                        DocumentTypeId = docType?.Id,
-                        DocumentType = null,
-                        Region = record.Region,
-                        UploadedBy = currentuserid,
-                        UploadedAt = DateTime.UtcNow
+                        Department = record.Department,
+                        Designation = record.Designation,
+                        Name = record.Name,
+                        EmployeeId = record.EmployeeId,
+                        PoNumber = record.PoNumber,
+                        ContactNumber = record.ContactNumber,
+                        DOB = record.DOB,
+                        DOJ = record.DOJ,
+                        CheckNumber = record.CheckNumber
                     };
 
                     _repo.AddDocumentRange(document);
+                    await _uow.CompleteAsync(); // needed for DocumentId
+
+                    
+                    var versionTemp = _versionRoot
+                        .Replace("{StorageRoot}", _storageRoot)
+                        .Replace("{ClientName}", _clientName);
+
+                    var versionFolder = Path.Combine(versionTemp, document.DocumentId.ToString());
+                    Directory.CreateDirectory(versionFolder);
+
+                    var versionPath = Path.Combine(versionFolder, document.FileName);
+                    File.Copy(fullPath, versionPath);
+
+                    var versionEntity = _mapper.Map<DocumentVersion>(document);
+                    versionEntity.FilePath = Path.Combine(document.DocumentId.ToString(), document.FileName);
+
+                    var version = await _docVersionService.CreateVersionAsync(versionEntity, 1);
+                    version.Action = "create";
+
+                    document.Version = version.VersionId;
+
+                    
+                    existingDocMap[key] = document;
+
+                    remainingBytes -= physicalFile.Length;
+
                     summary.Success++;
                 }
                 catch (Exception ex)
                 {
-                    summary.FailedDocDetails.Add($"Error processing {record.FileName}: {ex.Message}");
                     summary.Failed++;
+                    summary.FailedDocDetails.Add($"Error: {record.FileName} - {ex.Message}");
                 }
             }
+
             summary.TotalProcessed = metadataResult.TotalRecords;
-
-            if (summary.Success > 0)
-            {
-                try
-                {
-                    await _uow.CompleteAsync();
-                }
-                catch (Exception ex)
-                {
-                    foreach (var path in processedFiles)
-                    {
-                        if (File.Exists(path)) File.Delete(path);
-                    }
-
-                    throw new Exception($"Database commit failed. All uploaded files have been rolled back. Error: {ex.Message}");
-                }
-            }
 
             return summary;
         }
+
 
         //---------------------------------------------------------------------------//
 
@@ -1041,7 +1244,8 @@ namespace EVWebApi.Services
             if (dto.TotalChunks == null || dto.TotalChunks <= 1)
             {
                 // OLD behavior (small file)
-                var tempDir = Path.Combine(_tempRoot, Guid.NewGuid().ToString());
+                var tempTemp = _tempRoot.Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
+                var tempDir = Path.Combine(tempTemp, Guid.NewGuid().ToString());
                 Directory.CreateDirectory(tempDir);
 
                 var tempFilePath = Path.Combine(
@@ -1079,8 +1283,8 @@ namespace EVWebApi.Services
 
             if (string.IsNullOrWhiteSpace(dto.UploadId))
                 throw new BadRequestException("UploadId is required");
-
-            var tempDir = Path.Combine(_tempRoot, dto.UploadId);
+            var tempTemp= _tempRoot.Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
+            var tempDir = Path.Combine(tempTemp, dto.UploadId);
             var chunksDir = Path.Combine(tempDir, "chunks");
             var mergedDir = Path.Combine(tempDir, "merged");
 
@@ -1148,66 +1352,165 @@ namespace EVWebApi.Services
             var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId)
                 ?? throw new Exception("Invalid CabinetId");
 
+            await _storageQuotaService.ValidateAndConsumeStorage(dto.File.Length);
+            //validation for mandatory firlds
+            var missingFields = CabinetDuplicateRulesHelper.ValidateMandatoryFields(dto.CabinetId, dto);
+            if (missingFields.Any() || missingFields.Count != 0 )
+            {
+                throw new ValidationException(
+                    $"Missing required fields for Cabinet {dto.CabinetId}: {string.Join(", ", missingFields)}"
+                );
+            }
+            // duplicate check
+            var duplicateDoc = await _repo.FindDuplicateAsync(dto);
+
+            if (duplicateDoc != null && string.IsNullOrWhiteSpace(dto.Action))
+            {
+                return new DocumentResponseDto
+                {
+                    
+                    DocumentId = duplicateDoc.DocumentId,
+                    Version = duplicateDoc.Version,
+                    Actions = new[] { "REPLACE", "MERGE" }
+                };
+            }
+
+            int newVersion = duplicateDoc == null
+                ? 1
+                : await _repo.GetLatestVersion(duplicateDoc.DocumentId) + 1;
+
             DocumentTypes? docType = null;
             if (!string.IsNullOrWhiteSpace(dto.DocumentType))
                 docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
 
-            string folderName = cabinet.CabinetName;
+            var uploadRootTemplate= _uploadRoot .Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
+            string CabName = cabinet.CabinetName;
             string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
-            string cabinetFolder = Path.Combine(_uploadRoot, dateFolder, folderName);
+            string finalFolder = Path.Combine(uploadRootTemplate, CabName, dateFolder);
 
-            if (!Directory.Exists(cabinetFolder))
-                Directory.CreateDirectory(cabinetFolder);
-
-            int version = await _repo.GetLatestVersion(dto.CabinetId, dto.OriginalFileName) + 1;
+            if (!Directory.Exists(finalFolder))
+                Directory.CreateDirectory(finalFolder);
 
             var ext = Path.GetExtension(dto.OriginalFileName);
             var baseName = Path.GetFileNameWithoutExtension(dto.OriginalFileName);
-
+            
             string fileName =
-                $"{baseName}_v{version}{ext}";
+                $"{baseName}_v{newVersion}{ext}";
+            string fullPath = Path.Combine(finalFolder, fileName);
+            using var transaction = await _uow.BeginTransactionAsync();
+            Document doc;
+            try
+            {    
+                if (duplicateDoc == null)
+                {
+                    File.Move(mergedFilePath, fullPath, overwrite: true);
 
-            string fullPath = Path.Combine(cabinetFolder, fileName);
+                    doc = await _repo.CreateDocument(new Document
+                    {
+                        CabinetId = dto.CabinetId,
+                        FileName = fileName,
+                        //FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
+                        FilePath = $@"{CabName}\{dateFolder}\{fileName}",
+                        UploadedBy = currentuserid,
+                        //Version = version,
+                        Status = "active",
+                        UploadedAt = DateTime.UtcNow,
+                        DocumentTypeId = docType?.Id,
+                        InvoiceNumber = dto.InvoiceNumber,
+                        VendorNumber = dto.VendorNumber,
+                        InvoiceDate = dto.InvoiceDate,
+                        Amount = dto.Amount,
+                        GST = dto.GST,
+                        StatementDate = dto.StatementDate,
+                        PaidAmount = dto.PaidAmount,
+                        Department = dto.Department,
+                        Designation = dto.Designation,
+                        Name = dto.Name,
+                        EmployeeId = dto.EmployeeId,
+                        PoNumber = dto.PoNumber,
+                        ContactNumber = dto.ContactNumber,
+                        DOB = dto.DOB,
+                        DOJ = dto.DOJ,
+                        CheckNumber = dto.CheckNumber
+                    });
 
-            //await using var source = new FileStream(mergedFilePath, FileMode.Open, FileAccess.Read);
-            //await using var destination = new FileStream(fullPath, FileMode.Create);
-            //await source.CopyToAsync(destination);
+                    await _storageQuotaService.ValidateAndConsumeStorage(dto.File.Length);
+                    await _uow.CompleteAsync();
 
-            File.Move(mergedFilePath, fullPath, overwrite: true);
+                }
+                else
+                {
+                    doc = duplicateDoc;
+                    var oldfile = Path.Combine(uploadRootTemplate, duplicateDoc.FilePath);
 
-            var doc = await _repo.CreateDocument(new Document
+                    if (dto.Action?.ToUpper() == "REPLACE")
+                    {
+                        //if (File.Exists(oldfile))
+                        //    File.Delete(oldfile);
+                        File.Move(mergedFilePath, fullPath, overwrite: true);
+                    }
+                    else if (dto.Action?.ToUpper() == "MERGE")
+                    {
+                        await MergeUploadFileAsync(oldfile, dto.File, fullPath);
+                    }
+                    doc.FileName = fileName;
+                    doc.FilePath = $@"{CabName}\{dateFolder}\{fileName}";
+                    doc.UploadedAt = DateTime.UtcNow;
+
+                    _uow.Documents.Update(doc);
+                }
+                // Create version history
+
+                //var versionTemp = _versionRoot.Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
+                //var versionFolder = Path.Combine(versionTemp, doc.DocumentId.ToString());
+                //var versionFullPath = Path.Combine(versionFolder, doc.FileName);
+                //if (!Directory.Exists(versionFolder))
+                //    Directory.CreateDirectory(versionFolder);
+                //File.Copy(fullPath, versionFullPath);
+
+                var versionEntity = _mapper.Map<DocumentVersion>(doc);
+                //versionEntity.FilePath = Path.Combine(doc.DocumentId.ToString(), doc.FileName);
+                var version = await _docVersionService.CreateVersionAsync(versionEntity, newVersion);
+                doc.Version = version.VersionId;
+                version.Action = dto.Action.ToLower() ?? "create";
+
+                await _uow.CompleteAsync();
+                await transaction.CommitAsync(); 
+            }
+            catch (Exception ex)
             {
-                CabinetId = dto.CabinetId,
-                FileName = fileName,
-                FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
-                UploadedBy = currentuserid,
-                Version = version,
-                Status = "active",
-                UploadedAt = DateTime.UtcNow,
-                DocumentTypeId = docType?.Id,
+                await transaction.RollbackAsync();
 
+                if (File.Exists(fullPath))
+                    File.Delete(fullPath);
 
-                InvoiceNumber = dto.InvoiceNumber,
-                VendorNumber = dto.VendorNumber,
-                InvoiceDate = dto.InvoiceDate,
-                Amount = dto.Amount,
-                GST = dto.GST,
-                StatementDate = dto.StatementDate,
-                PaidAmount = dto.PaidAmount,
-                Department = dto.Department,
-                Designation = dto.Designation,
-                Name = dto.Name,
-                EmployeeId = dto.EmployeeId,
-                PoNumber = dto.PoNumber,
-                ContactNumber = dto.ContactNumber,
-                DOB = dto.DOB,
-                DOJ = dto.DOJ,
-                CheckNumber = dto.CheckNumber
-            });
-            if (doc == null)
-                throw new ServerException("Failed to save document");
-
+                throw new ServerException($"Failed to save document, {ex}");
+            }
+            // enforce max 5 versions
+           await EnforceVersionLimit(doc.DocumentId);
+           
             return _mapper.Map<DocumentResponseDto>(doc);
+        }
+
+        //---------------helper methods-----------------------------
+
+        private async Task EnforceVersionLimit(int documentId)
+        {
+            await _docVersionRepo
+                .GetOldVersionsToDelete(documentId, 5);
+            var versions=await _docVersionRepo.GetArchivedVersions(documentId);
+            if (versions.Count != 0)
+            {
+                var uploadRootTemplate = _uploadRoot.Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
+                foreach (var v in versions)
+                {
+                    var fullPath = Path.Combine(uploadRootTemplate, v.FilePath);
+                    if (File.Exists(fullPath))
+                        File.Delete(fullPath);
+                }
+
+                await _docVersionRepo.DeleteOldArchivedVersions(documentId);
+            }
         }
 
         private async Task<string> MergeChunksAsync(string chunksDir, string mergedDir, string originalFileName, int? totalChunks)
@@ -1396,10 +1699,12 @@ namespace EVWebApi.Services
             var cabinet = await _uow.Cabinets.GetByIdAsync(originalDoc.CabinetId)
                 ?? throw new Exception("Invalid cabinet");
 
+
             // Resolve physical original file path
             var relativePath = originalDoc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
-            var fullPath = Path.Combine(_storageRoot, relativePath);
-
+            var uploadRootTemplate = _uploadRoot.Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+            
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
 
@@ -1445,7 +1750,7 @@ namespace EVWebApi.Services
                 // Resolve folder structure (same as UploadDocument)
                 string folderName = cabinet.CabinetName;
                 string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
-                string cabinetFolder = Path.Combine(_uploadRoot, dateFolder, folderName);
+                string cabinetFolder = Path.Combine(uploadRootTemplate,folderName, dateFolder);
 
                 if (!Directory.Exists(cabinetFolder))
                     Directory.CreateDirectory(cabinetFolder);
@@ -1454,12 +1759,11 @@ namespace EVWebApi.Services
                 var filenaming = $"{dto.DocumentType}_{originalDoc.Name}";
                 var orgext = Path.GetExtension(originalDoc.FileName);
 
-                int version = await _repo.GetLatestVersion(
-                    originalDoc.CabinetId,
-                    filenaming) + 1;
+                int newVersion = await _repo.GetLatestVersion(
+                    originalDoc.DocumentId) + 1;
 
                 string newFileName =
-                    $"{filenaming}_v{version}{orgext}";
+                    $"{filenaming}_v{newVersion}{orgext}";
 
                 string newPhysicalPath = Path.Combine(cabinetFolder, newFileName);
 
@@ -1470,10 +1774,11 @@ namespace EVWebApi.Services
                 {
                     CabinetId = originalDoc.CabinetId,
                     FileName = newFileName,
-                    FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{newFileName}",
+                    //FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{newFileName}",
+                    FilePath = $@"{folderName}\{dateFolder}\{newFileName}",
                     UploadedBy = userId,
                     UploadedAt = DateTime.UtcNow,
-                    Version = version,
+                   // Version = version,
                     Status = "active",
                     DocumentTypeId = docType?.Id,
 
@@ -1497,10 +1802,18 @@ namespace EVWebApi.Services
                 };
 
                 await _repo.CreateDocument(newDocument);
-
+                await _uow.CompleteAsync();
                 //  Move files only AFTER DB success
                 File.Move(tempExtractedPath, newPhysicalPath, overwrite: true);
                 File.Move(tempRemainingPath, fullPath, overwrite: true);
+
+
+                var versionEntity = _mapper.Map<DocumentVersion>(newDocument);
+                var version = await _docVersionService.CreateVersionAsync(versionEntity, newVersion);
+                newDocument.Version = version.VersionId;
+                version.Action = "split";
+
+
 
                 await transaction.CommitAsync();
 
@@ -1797,9 +2110,8 @@ namespace EVWebApi.Services
             }
 
 
-            // Safety guard – prevent abuse
-            if (dto.RowCount <= 0 || dto.RowCount > 500)
-                throw new ArgumentOutOfRangeException(nameof(dto.RowCount), "RowCount must be between 1 and 500");
+            int requestedRowCount = Math.Clamp(dto.RowCount, 1, 500);
+            int startRow = Math.Max(dto.StartRow, 1);
 
             using var excelEngine = new ExcelEngine();
             var application = excelEngine.Excel;
@@ -1822,12 +2134,21 @@ namespace EVWebApi.Services
             int lastRow = sheet.UsedRange.LastRow;
             int lastCol = sheet.UsedRange.LastColumn;
 
-            if (dto.RowCount > lastRow || dto.StartRow> lastRow)
-                throw new KeyNotFoundException($"Row count exceeds,existing row count is {lastRow}");
+            if (startRow > lastRow)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    sheetName = sheet.Name,
+                    sheetIndex = dto.SheetIndex,
+                    startRow,
+                    rowCount = 0,
+                    totalRows = lastRow,
+                    totalColumns = lastCol,
+                    cells = new List<object>()
+                });
+            }
 
-            int startRow = Math.Max(dto.StartRow, 1);
-            int endRow = Math.Min(startRow + dto.RowCount - 1, lastRow);
-
+            int endRow = Math.Min(startRow + requestedRowCount - 1, lastRow);
             var cells = new List<object>((endRow - startRow + 1) * lastCol);
 
             for (int r = startRow; r <= endRow; r++)
@@ -1885,6 +2206,54 @@ namespace EVWebApi.Services
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
+        }
+
+        //helper method
+
+        public async Task MergeUploadFileAsync(string existingFilePath, IFormFile newFile, string outputPath)
+        {
+            if (!File.Exists(existingFilePath))
+                throw new FileNotFoundException("Existing file not found", existingFilePath);
+
+            var tempFile = Path.GetTempFileName();
+
+            try
+            {
+                // save incoming file to temp
+                using (var stream = new FileStream(tempFile, FileMode.Create))
+                {
+                    await newFile.CopyToAsync(stream);
+                }
+
+                using var outputDocument = new PdfDocument();
+
+                // existing PDF
+                using (var existingDocument = PdfReader.Open(existingFilePath, PdfDocumentOpenMode.Import))
+                {
+                    for (int i = 0; i < existingDocument.PageCount; i++)
+                    {
+                        outputDocument.AddPage(existingDocument.Pages[i]);
+                    }
+                }
+
+                // new PDF
+                using (var newDocument = PdfReader.Open(tempFile, PdfDocumentOpenMode.Import))
+                {
+                    for (int i = 0; i < newDocument.PageCount; i++)
+                    {
+                        outputDocument.AddPage(newDocument.Pages[i]);
+                    }
+                }
+
+                outputDocument.Save(outputPath);
+            }
+            finally
+            {
+                if (File.Exists(tempFile))
+                    File.Delete(tempFile);
+                //if (File.Exists(existingFilePath))
+                //    File.Delete(existingFilePath);
+            }
         }
     }
 

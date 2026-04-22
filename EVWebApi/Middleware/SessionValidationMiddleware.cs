@@ -24,6 +24,13 @@ namespace EVWebApi.Middleware
             {
                 var sessionIdClaim = context.User.FindFirst("session_id");
 
+                if (sessionIdClaim == null)
+                {
+                    context.Response.StatusCode = 403;
+                    await context.Response.WriteAsync("Session missing");
+                    return;
+                }
+
                 if (sessionIdClaim != null &&
                     Guid.TryParse(sessionIdClaim.Value, out var sessionId))
                 {

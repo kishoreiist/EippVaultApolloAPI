@@ -1,4 +1,6 @@
 ﻿
+using EVWebApi.Models;
+
 namespace EVWebApi.Exceptions
 {
     // Base class
@@ -90,5 +92,20 @@ namespace EVWebApi.Exceptions
     {
         public PasswordReuseException(string message)
             : base(message, 400) { }
+    }
+    public class DocumentLockedException : AppException
+    {
+
+        public int LockedBy { get; }
+        public DateTime LockedAt { get; }
+        public DateTime LockExpiry { get; }
+
+        public DocumentLockedException(DocumentLock lockInfo)
+            : base("Document is currently locked by another user")
+        {
+            LockedBy = lockInfo.LockedBy;
+            LockedAt = lockInfo.LockedAt;
+            LockExpiry = lockInfo.LockExpiry;
+        }
     }
 }

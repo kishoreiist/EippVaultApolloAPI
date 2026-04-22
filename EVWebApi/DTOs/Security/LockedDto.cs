@@ -9,10 +9,11 @@ namespace EVWebApi.DTOs.Security
         public string Name { get; set; }
         public string Reason { get; set; }
         public string LockType { get; set; }
-        public DateTimeOffset LockedAt { get; set; }
-        public DateTimeOffset? LockedUntil { get; set; }
-        public DateTimeOffset? UnlockAt { get; set; }
-        public int UnlockBy { get; set; }
+        public DateTime LockedAt { get; set; }
+        public DateTime? LockedUntil { get; set; }
+        public DateTime? UnlockedAt { get; set; }
+        public string UnlockedBy { get; set; }
+
     }
     public class LockedUserQueryParameters:QueryParameters
     {
@@ -23,9 +24,11 @@ namespace EVWebApi.DTOs.Security
         [FromQuery(Name ="reason")]
         public string? Reason { get; set; }
         [FromQuery(Name ="locked_from")]
-        public DateTimeOffset? LockedFrom { get; set; }
+        public DateTime? LockedFrom { get; set; }
         [FromQuery(Name = "locked_to")]
-        public DateTimeOffset? LockedTo { get; set; }
+        public DateTime? LockedTo { get; set; }
+        [FromQuery(Name ="status")]
+        public string? Status { get; set; } // active | unlocked | all
 
 
 

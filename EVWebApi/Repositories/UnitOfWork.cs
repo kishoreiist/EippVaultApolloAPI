@@ -11,21 +11,21 @@ namespace EVWebApi.Repositories
         public ICabinetRepository Cabinets { get; }
         public IUserRepository Users { get; }
         public IGroupRepository Groups { get; }
- 
+        public IDocVersionRepository DocumentVersions { get; }
 
         public IDocumentRepository Documents { get; }
         public UnitOfWork(AppDbContext context,
         IUserRepository users,
         IGroupRepository groups,
         ICabinetRepository cabinets,
-  
+        IDocVersionRepository documentVersions,
         IDocumentRepository documents)
         {
             _context = context;
             Users = users;
             Groups = groups;
             Cabinets = cabinets;
-           
+            DocumentVersions = documentVersions;
             Documents = documents;
         }
 

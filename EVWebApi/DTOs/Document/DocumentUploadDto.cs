@@ -38,7 +38,7 @@ namespace EVWebApi.DTOs.Document
         public int? TotalChunks { get; set; }
         public string OriginalFileName { get; set; } = default!;
 
-
+        public string? Action { get; set; }
     }
 
 }

@@ -23,7 +23,7 @@ namespace EVWebApi.Repositories
         public async Task<Document> CreateDocument(Document doc)
         {
             _context.Documents.Add(doc);
-            await _context.SaveChangesAsync();
+            //await _context.SaveChangesAsync();
             return doc;
         }
 
@@ -54,24 +54,19 @@ namespace EVWebApi.Repositories
         {
             return _context.Documents
                 .Include(d => d.Notes)
-                 .Include(d => d.DocumentType)
-                 .OrderBy(d => d.UploadedAt)
+                 .Include(d => d.DocumentType).OrderByDescending(x => x.UploadedAt)
                 .AsQueryable();
         }
 
         // ---------------- GET LATEST VERSION -----------------
-        public async Task<int> GetLatestVersion(int cabinetId, string fileName)
+        public async Task<int> GetLatestVersion(int docId)
         {
-            string baseName = Path.GetFileNameWithoutExtension(fileName);
-
-            var versions = await _context.Documents
-                .Where(d => d.CabinetId == cabinetId &&
-                            d.FileName.StartsWith(baseName))
-                .OrderByDescending(d => d.Version)
-                .Select(d => d.Version)
+            var versionNo = await _context.DocumentVersion
+                .Where(d => d.DocumentId == docId)
+                .OrderByDescending(d => d.VersionId)
+                .Select(d => d.VersionNo)
                 .FirstOrDefaultAsync();
-
-            return versions; // if no version, default = 0
+            return versionNo;
         }
 
         // ---------------- UPDATE STATUS -------------------
@@ -175,6 +170,53 @@ namespace EVWebApi.Repositories
                 throw new NotFoundException($"Document not found: {id}");
 
             return document.FileName;
+        }
+        //-----------------get doc by ids------------------//
+        public async Task<List<Document>> GetDocumentsByIds(List<int> ids)
+        {
+            return await _context.Documents
+                .Where(d => ids.Contains(d.DocumentId))
+                .Include(d => d.DocumentType)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+        //-------------------GET DOCS DETAILS BY ID FOR EXCEL EXPORT-------------//
+
+        public async Task<List<Document>> ExcelExportQuery(ExportExcelDocDto dto)
+        {
+            var query = _context.Documents
+                .Where(d => d.Status == "active")
+                .Include(d => d.DocumentType)
+                .AsNoTracking();
+
+            if (dto.DocumentIds != null && dto.DocumentIds.Any())
+            {
+                query = query.Where(d => d.CabinetId == dto.CabinetId && dto.DocumentIds.Contains(d.DocumentId));
+            }
+            else
+            {
+                query = query
+                    .Where(d => d.CabinetId == dto.CabinetId)
+                    .OrderByDescending(d => d.UploadedAt)
+                    .Take(500);
+            }
+
+            return await query.ToListAsync();
+        }
+        //-------------------get grouping rule by cabinet--------------//
+        public async Task<List<string>> GetCabinetGroupingColumns(int cabinetId)
+        {
+            var columns = await _context.CabinetGroupingRules
+                .Where(c => c.Cabinet.CabinetId == cabinetId)
+                .OrderBy(c => c.GroupingOrder)
+                .Select(c => c.GroupingCol)
+                .ToListAsync();
+
+            if (!columns.Any())
+                throw new KeyNotFoundException(
+                    $"Configuration Error: No grouping rules defined for Cabinet ID {cabinetId}.");
+
+            return columns;
         }
 
         //-------------------------NOTES---------------------------------------//
@@ -317,5 +359,252 @@ namespace EVWebApi.Repositories
                 );
             return rowsincremented;// can return count of updated rows , so can update more than 1 doc id
         }
+
+
+
+        //---------------FIND DUPLICATE DOCUMENTS BASED ON CABINET RULES-----------------
+        public async Task<Document?> FindDuplicateAsync(DocumentUploadDto dto)
+        {
+            if (!CabinetDuplicateRulesHelper.TryGetRules(dto.CabinetId, out var fields))
+                return null;
+
+            IQueryable<Document> query =
+                _context.Documents.Where(d => d.CabinetId == dto.CabinetId);
+
+            bool hasAnyFilter = false;
+            foreach (var field in fields)
+            {
+                query = ApplyDuplicateFilter(query, field, dto, ref hasAnyFilter);
+                
+            }
+            if (!hasAnyFilter)
+                return null;
+
+            return await query
+                .OrderByDescending(d => d.Version)
+                .FirstOrDefaultAsync();
+        }
+
+        private IQueryable<Document> ApplyDuplicateFilter(IQueryable<Document> query,string field,DocumentUploadDto dto,ref bool hasAnyFilter)
+        {
+            switch (field)
+            {
+                case "InvoiceNumber":
+                    if (!string.IsNullOrWhiteSpace(dto.InvoiceNumber))
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.InvoiceNumber == dto.InvoiceNumber);
+                    }
+                    break;
+
+                case "Amount":
+                    if (dto.Amount != null)
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.Amount == dto.Amount);
+                    }
+                    break;
+
+                case "InvoiceDate":
+                    if (dto.InvoiceDate != null)
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.InvoiceDate == dto.InvoiceDate);
+                    }
+                    break;
+
+                case "EmployeeId":
+                    if (!string.IsNullOrWhiteSpace(dto.EmployeeId))
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.EmployeeId == dto.EmployeeId);
+                    }
+                    break;
+
+                case "ContactNumber":
+                    if (!string.IsNullOrWhiteSpace(dto.ContactNumber))
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.ContactNumber == dto.ContactNumber);
+                    }
+                    break;
+
+                case "Name":
+                    if (!string.IsNullOrWhiteSpace(dto.Name))
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.Name == dto.Name);
+                    }
+                    break;
+
+                case "StatementDate":
+                    if (dto.StatementDate != null)
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.StatementDate == dto.StatementDate);
+                    }
+                    break;
+
+                case "VendorNumber":
+                    if (!string.IsNullOrWhiteSpace(dto.VendorNumber))
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.VendorNumber == dto.VendorNumber);
+                    }
+                    break;
+
+                case "PoNumber":
+                    if (!string.IsNullOrWhiteSpace(dto.PoNumber))
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.PoNumber == dto.PoNumber);
+                    }
+                    break;
+            }
+
+            return query;
+        }
+        public bool IsDuplicate(Document dbDoc, DocumentMetadatadto record, string[] fields)
+        {
+            foreach (var field in fields)
+            {
+                switch (field)
+                {
+                    case "InvoiceNumber":
+                        if (!IsEqual(dbDoc.InvoiceNumber, record.InvoiceNumber)) return false;
+                        break;
+
+                    case "Amount":
+                        if (!IsEqual(dbDoc.Amount, record.Amount)) return false;
+                        break;
+
+                    case "InvoiceDate":
+                        if (!IsEqual(dbDoc.InvoiceDate, record.InvoiceDate)) return false;
+                        break;
+
+                    case "EmployeeId":
+                        if (!IsEqual(dbDoc.EmployeeId, record.EmployeeId)) return false;
+                        break;
+
+                    case "ContactNumber":
+                        if (!IsEqual(dbDoc.ContactNumber, record.ContactNumber)) return false;
+                        break;
+
+                    case "Name":
+                        if (!IsEqual(dbDoc.Name, record.Name)) return false;
+                        break;
+
+                    case "StatementDate":
+                        if (!IsEqual(dbDoc.StatementDate, record.StatementDate)) return false;
+                        break;
+
+                    case "VendorNumber":
+                        if (!IsEqual(dbDoc.VendorNumber, record.VendorNumber)) return false;
+                        break;
+
+                    case "PoNumber":
+                        if (!IsEqual(dbDoc.PoNumber, record.PoNumber)) return false;
+                        break;
+                }
+            }
+
+            return true;
+        }
+        private bool IsEqual<T>(T? a, T? b)
+        {
+            if (a == null || b == null)
+                return false; // ignore nulls → no duplicate
+
+            return EqualityComparer<T>.Default.Equals(a, b);
+        }
+
+        public async Task<List<Document>> GetDocumentsForDuplicateCheck(int cabinetId)
+        {
+            return await _context.Documents
+                .Where(d => d.CabinetId == cabinetId)
+                .ToListAsync();
+        }
+
+        public string GenerateDuplicateKeyFromDocument(Document doc, string[] fields)
+        {
+            var values = new List<string>();
+
+            foreach (var field in fields)
+            {
+                object val = field switch
+                {
+                    "InvoiceNumber" => doc.InvoiceNumber ?? "",
+                    "Amount" => doc.Amount?.ToString() ?? "",
+                    "InvoiceDate" => doc.InvoiceDate?.ToString("yyyyMMdd") ?? "",
+                    "EmployeeId" => doc.EmployeeId ?? "",
+                    "ContactNumber" => doc.ContactNumber ?? "",
+                    "Name" => doc.Name ?? "",
+                    "StatementDate" => doc.StatementDate?.ToString("yyyyMMdd") ?? "",
+                    "VendorNumber" => doc.VendorNumber ?? "",
+                    "PoNumber" => doc.PoNumber ?? "",
+                    _ => ""
+                };
+                values.Add(NormalizeValue(val));
+            }
+
+            return string.Join("|", values);
+        }
+
+        public string GenerateDuplicateKeyFromRecord(DocumentMetadatadto record, string[] fields)
+        {
+            var values = new List<string>();
+
+            foreach (var field in fields)
+            {
+                object val = field switch
+                {
+                    "InvoiceNumber" => record.InvoiceNumber ?? "",
+                    "Amount" => record.Amount?.ToString() ?? "",
+                    "InvoiceDate" => record.InvoiceDate?.ToString("yyyyMMdd") ?? "",
+                    "EmployeeId" => record.EmployeeId ?? "",
+                    "ContactNumber" => record.ContactNumber ?? "",
+                    "Name" => record.Name ?? "",
+                    "StatementDate" => record.StatementDate?.ToString("yyyyMMdd") ?? "",
+                    "VendorNumber" => record.VendorNumber ?? "",
+                    "PoNumber" => record.PoNumber ?? "",
+                    _ => ""
+                };
+                values.Add(NormalizeValue(val));
+            }
+
+            return string.Join("|", values);
+
+        }
+
+        private string NormalizeValue(object value)
+        {
+            if (value == null)
+                return "";
+
+            
+            if (value is decimal dec)
+                return dec.ToString("0.00");
+
+            if (value is double dbl)
+                return dbl.ToString("0.00");
+
+            
+            if (value is string str)
+            {
+                str = str.Trim();
+
+               
+                if (decimal.TryParse(str, out var parsed))
+                    return parsed.ToString("0.00");
+
+                return str.ToLower();
+            }
+ 
+            if (value is DateTime dt)
+                return dt.ToString("yyyyMMdd");
+
+            return value.ToString().Trim().ToLower();
+        }
+
     }
 }

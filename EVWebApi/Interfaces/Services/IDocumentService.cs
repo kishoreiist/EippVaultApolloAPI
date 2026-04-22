@@ -9,17 +9,18 @@ namespace EVWebApi.Interfaces.Services
 {
     public interface IDocumentService
     {
-        Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int? CurrentUserId);
+        //Task<DocumentResponseDto> UploadDocument(DocumentUploadDto dto,int? CurrentUserId);
         Task<DocumentResponseDto> GetDocument(int id);
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
         Task<GroupedPaginationResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
-        Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto);
+        Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto,int? userId);
         Task<DocumentStreamResultDTO?> GetDocumentStream(int id);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
         Task<(int cabinetId, bool status)> DeleteDocument(int id);
         Task<BatchResponseDTO> DeleteMultipleDocuments(List<int> ids);
         Task<Stream?> GetMergedDocumentStream(List<int> documentIds);
         Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(BatchDocDto dto);
+        Task<(byte[] Excel, string FileName)> GetExportExcel(ExportExcelDocDto dto);
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
         Task<List<string>> GetDocTypeAsync();
 
@@ -52,5 +53,8 @@ namespace EVWebApi.Interfaces.Services
 
         Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId);
         Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto);
+
+
+        Task MergeUploadFileAsync(string existingFilePath, IFormFile newFile, string outputPath);
     }
 }

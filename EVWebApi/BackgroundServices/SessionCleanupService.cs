@@ -35,15 +35,18 @@ namespace EVWebApi.BackgroundServices
 
                 var cutoffDate = DateTime.UtcNow.AddDays(-60);
 
-                var oldSessions = await db.UserSessions
+                //var oldSessions = await db.UserSessions
+                //    .Where(s => s.CreatedAt < cutoffDate)
+                //    .ToListAsync();
+                await db.UserSessions
                     .Where(s => s.CreatedAt < cutoffDate)
-                    .ToListAsync();
+                    .ExecuteDeleteAsync();
 
-                if (oldSessions.Any())
-                {
-                    db.UserSessions.RemoveRange(oldSessions);
-                    await db.SaveChangesAsync();
-                }
+                //if (oldSessions.Any())
+                //{
+                //    db.UserSessions.RemoveRange(oldSessions);
+                //    await db.SaveChangesAsync();
+                //}
             }
             catch (Exception ex)
             {

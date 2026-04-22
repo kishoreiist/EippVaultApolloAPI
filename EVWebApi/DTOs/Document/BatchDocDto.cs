@@ -5,4 +5,10 @@
         public List<int> DocumentIds { get; set; } = new List<int>();
         public int CabinetId { get; set; }
     }
+
+    public class ExportExcelDocDto
+    {
+        public List<int>? DocumentIds { get; set; } = new List<int>();
+        public int CabinetId { get; set; }
+    }
 }

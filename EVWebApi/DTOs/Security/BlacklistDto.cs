@@ -6,13 +6,16 @@ namespace EVWebApi.DTOs.Security
 {
     public class BlacklistDto
     {
+        public int Id { get; set; }
         public string IpAddress { get; set; }
         public IpSecurityStatus Status { get; set; }
-        public int DailyFailures { get; set; }
-        public int WeeklyFailures { get; set; }
+        public int IPDailyFailures { get; set; }
+        public int IPWeeklyFailures { get; set; }
         public DateTime? BlacklistedAt { get; set; }
         public DateTime? ValidUpto { get; set; }
         public DateTime? LastActivityAt { get; set; }
+        public DateTime? UnlockedAt { get; set; }
+        public string UnlockedBy { get; set; }
     }
 
     public class BlacklistQueryParameters: QueryParameters
@@ -22,12 +25,12 @@ namespace EVWebApi.DTOs.Security
         [FromQuery(Name = "status")]
         public IpSecurityStatus? Status { get; set; }
         [FromQuery(Name = "blacklisted_from")]
-        public DateTimeOffset? BlacklistedFrom { get; set; }
+        public DateTime? BlacklistedFrom { get; set; }
         [FromQuery(Name = "blacklisted_to")]
-        public DateTimeOffset? BlacklistedTo { get; set; }
+        public DateTime? BlacklistedTo { get; set; }
         [FromQuery(Name = "last_activity_from")]
-        public DateTimeOffset? LastActivityFrom { get; set; }
+        public DateTime? LastActivityFrom { get; set; }
         [FromQuery(Name = "last_activity_to")]
-        public DateTimeOffset? LastActivityTo { get; set; }
+        public DateTime? LastActivityTo { get; set; }
     }
 }

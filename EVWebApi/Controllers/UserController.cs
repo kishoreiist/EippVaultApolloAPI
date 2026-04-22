@@ -107,7 +107,16 @@ namespace EVWebApi.Controllers
                 });
             }
         }
-
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpPost("export_excel")]
+        public async Task<IActionResult> ExportUsers([FromQuery] UserQueryParameters query)
+        {
+            var (bytes, fileName) = await _userService.UsersExportToExcel(query);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Users", "Export Excel");
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
         //--------------------email grp--------------
 
         [HttpGet("email_group/{id}")]

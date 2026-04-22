@@ -12,6 +12,7 @@ namespace EVWebApi.Interfaces.Services
         Task<UserDto> UpdateAsync(UpdateUserDto dto);
         Task DeleteAsync(int id);
 
+        Task<(byte[], string)> UsersExportToExcel(UserQueryParameters query);
         //--------email grp=----------------
         Task<List<EmailGroupUserDto>> GetUserByEmailGroupAsync(int groupid);
     }

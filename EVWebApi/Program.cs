@@ -24,15 +24,17 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using Prometheus;
+using Serilog;
+using Serilog.Formatting.Json;
 using Syncfusion.Licensing;
 using System.Reflection.Metadata;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
-using Prometheus;
-
-
+using Microsoft.AspNetCore.Mvc.Filters;
+using EVWebApi.Helpers.Security.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,6 +71,7 @@ builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IMetadataRepository, MetadataRepository>();
 builder.Services.AddScoped<ICabinetRepository, CabinetRepository>();
 builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
+builder.Services.AddScoped<IDocVersionRepository, DocVersionRepository>();
 
 // 4. Add Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -102,17 +105,22 @@ builder.Services.AddScoped<IMetadataReaderFactoryService, MetadataReaderFactoryS
 builder.Services.AddScoped<ISecurityFailureService, SecurityFailureService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
-
+builder.Services.AddHostedService<StorageMonitorService>();
+builder.Services.AddScoped<IStorageQuotaService, StorageQuotaService>();
 builder.Services.AddScoped<BuildCookieOptionHelper>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<ICloudFareTurnstileService, CloudFareTurnstileService>();
-
+builder.Services.AddScoped<IDocVersionService, DocVersionService>();
 
 builder.Services.AddMemoryCache();
 
 builder.Services.Configure<AllowedIpSettings>(
     builder.Configuration.GetSection("Allowed"));
 
+
+
+builder.Services.Configure<StorageAlertEmailSettings>(
+    builder.Configuration.GetSection("StorageAlertEmail"));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -138,6 +146,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
+            OnAuthenticationFailed = context =>
+            {
+                Log.Warning("JWT FAILED: {Error}", context.Exception.Message);
+                return Task.CompletedTask;
+            },
+
+            OnChallenge =async context =>
+            {
+                Log.Warning("JWT CHALLENGE: Unauthorized request. Error: {Error}, Desc: {Desc}",
+                    context.Error,
+                    context.ErrorDescription);
+
+                context.HandleResponse();
+                context.Response.StatusCode = 401;
+                await context.Response.WriteAsync($"Token invalid. {context.ErrorDescription}");
+            },
+          
             OnMessageReceived = context =>
             {
                 // Try header first 
@@ -161,7 +186,11 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 // 6. Add Controllers
 //builder.Services.AddControllers();
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(options =>
+    {
+        options.Filters.Add<ApiActionLoggingFilter>();
+        options.Filters.Add<XssSanitizationFilter>();
+    })
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(
@@ -176,15 +205,7 @@ builder.Services.AddControllers()
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("RestrictedCors", policy =>
-
-    //"AllowAll", policy =>
     {
-
-    //policy.SetIsOriginAllowed(origin => true)
-    //  .AllowAnyMethod()
-    //  .AllowAnyHeader()
-    //  .AllowCredentials();
-
     policy.SetIsOriginAllowed(origin =>
     {
         if (string.IsNullOrWhiteSpace(origin))
@@ -260,6 +281,23 @@ builder.Services.AddRateLimiter(options =>
 });
 
 
+//serilog
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .WriteTo.Console(new JsonFormatter())
+    .WriteTo.File(
+        new JsonFormatter(),
+        "logs/log-.json",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 15)//on 16th day, the first log file will be deleted
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
 var app = builder.Build();
 
 // swagger conditional enable
@@ -275,6 +313,31 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+//serilog
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("ClientIP", httpContext.Connection.RemoteIpAddress);
+        diagnosticContext.Set("UserAgent", httpContext.Request.Headers.UserAgent.ToString());
+        var userId = httpContext.User?.FindFirst("userId")?.Value;
+        var username = httpContext.User?.FindFirst("username")?.Value;
+        var role = httpContext.User?.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (!string.IsNullOrEmpty(userId))
+            diagnosticContext.Set("UserId", userId);
+
+        if (!string.IsNullOrEmpty(username))
+            diagnosticContext.Set("Username", username);
+
+        if (!string.IsNullOrEmpty(role))
+            diagnosticContext.Set("Role", role);
+
+    };
+});
+
 app.UseHttpMetrics();
 
 app.UseHttpsRedirection();
@@ -284,17 +347,18 @@ app.UseCors("RestrictedCors");
 
 //middlewares
 
-app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<BotDetectionMiddleware>();
 
 app.UseMiddleware<SecurityFailureTrackingMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 app.UseAuthentication();
+app.UseMiddleware<MetricsAuthorizationMiddleware>();
+app.UseMiddleware<ClientValidationMiddleware>();
 app.UseMiddleware<SessionValidationMiddleware>();
 app.UseAuthorization();
 
-app.UseMiddleware<MetricsAuthorizationMiddleware>();
+
 app.MapMetrics();
 
 app.MapControllers();

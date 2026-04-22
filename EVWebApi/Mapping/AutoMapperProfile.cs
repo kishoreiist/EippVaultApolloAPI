@@ -168,6 +168,9 @@ namespace EVWebApi.Mapping
             CreateMap<AccountLockAudit, LockedDto>()
                 .ForMember(dest => dest.Name,
                     opt => opt.MapFrom(src => $"{src.User.FirstName} {src.User.LastName}"));
+
+
+            CreateMap<Document, DocumentVersion>();
         }
     }
 }

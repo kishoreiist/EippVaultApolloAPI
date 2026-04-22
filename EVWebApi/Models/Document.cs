@@ -15,8 +15,8 @@ namespace EVWebApi.Models
         public string FilePath { get; set; }
         [Column("doc_type_id")]
         public int? DocumentTypeId { get; set; }
-        [Column("version")]
-        public int Version { get; set; }
+        [Column("version_id")]
+        public int? Version { get; set; }
         [Column("uploaded_by")]
         public int? UploadedBy { get; set; }
         [Column("uploaded_at")]
@@ -75,8 +75,14 @@ namespace EVWebApi.Models
         [Column("paid_amount")]
         public decimal? PaidAmount { get; set; }
 
+
+        [NotMapped]
+        public string? DocType { get; set; }
+
+
         public ICollection<Metadata> MetadataList { get; set; }
         public  ICollection<Notes> Notes { get; set; } = new List<Notes>();
         public DocumentTypes? DocumentType { get; set; }//one to one
+        //public DocumentVersion? LatestVersion { get; set; }
     }
 }

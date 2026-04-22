@@ -8,7 +8,7 @@ namespace EVWebApi.Interfaces.Repositories
     {
         Task<Document> CreateDocument(Document doc);
         Task<Document> GetDocument(int id);
-        Task<int> GetLatestVersion(int cabinetId, string fileName);
+        Task<int> GetLatestVersion(int docId);
         Task UpdateStatus(int id);
         Task DeleteDocument(int documentId);
         IQueryable<Document> Query();
@@ -18,7 +18,9 @@ namespace EVWebApi.Interfaces.Repositories
         Task<DocumentTypes> GetOrCreateDocLabelAsync(string label);
         Task<string> GetDocumentName(int id);
         void AddDocumentRange(Document doc);
-
+        Task<List<string>> GetCabinetGroupingColumns(int cabinetId);
+        Task<List<Document>> GetDocumentsByIds(List<int> ids);
+        Task<List<Document>> ExcelExportQuery(ExportExcelDocDto dto);
         Task<int> GetDocumentIdFromPathAsync(string filePath); //need to check
         //--------NOTES----------------
         Task<List<NotesDto>> GetDocumentWithNotesAsync(int documentId);
@@ -35,6 +37,15 @@ namespace EVWebApi.Interfaces.Repositories
         Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId, IEnumerable<int> documentIds);
 
         Task<int> CounterDocumentDownload(int docid, int? userid);
+
+
+        ///--versioning
+      
+        Task<Document?> FindDuplicateAsync(DocumentUploadDto dto);
+        Task<List<Document>> GetDocumentsForDuplicateCheck(int cabinetId);
+        bool IsDuplicate(Document dbDoc, DocumentMetadatadto record, string[] fields);
+        string GenerateDuplicateKeyFromDocument(Document doc, string[] fields);
+        string GenerateDuplicateKeyFromRecord(DocumentMetadatadto record, string[] fields);
 
     }
 }

@@ -4,6 +4,7 @@ using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Settings;
+using EVWebAPI.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -14,10 +15,12 @@ namespace EVWebApi.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly AllowedIpSettings _allowedIpSettings;
-        public SecurityFailureTrackingMiddleware(RequestDelegate next, IOptions<AllowedIpSettings> options)
+        private readonly ILogger<SecurityFailureTrackingMiddleware> _logger;
+        public SecurityFailureTrackingMiddleware(RequestDelegate next, IOptions<AllowedIpSettings> options, ILogger<SecurityFailureTrackingMiddleware> logger)
         {
             _next = next;
             _allowedIpSettings = options.Value;
+            _logger = logger;
         }
 
         public async Task InvokeAsync(
@@ -26,10 +29,9 @@ namespace EVWebApi.Middleware
         AppDbContext db)
         {
             var ip = context.Connection.RemoteIpAddress?.ToString();
-            Console.WriteLine($"IP from request: {ip}");
-            foreach (var allowed in _allowedIpSettings.AllowedIPs)
+            if (!_allowedIpSettings.AllowedIPs.Contains(ip))
             {
-                Console.WriteLine($"Allowed IP: '{allowed}'");
+                _logger.LogWarning("Unauthorized IP access attempt: {IP}", ip);
             }
 
 
@@ -40,9 +42,7 @@ namespace EVWebApi.Middleware
                 if (!string.IsNullOrEmpty(ip) &&
                     await failureService.IsIpBlacklistedAsync(ip))
                 {
-                    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    //await context.Response.WriteAsync("IP is blacklisted.");
-                    //return;
+
                     throw new IpBlacklistedException("IP is blacklisted.");
 
                 }
@@ -121,9 +121,7 @@ namespace EVWebApi.Middleware
                 && await failureService.IsUserLockedAsync(failedUserId.Value)
                 )
                 {
-                    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    //await context.Response.WriteAsync("Account is locked by Admin");
-                    //return;
+
                     throw;
                 }
 
@@ -131,47 +129,15 @@ namespace EVWebApi.Middleware
                 throw;
             }
 
-            //catch(AccountNotActivatedException ex)
-            //{
-            //    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            //    //await context.Response.WriteAsync("Account not activated");
-            //    //return;
-            //    throw;
-            //}
-            //catch(AccountDeletedException ex)
-            //{
-            //    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            //    //await context.Response.WriteAsync("Account is deleted/disabled");
-            //    //return;
-            //    throw;
-            //}
-            //catch (AccountDisabledException ex)
-            //{
-            //    //context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            //    //await context.Response.WriteAsync("Account is locked by Admin");
-            //    //return;
-            //    throw;
-            //}
-            //catch (LockedException ex)
-            //{
 
-            //    // context.Response.StatusCode = StatusCodes.Status409Conflict;
-            //    // await context.Response.WriteAsync( "Your request is success,for further clarification check your email");
-            //    //return ;
-            //    throw;
-                
-            //}
             catch(AuthenticationException ex)
             {
 
-                // Track Failures AFTER execution
-                //if (context.Response.StatusCode == 401 ||
-                //    context.Response.StatusCode == 403)
-                //{
+
                     failedUserId = GetUserIdFromContext(context);
 
                     await failureService.RegisterFailureAsync(failedUserId, ip, endpoint);
-                //}
+              
                 throw;
             }
         }

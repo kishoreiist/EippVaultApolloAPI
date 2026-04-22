@@ -1,4 +1,5 @@
 ﻿using EVWebApi.Data;
+using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using Microsoft.EntityFrameworkCore;
@@ -8,26 +9,17 @@ namespace EVWebApi.Services
     public class DocumentGroupingService : IDocumentGroupingService
     {
         private new readonly AppDbContext _context;
-        public DocumentGroupingService(AppDbContext context) 
+        private readonly IDocumentRepository _docrepo;
+        public DocumentGroupingService(AppDbContext context, IDocumentRepository docrepo) 
         {
             _context = context;
+            _docrepo = docrepo;
         }
 
         public async Task<List<string>> GetDynamicGroupingKeyAsync(int cabinetId)
         {
 
-            var columns = await _context.CabinetGroupingRules
-                .Where(c => c.Cabinet.CabinetId == cabinetId)
-                .OrderBy(c => c.GroupingOrder)
-                .Select(c => c.GroupingCol)
-                .ToListAsync();
-
-            if (!columns.Any())
-            {
-                throw new KeyNotFoundException($"Configuration Error: No grouping rules defined for Cabinet ID {cabinetId}.");
-            }
-
-
+            var columns = await _docrepo.GetCabinetGroupingColumns(cabinetId);
             // Maping DB Columns to EF Property Names
             var entityType = _context.Model.FindEntityType(typeof(Document));
 

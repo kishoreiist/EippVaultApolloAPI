@@ -33,6 +33,13 @@ namespace EVWebApi.Models.Security
         public int IPWeeklyFailures { get; set; } = 0;
         [Column("valid_upto")]
         public DateTime? ValidUpto { get; set; }
+
+        [Column("unlocked_at")]
+        public DateTime? UnlockedAt { get; set; }
+
+        [MaxLength(50)]
+        [Column("unlocked_by")]
+        public string? UnlockedBy { get; set; }
     }
 
 

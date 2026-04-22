@@ -33,6 +33,7 @@ namespace EVWebApi.Repositories
                         .ThenInclude(a => a.AccessRight)
                 .Include(g=>g.GroupCabinets)
                     .ThenInclude(c=>c.Cabinet)
+                 .OrderByDescending(x => x.CreatedAt)
                 .AsQueryable();
         }
         public async Task<List<GroupListDto>> GetGroupsForDropdownAsync()

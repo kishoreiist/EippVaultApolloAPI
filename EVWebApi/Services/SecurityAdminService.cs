@@ -7,6 +7,7 @@ using EVWebApi.DTOs.Security;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
+using EVWebApi.Helpers.ExportToExcel;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -24,7 +25,7 @@ namespace EVWebApi.Services
         private readonly IMapper _mapper;
         private readonly IUserRepository _userRepo;
         private readonly IAuthService _authService;
-        public SecurityAdminService(AppDbContext context, IMapper mapper,IUserRepository userRepo,IAuthService authService)
+        public SecurityAdminService(AppDbContext context, IMapper mapper, IUserRepository userRepo, IAuthService authService)
         {
             _context = context;
             _mapper = mapper;
@@ -33,50 +34,57 @@ namespace EVWebApi.Services
         }
         public async Task<PagedResponse<BlacklistDto>> GetBlacklistedIpsAsync(BlacklistQueryParameters query)
         {
-            var ips = _context.IpSecurity
-                 .Where(x => x.Status!=IpSecurityStatus.Normal)
-                 // .OrderByDescending(x => x.BlacklistedAt)
-                 .AsNoTracking().AsQueryable();
+            //var ips = _context.IpSecurity
+            //     .Where(x => x.Status != IpSecurityStatus.Normal)
+            //     // .OrderByDescending(x => x.BlacklistedAt)
+            //     .AsNoTracking().AsQueryable();
 
-            // IP Address Filter
-            if (!string.IsNullOrWhiteSpace(query.IpAddress))
-            {
-                ips = ips.Where(x =>
-                    EF.Functions.Like(x.IpAddress, $"%{query.IpAddress}%"));
-            }
+            //// IP Address Filter
+            //if (!string.IsNullOrWhiteSpace(query.IpAddress))
+            //{
+            //    ips = ips.Where(x =>
+            //        EF.Functions.Like(x.IpAddress, $"%{query.IpAddress}%"));
+            //}
 
-            // Status Filter
-            if (query.Status.HasValue)
-            {
-                ips = ips.Where(x => x.Status == query.Status.Value);
-            }
+            //// Status Filter
+            //if (query.Status.HasValue)
+            //{
+            //    ips = ips.Where(x => x.Status == query.Status.Value);
+            //}
+            //else
+            //{
+            //    ips = ips.Where(x => x.Status != IpSecurityStatus.Normal && (x.ValidUpto == null || x.ValidUpto > DateTime.UtcNow));
+            //}
 
-            //Blacklisted Date Range
-            if (query.BlacklistedFrom.HasValue)
-            {
-                ips = ips.Where(x => x.BlacklistedAt >= query.BlacklistedFrom.Value);
-            }
+            ////Blacklisted Date Range
+            //if (query.BlacklistedFrom.HasValue)
+            //{
+            //    ips = ips.Where(x => x.BlacklistedAt >= query.BlacklistedFrom.Value);
+            //}
 
-            if (query.BlacklistedTo.HasValue)
-            {
-                var endOfDay = query.BlacklistedTo.Value.Date.AddDays(1).AddTicks(-1);
-                ips = ips.Where(x => x.BlacklistedAt <= endOfDay);
-            }
+            //if (query.BlacklistedTo.HasValue)
+            //{
+            //    var endOfDay = query.BlacklistedTo.Value.Date.AddDays(1).AddTicks(-1);
+            //    ips = ips.Where(x => x.BlacklistedAt <= endOfDay);
+            //}
 
-            // Last Activity Date Range
-            if (query.LastActivityFrom.HasValue)
-            {
-                ips = ips.Where(x => x.LastActivityAt >= query.LastActivityFrom.Value);
-            }
+            //// Last Activity Date Range
+            //if (query.LastActivityFrom.HasValue)
+            //{
+            //    ips = ips.Where(x => x.LastActivityAt >= query.LastActivityFrom.Value);
+            //}
 
-            if (query.LastActivityTo.HasValue)
-            {
-                var endOfDay = query.LastActivityTo.Value.Date.AddDays(1).AddTicks(-1);
-                ips = ips.Where(x => x.LastActivityAt <= endOfDay);
-            }
+            //if (query.LastActivityTo.HasValue)
+            //{
+            //    var endOfDay = query.LastActivityTo.Value.Date.AddDays(1).AddTicks(-1);
+            //    ips = ips.Where(x => x.LastActivityAt <= endOfDay);
+            //}
 
             //Order
-            ips = ips.OrderByDescending(x => x.BlacklistedAt);
+            var ips= ApplyIPStatusFilters(query);
+            ips=ips.AsNoTracking().AsQueryable()               
+                .OrderByDescending(x => x.BlacklistedAt);
+
 
 
             var pagedResult = await ips
@@ -87,7 +95,199 @@ namespace EVWebApi.Services
 
         public async Task<PagedResponse<LockedDto>> GetLockedUsersAsync(LockedUserQueryParameters query)
         {
-            var users = _context.LockAudit.AsNoTracking().AsQueryable();
+            //var users = _context.LockAudit.AsNoTracking().AsQueryable();
+            var users = ApplyLockedUserFilters(query);
+            ////filter by name
+            //if (!string.IsNullOrWhiteSpace(query.Name))
+            //{
+            //    var pattern = $"%{query.Name}%";
+
+            //    users = users.Where(x =>
+            //        EF.Functions.ILike(
+            //            x.User.FirstName + " " + x.User.LastName,
+            //            pattern));
+            //}
+
+            //// Filter by LockType
+            //if (!string.IsNullOrWhiteSpace(query.LockType))
+            //{
+            //    users = users.Where(x =>
+            //        EF.Functions.ILike(x.LockType, $"%{query.LockType}%"));
+            //}
+
+            //// Filter by Reason
+            //if (!string.IsNullOrWhiteSpace(query.Reason))
+            //{
+            //    users = users.Where(x =>
+            //        EF.Functions.ILike(x.Reason, $"%{query.Reason}%"));
+            //}
+
+            ////filter by lock date range
+            //if (query.LockedFrom.HasValue)
+            //{
+            //    users = users.Where(x => x.LockedAt >= query.LockedFrom.Value);
+            //}
+
+            //if (query.LockedTo.HasValue)
+            //{
+            //    var endOfDay = query.LockedTo.Value.Date.AddDays(1).AddTicks(-1);
+            //    users = users.Where(x => x.LockedAt <= endOfDay);
+            //}
+
+            ////status
+            //if (!string.IsNullOrEmpty(query.Status))
+            //{
+            //    switch (query.Status.ToLower())
+            //    {
+            //        case "active":
+            //            users = users.Where(x =>
+            //                x.UnlockedAt == null &&
+            //                (x.LockedUntil == null || x.LockedUntil > DateTime.UtcNow));
+            //            break;
+
+            //        case "unlocked":
+            //            users = users.Where(x => x.UnlockedAt != null);
+            //            break;
+
+            //        case "all":
+            //        default:
+            //            break;
+            //    }
+            //}
+            //else
+            //{
+            //    // default → active only
+            //    users = users.Where(x =>
+            //        x.UnlockedAt == null &&
+            //        (x.LockedUntil == null || x.LockedUntil > DateTime.UtcNow));
+            //}
+
+            users = users.OrderByDescending(x => x.LockedAt);
+
+            var result = await users
+                .ProjectTo<LockedDto>(_mapper.ConfigurationProvider)
+                .GetPagedResponseAsync(query.PageNumber, query.PageSize);
+            return result;
+        }
+
+
+        public async Task<bool> UnlockUserAsync(int userId, int? currentuserid)
+        {
+            //var user = await _userRepo.GetByIdAsync(userId);
+            var user = await _userRepo.GetByIdIncludingLockedAsync(userId);
+            if (user == null || user.Status != UserStatus.Locked)
+                throw new NotFoundException($"No existing lock for this user.");
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var lockEntry = await _context.LockAudit
+                .Where(x => x.UserId == userId && x.LockedUntil == null)//only selects permnt locks
+                .OrderByDescending(x => x.LockedAt)
+                .FirstOrDefaultAsync();
+
+                if (lockEntry == null || lockEntry.UnlockedAt != null)
+                    return false; // No active lock found
+                lockEntry.UnlockedAt = DateTime.UtcNow;
+                lockEntry.UnlockedBy = $"Admin - {currentuserid}";
+                lockEntry.LockedUntil = DateTime.UtcNow;
+                user.Status = UserStatus.New;
+                await _context.SaveChangesAsync();
+                await _authService.PasswordResetSendEmailAsync(user, Enums.PasswordEmailType.AccountLocked);
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                throw new Exception("Unlock failed: Could not send reset email. Changes rolled back.", ex);
+            }
+        }
+
+        public async Task<string> RemoveBlackListIpAsync(int id, int? currentuserid)
+        {
+            var ipState = await _context.IpSecurity
+                .Where(x => x.Status == IpSecurityStatus.Blacklisted)
+                .FirstOrDefaultAsync(x => x.Id == id);
+
+            if (ipState == null)
+                throw new NotFoundException($"No existing lock for this ip address.");
+
+            ipState.Status = IpSecurityStatus.Normal;
+            ipState.ValidUpto = DateTime.UtcNow;
+            ipState.UnlockedAt = DateTime.UtcNow;
+            ipState.UnlockedBy = $"Admin - {currentuserid}";
+
+            await _context.SaveChangesAsync();
+            return ipState.IpAddress;
+        }
+
+
+
+        public async Task<(byte[], string)> LockedUsersExportToExcel(LockedUserQueryParameters query)
+        {
+
+            // force no pagination
+            query.PageNumber = 1;
+            query.PageSize = int.MaxValue;
+
+            var usersQuery = ApplyLockedUserFilters(query);
+            var users = await usersQuery
+                .AsNoTracking()
+                .ToListAsync();
+            var columns = new List<string>
+            {
+                "Name",
+                "Reason",
+                "LockType",
+                "LockedTime"
+
+            };
+
+            var excel = ExportExcelBuildHelper.BuildExcel(
+                users,
+                columns,
+                (u, col) => ExcelColumnsHelper.GetLockedUserColumnValue(u, col)
+            );
+
+            return (excel, $"LockedUsers__{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.xlsx");
+        }
+
+        public async Task<(byte[], string)> IPStatusExportToExcel(BlacklistQueryParameters query)
+        {
+
+            // force no pagination
+            query.PageNumber = 1;
+            query.PageSize = int.MaxValue;
+
+            var ipQuery = ApplyIPStatusFilters(query);
+            var ips = await ipQuery
+                .AsNoTracking()
+                .ToListAsync();
+            var columns = new List<string>
+            {
+                "IPAddress",
+                "Status",
+                "DailyFailures",
+                "WeeklyFailures",
+                "BlackListedTime",
+                "LastActivityTime"
+
+            };
+
+            var excel = ExportExcelBuildHelper.BuildExcel(
+                ips,
+                columns,
+                (u, col) => ExcelColumnsHelper.GetIPStatusColumnValue(u, col)
+            );
+
+            return (excel, $"IPStatus__{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.xlsx");
+        }
+
+        private IQueryable<AccountLockAudit> ApplyLockedUserFilters(LockedUserQueryParameters query)
+        {
+            var users = _context.LockAudit
+                 .Include(x => x.User).AsNoTracking().AsQueryable();
 
             //filter by name
             if (!string.IsNullOrWhiteSpace(query.Name))
@@ -126,61 +326,84 @@ namespace EVWebApi.Services
                 users = users.Where(x => x.LockedAt <= endOfDay);
             }
 
-            users = users.OrderByDescending(x => x.LockedAt);
+            //status
+            if (!string.IsNullOrEmpty(query.Status))
+            {
+                switch (query.Status.ToLower())
+                {
+                    case "active":
+                        users = users.Where(x =>
+                            x.UnlockedAt == null &&
+                            (x.LockedUntil == null || x.LockedUntil > DateTime.UtcNow));
+                        break;
 
-            var result = await users
-                .ProjectTo<LockedDto>(_mapper.ConfigurationProvider)
-                .GetPagedResponseAsync(query.PageNumber, query.PageSize);
-            return result;
+                    case "unlocked":
+                        users = users.Where(x => x.UnlockedAt != null);
+                        break;
+
+                    case "all":
+                    default:
+                        break;
+                }
+            }
+            else
+            {
+                // default → active only
+                users = users.Where(x =>
+                    x.UnlockedAt == null &&
+                    (x.LockedUntil == null || x.LockedUntil > DateTime.UtcNow));
+            }
+            return users;
+
         }
 
-
-        public async Task<bool> UnlockUserAsync(int userId,int? currentuserid)
+        private IQueryable<IpSecurityState> ApplyIPStatusFilters(BlacklistQueryParameters query)
         {
-            //var user = await _userRepo.GetByIdAsync(userId);
-            var user = await _userRepo.GetByIdIncludingLockedAsync(userId);
-            if (user == null || user.Status!=UserStatus.Locked)
-                throw new NotFoundException($"No existing lock for this user.");
+            var ips = _context.IpSecurity
+                 .Where(x => x.Status != IpSecurityStatus.Normal)            
+                  .AsNoTracking().AsQueryable();
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            // IP Address Filter
+            if (!string.IsNullOrWhiteSpace(query.IpAddress))
             {
-                var lockEntry = await _context.LockAudit
-                .Where(x => x.UserId == userId && x.LockedUntil == null)//only selects permnt locks
-                .OrderByDescending(x => x.LockedAt)
-                .FirstOrDefaultAsync();
-
-                if (lockEntry == null || lockEntry.UnlockedAt != null)
-                    return false; // No active lock found
-                lockEntry.UnlockedAt = DateTime.UtcNow;
-                lockEntry.UnlockedBy = $"Admin - {currentuserid}";
-                lockEntry.LockedUntil = DateTime.UtcNow;
-                user.Status = UserStatus.New;
-                await _context.SaveChangesAsync();
-                await _authService.PasswordResetSendEmailAsync(user,Enums.PasswordEmailType.AccountLocked);
-                await transaction.CommitAsync();
-                return true;
+                ips = ips.Where(x =>
+                    EF.Functions.Like(x.IpAddress, $"%{query.IpAddress}%"));
             }
-            catch (Exception ex) 
+
+            // Status Filter
+            if (query.Status.HasValue)
             {
-                await transaction.RollbackAsync();
-                throw new Exception("Unlock failed: Could not send reset email. Changes rolled back.", ex);
+                ips = ips.Where(x => x.Status == query.Status.Value);
             }
-        }
+            else
+            {
+                ips = ips.Where(x => x.Status != IpSecurityStatus.Normal && (x.ValidUpto == null || x.ValidUpto > DateTime.UtcNow));
+            }
 
-        public async Task RemoveBlackListIpAsync(string ip)
-        {
-            var ipState = await _context.IpSecurity
-                .Where(x=>x.Status==IpSecurityStatus.Blacklisted)
-                .FirstOrDefaultAsync(x => x.IpAddress == ip);
+            //Blacklisted Date Range
+            if (query.BlacklistedFrom.HasValue)
+            {
+                ips = ips.Where(x => x.BlacklistedAt >= query.BlacklistedFrom.Value);
+            }
 
-            if (ipState == null)
-                return;
+            if (query.BlacklistedTo.HasValue)
+            {
+                var endOfDay = query.BlacklistedTo.Value.Date.AddDays(1).AddTicks(-1);
+                ips = ips.Where(x => x.BlacklistedAt <= endOfDay);
+            }
 
-            ipState.Status = IpSecurityStatus.Normal;
-            ipState.ValidUpto = DateTime.UtcNow;
+            // Last Activity Date Range
+            if (query.LastActivityFrom.HasValue)
+            {
+                ips = ips.Where(x => x.LastActivityAt >= query.LastActivityFrom.Value);
+            }
 
-            await _context.SaveChangesAsync();
+            if (query.LastActivityTo.HasValue)
+            {
+                var endOfDay = query.LastActivityTo.Value.Date.AddDays(1).AddTicks(-1);
+                ips = ips.Where(x => x.LastActivityAt <= endOfDay);
+            }
+            return ips;
         }
     }
 }

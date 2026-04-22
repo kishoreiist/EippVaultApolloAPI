@@ -46,8 +46,7 @@ namespace EVWebApi.Repositories
                         .ThenInclude(g => g.GroupCabinets)
                             .ThenInclude(c=>c.Cabinet)
                 .Where(u => u.Status != UserStatus.Deleted && u.Status != UserStatus.Locked)
-                .OrderBy(u=>u.UserId)
-                .AsQueryable();
+                .OrderByDescending(x => x.CreatedAt).AsQueryable();
         }
 
         public void SoftDelete(User user)

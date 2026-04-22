@@ -2,6 +2,8 @@
 using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.Data;
 using EVWebApi.DTOs.Security;
+using EVWebApi.DTOs.User;
+using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
@@ -12,7 +14,7 @@ using Syncfusion.EJ2.FileManager.Base;
 
 namespace EVWebApi.Controllers
 {
-    //[Authorize(Roles = "admin,super_admin")]
+    [Authorize(Roles = "admin,super_admin")]
     [ApiController]
     [Route("api/security")]
     public class SecurityAdminController : BaseController
@@ -79,15 +81,25 @@ namespace EVWebApi.Controllers
                 var user = await _securityService.UnlockUserAsync(userId, CurrentUserId);
                 if (user)
                 {
-                    await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Security", "UnLocked Users", userId.ToString());
+                    await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Security", "UnLocked User", userId.ToString());
                     return Ok("User unlocked successfully.");
                 }
-                else { return NoContent(); }
+                else
+                {
 
+                    return StatusCode(400, "No existing lock for this user.");
 
+                }
             }
+            catch (NotFoundException ex)
+            {
+                return StatusCode(400, "No existing lock for this user.");
+            }
+
+
+
             catch (Exception ex)
-            { 
+            {
                 return StatusCode(500, new
                 {
                     Message = "Unlocking user failed",
@@ -97,28 +109,50 @@ namespace EVWebApi.Controllers
         }
 
         //remove blacklist
-        [HttpPut("remove_blacklist/{ip}")]
-        public async Task<IActionResult> RemoveBlacklistedIp(string ip)
+        [HttpPut("remove_blacklist/{id}")]
+        public async Task<IActionResult> RemoveBlacklistedIp(int id)
         {
             try
             {
-                await _securityService.RemoveBlackListIpAsync(ip);
+                var ip=await _securityService.RemoveBlackListIpAsync(id,CurrentUserId);
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Security", "Removed IP from blacklist", ip);
                 return Ok(new { Message = "IP removed from blacklist." });
 
+            }
+            catch (NotFoundException ex)
+            {
+                return StatusCode(400, "No existing lock for this IP.");
             }
             catch (Exception ex)    
             {  
                 return StatusCode(500, new
                 {
                     Message = "Removing IP from blacklist failed",
-                    Error = ex.Message
+                    Error = ex.InnerException.Message
                 });
             }
         }
 
 
+        [HttpPost("export_locked_excel")]
+        public async Task<IActionResult> ExportLockedUsers([FromQuery] LockedUserQueryParameters query)
+        {
+            var (bytes, fileName) = await _securityService.LockedUsersExportToExcel(query);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Locked Users", "Export Excel");
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
 
+        [HttpPost("export_ipstatus_excel")]
+        public async Task<IActionResult> ExportIPStatus([FromQuery] BlacklistQueryParameters query)
+        {
+            var (bytes, fileName) = await _securityService.IPStatusExportToExcel(query);
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "IP Status", "Export Excel");
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
 
     }
 }

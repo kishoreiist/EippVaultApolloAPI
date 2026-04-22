@@ -1,10 +1,10 @@
 ﻿namespace EVWebApi.DTOs.Document
 {
-    public class GroupedDocResponseDTO
+    public class  GroupedDocResponseDTO
     {
         
         public int CabinetId { get; set; }
-        public int Version { get; set; }
+        public int? Version { get; set; }
         public string Status { get; set; }
         public DateTime UploadedAt { get; set; }
         public List<MetadataDTO>? Metadata { get; set; }

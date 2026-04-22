@@ -42,7 +42,9 @@ namespace EVWebApi.Data
         public DbSet<IpFailureRecord> IpFailureRecords { get; set; }
         public DbSet<UserSession> UserSessions { get; set; }
         public DbSet<UserPasswordHistory> UserPasswords { get; set; }
-
+        public DbSet<PlanDetails> ClientPlanDetail { get; set; }
+        public DbSet<DocumentVersion> DocumentVersion { get; set; }
+        public DbSet<DocumentLock> DocumentLock { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
            
@@ -76,6 +78,9 @@ namespace EVWebApi.Data
             modelBuilder.Entity<IpFailureRecord>().ToTable("ip_failure_record");
             modelBuilder.Entity<UserSession>().ToTable("user_sessions");
             modelBuilder.Entity<UserPasswordHistory>().ToTable("user_password_history");
+            modelBuilder.Entity<PlanDetails>().ToTable("plan_details");
+            modelBuilder.Entity<DocumentVersion>().ToTable("document_version");
+            modelBuilder.Entity<DocumentLock>().ToTable("document_lock");
 
 
             // -------------------
@@ -89,7 +94,10 @@ namespace EVWebApi.Data
             modelBuilder.Entity<CabinetGroupingRule>().HasKey(d => d.Id);
             modelBuilder.Entity<UserSession>().HasKey(d => d.Id);
             modelBuilder.Entity<UserPasswordHistory>().HasKey(d => d.Id);
-
+            modelBuilder.Entity<PlanDetails>().HasKey(d => d.Id);
+            modelBuilder.Entity<DocumentVersion>()
+                .HasKey(v => new { v.VersionId });
+            modelBuilder.Entity<DocumentLock>().HasKey(l => l.LockId);
             modelBuilder.Entity<UserGroup>()
                 .HasKey(ug => new { ug.UserId, ug.GroupId });
 

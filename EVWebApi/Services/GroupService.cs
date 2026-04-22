@@ -5,6 +5,7 @@ using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.DTOs.User;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers.ExportToExcel;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
@@ -67,10 +68,10 @@ namespace EVWebApi.Services
                 query.PageNumber = totalPages;
 
 
-        var items = groupsQuery
-                .Skip((query.PageNumber - 1) * query.PageSize)
-                .Take(query.PageSize)
-                .ToList();
+            var items = groupsQuery
+                    .Skip((query.PageNumber - 1) * query.PageSize)
+                    .Take(query.PageSize)
+                    .ToList();
 
             var mapped = _mapper.Map<List<GroupDto>>(items);
 
@@ -87,7 +88,7 @@ namespace EVWebApi.Services
         public async Task<GroupDto> GetByIdAsync(int id)
         {
             var group = await _uow.Groups.GetByIdAsync(id);
-            if (group == null) 
+            if (group == null)
                 throw new NotFoundException("Group not found");
             return _mapper.Map<GroupDto>(group);
         }
@@ -95,7 +96,7 @@ namespace EVWebApi.Services
         public async Task<GroupDto> CreateAsync(CreateGroupDto dto)
         {
             var exists = await _uow.Groups.GetByGroupnameAsync(dto.GroupName);
-            if (exists != null) 
+            if (exists != null)
                 throw new ConflictException($"GroupName '{dto.GroupName}' already exists");
 
             var group = _mapper.Map<Group>(dto);
@@ -144,7 +145,7 @@ namespace EVWebApi.Services
         public async Task<GroupDto> UpdateAsync(UpdateGroupDto dto)
         {
             var group = await _uow.Groups.GetByIdAsync(dto.GroupId);
-            if (group == null) 
+            if (group == null)
                 throw new NotFoundException("Group not found");
 
 
@@ -152,7 +153,7 @@ namespace EVWebApi.Services
             //if (dto.Description != null)
             //    group.Description = dto.Description;
             if (!string.IsNullOrWhiteSpace(dto.UserType)) group.UserType = dto.UserType;
-            if (dto.CabinetsList != null && dto.CabinetsList.Count>0)
+            if (dto.CabinetsList != null && dto.CabinetsList.Count > 0)
             {
                 group.GroupCabinets.Clear();
                 foreach (var cabinetId in dto.CabinetsList)
@@ -164,7 +165,7 @@ namespace EVWebApi.Services
                     });
                 }
             }
-            if(dto.AccessList != null && dto.AccessList.Count > 0)
+            if (dto.AccessList != null && dto.AccessList.Count > 0)
             {
                 group.GroupAccessRights.Clear();
                 foreach (var accessId in dto.AccessList)
@@ -186,19 +187,19 @@ namespace EVWebApi.Services
         public async Task DeleteAsync(int id)
         {
             var group = await _uow.Groups.GetByIdAsync(id);
-            if (group == null) 
+            if (group == null)
                 throw new NotFoundException("Group not found");
 
             var hasUsers = await _uow.Groups.GetUsersAsync(id);
-            if(hasUsers)
-               throw new ConflictException(               
-                    "Cannot delete the group because it is assigned to one or more users."
-                );
-          
-                _uow.Groups.Remove(group);
-                await _uow.CompleteAsync();
-            
-            
+            if (hasUsers)
+                throw new ConflictException(
+                     "Cannot delete the group because it is assigned to one or more users."
+                 );
+
+            _uow.Groups.Remove(group);
+            await _uow.CompleteAsync();
+
+
         }
 
         public async Task<List<GroupListDto>> GetGroupsForDropdownAsync()
@@ -207,6 +208,36 @@ namespace EVWebApi.Services
             return groups;
         }
 
+
+        public async Task<(byte[], string)> GroupsExportToExcel(GroupQueryParameters query)
+        {
+
+            // force no pagination
+            query.PageNumber = 1;
+
+
+            var usersQuery = ApplyGroupFilters(query);
+            var users = await usersQuery
+                .AsNoTracking()
+                .ToListAsync();
+            var columns = new List<string>
+            {
+                "GroupName",
+                "UserType",
+                "AccessList",
+                "CabinetList",
+                "CreatedAt"
+
+            };
+
+            var excel = ExportExcelBuildHelper.BuildExcel(
+                users,
+                columns,
+                (u, col) => ExcelColumnsHelper.GetGroupColumnValue(u, col)
+            );
+
+            return (excel, $"Groups__{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.xlsx");
+        }
         //--------------------email grp--------------------------------------
         public async Task<EmailGroupDto> CreateEmailGroupAsync(CreateEmailGroupDto dto)
         {
@@ -257,6 +288,32 @@ namespace EVWebApi.Services
         }
 
 
+        //-----------------------------hlpr methods-------------------
 
+        private IQueryable<Group> ApplyGroupFilters(GroupQueryParameters query)
+        {
+            var groupsQuery = _uow.Groups.Query();
+            //group name
+
+            if (!string.IsNullOrWhiteSpace(query.Groupname))
+            {
+                string groupname = query.Groupname.ToLower();
+                groupsQuery = groupsQuery.Where(g =>
+                            g.GroupName.ToLower().Contains(groupname)
+                        );
+            }
+
+            //  Date Range
+            if (query.FromDate.HasValue)
+            {
+                groupsQuery = groupsQuery.Where(g => g.CreatedAt >= query.FromDate.Value);
+            }
+            if (query.ToDate.HasValue)
+            {
+                groupsQuery = groupsQuery.Where(g => g.CreatedAt <= query.ToDate.Value);
+            }
+
+            return groupsQuery;
+        }
     }
 }

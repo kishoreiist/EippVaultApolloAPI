@@ -1,6 +1,7 @@
 ﻿using EVWebApi.DTOs.Audit;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
+using EVWebApi.DTOs.User;
 
 namespace EVWebApi.Interfaces.Services
 {
@@ -17,7 +18,7 @@ namespace EVWebApi.Interfaces.Services
                   string? filters = null
               );
 
-        Task<PagedResponse<AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,int? userid,string usertype, CancellationToken cancellationToken = default);
+        Task<PagedResponse<DTOs.Audit.AuditLogDTO>> GetLogsAsync(AuditLogQueryParameters query,int? userid,string usertype, CancellationToken cancellationToken = default);
         //export to csv
         Task ExportLogsToCsvAsync(
             int pagenumber,
@@ -28,7 +29,7 @@ namespace EVWebApi.Interfaces.Services
             DateTime? fromDate = null,
             DateTime? toDate = null
         );
-
+        Task<(byte[], string)> AuditLogsExportToExcel(AuditLogQueryParameters query, int? userId, string userType);
         Task<PrivilegeConfigDto> GetPrivilegeConfigurationAsync();
     }
 

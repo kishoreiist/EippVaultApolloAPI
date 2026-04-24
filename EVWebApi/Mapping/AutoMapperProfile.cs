@@ -3,9 +3,11 @@ using EVWebApi.DTOs.Audit;
 using EVWebApi.DTOs.Cabinet;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.HR;
 using EVWebApi.DTOs.Security;
 using EVWebApi.DTOs.User;
 using EVWebApi.Models;
+using EVWebApi.Models.HR;
 using EVWebApi.Models.Security;
 using System;
 
@@ -171,6 +173,8 @@ namespace EVWebApi.Mapping
 
 
             CreateMap<Document, DocumentVersion>();
+
+            //---------------onboarding-------------------
         }
     }
 }

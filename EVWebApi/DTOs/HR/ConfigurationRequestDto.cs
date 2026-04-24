@@ -1,0 +1,128 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace EVWebApi.DTOs.HR
+{
+    public class ConfigurationRequestDto
+    {
+        public bool IsExternal { get; set; } = true;
+        public int CollectionId { get; set; }
+        
+        public List<string> Emails { get; set; }
+        
+        public DateTime ExpiryDate { get; set; }
+        
+        public string? Description { get; set; }
+        
+    }
+    public class ConfigQueryParamsDto
+    {
+        [FromQuery(Name ="region")]
+        public string? Region { get; set; }
+       
+    }
+
+    public class ConfigQueryDetailDto
+    {
+        [FromQuery(Name = "status")]
+        public string? Status { get; set; }
+    }
+    public class ConfigurationResponseDto
+    {
+        public int RequestId { get; set; }
+
+        public int TotalEmails { get; set; }
+
+        public int Success { get; set; }
+        public int Failed { get; set; }
+
+        public List<string> FailedEmailDetails { get; set; } = new List<string>();
+    }
+
+    public class UploadPageResponseDto
+    {
+        public int RecipientId { get; set; }
+        public string Email { get; set; }
+        public string Designation { get; set; }
+        public string CollectionName { get; set; }
+
+        public UploadStatusDto Status { get; set; }
+        public List<DocumentTypeDto> Documents { get; set; }
+    }
+
+    public class DocumentTypeDto
+    {
+        public int DocumentTypeId { get; set; }
+        public string DocType { get; set; }
+        public bool Uploaded { get; set; }
+    }
+
+    public class UploadStatusDto
+    {
+        public string Status { get; set; }
+        public int Total { get; set; }
+        public int UploadedCount { get; set; }
+        public int Pending { get; set; }
+    }
+    public class OnboardingDocsDto
+    {
+        public required string Token { get; set; }
+
+        public required string Name { get; set; }
+        public required string Email { get; set; }
+        public required string AdhaarNo { get; set; }
+        public required string PAN { get; set; }
+        public required string Phone { get; set; }
+        public required DateTime Dob { get; set; }
+        public List<UploadItemDto> Files { get; set; }
+    }
+    public class UploadItemDto
+    {
+        public int DocumentTypeId { get; set; }
+        public IFormFile File { get; set; }
+    }
+
+    public class UploadResultDto
+    {
+        public string Status { get; set; }
+        public List<DocumentTypeDto> Documents { get; set; }
+    }
+
+
+    public class ConfigListDto
+    {
+        public int ConfigId { get; set; }
+        public string? Description { get; set; }
+        public string CollectionName { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string Region { get; set; }
+        public int TotalRecipients { get; set; }
+        public int Pending { get; set; }
+        public int InProgress { get; set; }
+        public int Completed { get; set; }
+    }
+
+
+    public class ConfigRequestDetailsDto
+    {
+        public int ConfigId { get; set; }
+        public string? Description { get; set; }
+        public string CollectionName { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public int TotalDocs { get; set; }
+        public List<RecipientDto> Recipients { get; set; }
+    }
+
+    public class RecipientDto
+    {
+        public int RecipientId { get; set; }
+        public string Email { get; set; }
+        public string Name { get; set; }
+        public string Adhaar { get; set; }
+        public string PAN { get; set; }
+        public string Status { get; set; }
+        public int? Submitted { get; set; }
+        public int? Pending { get; set; }
+        public DateTime? CompletedAt { get; set; }
+    }
+}

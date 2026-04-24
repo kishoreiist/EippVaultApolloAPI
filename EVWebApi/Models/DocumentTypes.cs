@@ -1,5 +1,6 @@
 ﻿
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using EVWebApi.Models.HR;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EVWebApi.Models
 {
@@ -15,6 +16,7 @@ namespace EVWebApi.Models
         public string Label { get; set; }
 
         public ICollection<Document> Documents { get; set; } = new List<Document>();//one to many
-
+        public ICollection<CollectionDocumentType> CollectionDocumentTypes { get; set; }
     }
+
 }

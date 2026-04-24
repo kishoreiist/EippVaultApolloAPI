@@ -72,6 +72,7 @@ builder.Services.AddScoped<IMetadataRepository, MetadataRepository>();
 builder.Services.AddScoped<ICabinetRepository, CabinetRepository>();
 builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
 builder.Services.AddScoped<IDocVersionRepository, DocVersionRepository>();
+builder.Services.AddScoped<IConfigurationRepository, ConfigurationRepository>();
 
 // 4. Add Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -111,6 +112,7 @@ builder.Services.AddScoped<BuildCookieOptionHelper>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<ICloudFareTurnstileService, CloudFareTurnstileService>();
 builder.Services.AddScoped<IDocVersionService, DocVersionService>();
+builder.Services.AddScoped<IConfigurationService, ConfigurationService>();
 
 builder.Services.AddMemoryCache();
 

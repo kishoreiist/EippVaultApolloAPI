@@ -48,14 +48,6 @@ namespace EVWebApi.Services
         {
             using var message = new MailMessage();
 
-
-            //var from = string.IsNullOrWhiteSpace(_settings.DisplayName)
-            //    ? new MailAddress(_settings.From)
-            //    : new MailAddress(_settings.From, _settings.DisplayName);
-
-            // var replyto= string.IsNullOrWhiteSpace(ReplyTo)
-            //     ? from
-            //     : new MailAddress(ReplyTo,UserName);
             MailAddress replyto;
             MailAddress from;
             if (!string.IsNullOrWhiteSpace(ReplyTo))

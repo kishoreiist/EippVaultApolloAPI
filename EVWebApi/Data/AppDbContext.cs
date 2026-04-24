@@ -1,5 +1,6 @@
 ﻿using EVWebApi.Helpers;
 using EVWebApi.Models;
+using EVWebApi.Models.HR;
 using EVWebApi.Models.Security;
 using Microsoft.EntityFrameworkCore;
 using System.Xml.Linq;
@@ -45,6 +46,16 @@ namespace EVWebApi.Data
         public DbSet<PlanDetails> ClientPlanDetail { get; set; }
         public DbSet<DocumentVersion> DocumentVersion { get; set; }
         public DbSet<DocumentLock> DocumentLock { get; set; }
+
+
+        public DbSet<DocumentCollection> DocumentCollections { get; set; }
+        public DbSet<CollectionDocumentType> CollectionDocTypes { get; set; }
+        public DbSet<OnboardingDocument> OnboardingHRDocument { get; set; }
+        public DbSet<ConfigRequestRecipient> ConfigurationRequestRecipient { get; set; }
+        public DbSet<ConfigRequest> ConfigurationRequests { get; set; }
+
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
            
@@ -81,6 +92,14 @@ namespace EVWebApi.Data
             modelBuilder.Entity<PlanDetails>().ToTable("plan_details");
             modelBuilder.Entity<DocumentVersion>().ToTable("document_version");
             modelBuilder.Entity<DocumentLock>().ToTable("document_lock");
+
+
+
+            modelBuilder.Entity<DocumentCollection>().ToTable("doc_collection");
+            modelBuilder.Entity<CollectionDocumentType>().ToTable("collection_document_types");
+            modelBuilder.Entity<ConfigRequest>().ToTable("config_requests");
+            modelBuilder.Entity<ConfigRequestRecipient>().ToTable("config_request_recipients");
+            modelBuilder.Entity<OnboardingDocument>().ToTable("onboarding_documents");
 
 
             // -------------------
@@ -182,6 +201,65 @@ namespace EVWebApi.Data
                 .WithMany(u => u.LockAudits)
                 .HasForeignKey(x => x.UserId);
 
+
+            //------------------------hr onbaording relations-----------------
+
+            modelBuilder.Entity<CollectionDocumentType>()
+                .HasOne(cdt => cdt.Collection)
+                .WithMany(c => c.CollectionDocumentTypes)
+                .HasForeignKey(cdt => cdt.CollectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CollectionDocumentType>()
+                .HasOne(cdt => cdt.DocumentType)
+                .WithMany(dt => dt.CollectionDocumentTypes)
+                .HasForeignKey(cdt => cdt.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CollectionDocumentType>()
+                .HasIndex(cdt => new { cdt.CollectionId, cdt.DocumentTypeId })
+                .IsUnique();
+
+            modelBuilder.Entity<DocumentCollection>()
+                .HasIndex(c => new { c.Name })
+                .IsUnique();
+
+            modelBuilder.Entity<ConfigRequest>()
+                .HasOne(cr => cr.Collection)
+                .WithMany()
+                .HasForeignKey(cr => cr.CollectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Recipient → Request
+            modelBuilder.Entity<ConfigRequestRecipient>()
+                .HasOne(r => r.Request)
+                .WithMany(cr => cr.Recipients)
+                .HasForeignKey(r => r.RequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // UploadedDocument → Recipient
+            modelBuilder.Entity<OnboardingDocument>()
+                .HasOne(ud => ud.Recipient)
+                .WithMany(r => r.UploadedDocuments)
+                .HasForeignKey(ud => ud.RecipientId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // UploadedDocument → DocumentType
+            modelBuilder.Entity<OnboardingDocument>()
+                .HasOne(ud => ud.DocumentType)
+                .WithMany()
+                .HasForeignKey(ud => ud.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // UNIQUE: Token
+            modelBuilder.Entity<ConfigRequestRecipient>()
+                .HasIndex(r => r.Token)
+                .IsUnique();
+
+            // UNIQUE: One doc per type per recipient
+            modelBuilder.Entity<OnboardingDocument>()
+                .HasIndex(u => new { u.RecipientId, u.DocumentTypeId })
+                .IsUnique();
             // -------------------
             // Auth Entities
             // -------------------

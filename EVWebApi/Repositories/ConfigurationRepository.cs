@@ -70,25 +70,26 @@ namespace EVWebApi.Repositories
 
             var statusFilter = string.IsNullOrEmpty(status) ? "Completed" : status;
 
-            //return await _context.ConfigurationRequests
-            //    .Include(r => r.Collection)
-            //        .ThenInclude(c => c.CollectionDocumentTypes)
-            //    .Include(r => r.Recipients
-            //        .Where(r => r.Status == statusFilter))
-            //    .FirstOrDefaultAsync(r => r.Id == id);
-
-
             return await _context.ConfigurationRequests
-                 .Where(r => r.Id == id)
-                 .Select(r => new ConfigRequest
-                 {
-                     Id = r.Id,
-                     Collection = r.Collection,
-                     Recipients = r.Recipients
-                         .Where(rec => rec.Status == statusFilter)
-                         .ToList()
-                 })
-                 .FirstOrDefaultAsync();
+                .Include(r => r.Collection)
+                    .ThenInclude(c => c.CollectionDocumentTypes)
+                        .ThenInclude(cd => cd.DocumentType)
+                .Include(r => r.Recipients
+                    .Where(r => r.Status == statusFilter))
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+
+            //return await _context.ConfigurationRequests
+            //     .Where(r => r.Id == id)
+            //     .Select(r => new ConfigRequest
+            //     {
+            //         Id = r.Id,
+            //         Collection = r.Collection,
+            //         Recipients = r.Recipients
+            //             .Where(rec => rec.Status == statusFilter)
+            //             .ToList()
+            //     })
+            //     .FirstOrDefaultAsync();
         }
 
         public async Task<int?>GetUploadCount(int recipientId)

@@ -1,4 +1,5 @@
-﻿using EVWebApi.DTOs.HR;
+﻿using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.HR;
 using EVWebApi.DTOs.Pagination;
 
 namespace EVWebApi.Interfaces.Services
@@ -7,6 +8,7 @@ namespace EVWebApi.Interfaces.Services
     {
         Task<CollectionResponseDto> CreateCollectionAsync(CreateCollectionDto dto, int? userId);
         Task<CollectionResponseDto> UpdateCollectionAsync(int id, CreateCollectionDto dto, int? userId);
+        Task<List<ListDto>> GetCollectionDropDownListAsync(CollectionDropDownQueryDto dto);
         Task<CollectionResponseDto> GetCollectionByIdAsync(int id);
         Task<PagedResponse<CollectionListResponseDto>> GetCollectionListAsync(CollectionQueryDto dto);
         Task DeleteCollectionAsync(int id);

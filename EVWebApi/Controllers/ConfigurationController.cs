@@ -74,6 +74,22 @@ namespace EVWebApi.Controllers
                 throw;
             }
         }
+
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpGet("collection_list")]
+        public async Task<IActionResult> GetCollectionDropDown([FromQuery] CollectionDropDownQueryDto dto)
+        {
+            try
+            {
+                var result = await _service.GetCollectionDropDownListAsync(dto);
+                
+                return Ok( result );
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
         [Authorize(Roles = "admin,super_admin")]
         [HttpGet("collection/{id}")]
         public async Task<IActionResult> GetCollectionById(int id)
@@ -172,7 +188,7 @@ namespace EVWebApi.Controllers
         [HttpGet("requests")]
         public async Task<IActionResult> GetAllRequests([FromQuery] ConfigQueryParamsDto dto)
         {
-            var result = await _service.GetAllConfigsAsync(CurrentUserId, CurrentUserType, dto);
+            var result = await _service.GetAllConfigsAsync(43, "super_admin", dto);
             return Ok(result);
         }
         [Authorize(Roles = "admin,super_admin")]

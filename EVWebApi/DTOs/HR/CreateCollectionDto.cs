@@ -54,4 +54,10 @@ namespace EVWebApi.DTOs.HR
     {
         public int DocTypeCount { get; set; }
     }
+
+    public class CollectionDropDownQueryDto
+    {
+        [FromQuery(Name = "is_external")]
+        public bool? IsExternal { get; set; }
+    }
 }

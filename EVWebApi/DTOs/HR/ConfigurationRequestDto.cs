@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using EVWebApi.DTOs.Document;
+using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EVWebApi.DTOs.HR
@@ -120,9 +121,34 @@ namespace EVWebApi.DTOs.HR
         public string Name { get; set; }
         public string Adhaar { get; set; }
         public string PAN { get; set; }
+        public DateTime? Dob { get; set; }
         public string Status { get; set; }
-        public int? Submitted { get; set; }
-        public int? Pending { get; set; }
         public DateTime? CompletedAt { get; set; }
+        public SubmittedDocDto Submitted { get; set; }
+        public PendingDocDto Pending { get; set; }
+
+    }
+    public class SubmittedDocDto
+    {
+        public int TotalSubmittedCount { get; set; }    
+        public List<DocumentTypeDetailDto> Documents { get; set; }
+    }
+    public class DocumentTypeDetailDto
+    {
+        public int DocumentTypeId { get; set; }
+        public string DocType { get; set; }
+        public string FilePath { get; set; }
+
+    }
+    public class DocumentTypeListDto
+    {
+        public int DocumentTypeId { get; set; }
+        public string DocType { get; set; }
+    }
+    public class PendingDocDto
+    {
+        public int TotalPendingCount { get; set; }
+        public List<DocumentTypeListDto> Documents { get; set; }
+
     }
 }

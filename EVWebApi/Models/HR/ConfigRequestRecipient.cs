@@ -12,9 +12,9 @@ namespace EVWebApi.Models.HR
         [Column("email")]
         public string Email { get; set; }
         [Column("adhaar")]
-        public string Adhaar { get; set; }
+        public string? Adhaar { get; set; }
         [Column("pan")]
-        public string PAN { get; set; }
+        public string? PAN { get; set; }
         [Column("name")]
         public string? Name { get; set; }
         [Column("phone")]

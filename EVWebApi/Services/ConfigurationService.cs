@@ -328,12 +328,16 @@ namespace EVWebApi.Services
                 var link = $"{_externalUploadUrl}/{r.Token}";
 
                 var body = $@"
-                <p>Hello,</p>
-                <p>Please upload your onboarding documents using the link below:</p>
-                <p><a href='{link}'>Upload Documents</a></p>
-                <p>This link will expire on {dto.ExpiryDate}.</p>
+                <p>Greetings,</p>
+                <p>Please upload the required documents using the link below:</p>
+                <p><a href='{link}'><b>Upload Your Documents</b></a></p>
+                <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
+                <br><p>If you need any assistance, feel free to contact us.</p></br>
+
+                <p>Regards,</p>
+                <p>Apollo EIPP Vault Team</p>
             ";
-                var subject = "Onboarding Document Upload";
+                var subject = "Action Required: Upload Your Documents";
                 await semaphore.WaitAsync();
                 try
                 {
@@ -421,6 +425,7 @@ namespace EVWebApi.Services
                 RecipientId = recipient.Id,
                 Email = recipient.Email,
                 Designation = recipient.Request.Collection.Designation,
+                IsExternal = recipient.Request.Collection.IsExternal,
                 CollectionName = recipient.Request.Collection.Name,
                 Status = statusDto,
                 Documents = documents
@@ -450,6 +455,7 @@ namespace EVWebApi.Services
             recipient.DateOfBirth = dto.Dob;
             recipient.Adhaar = dto.AdhaarNo;
             recipient.PAN = dto.PAN;
+            recipient.EmployeeId = dto.EmployeeId;
             foreach (var doc in dto.Files)
             {
                 if (doc.File == null || doc.File.Length == 0)

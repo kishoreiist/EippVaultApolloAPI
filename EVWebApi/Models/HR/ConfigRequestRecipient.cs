@@ -19,6 +19,8 @@ namespace EVWebApi.Models.HR
         public string? Name { get; set; }
         [Column("phone")]
         public string? Phone { get; set; }
+        [Column("emp_id")]
+        public string? EmployeeId { get; set; }
         [Column("dob")]
         public DateTime? DateOfBirth { get; set; }
         [Column("token")]

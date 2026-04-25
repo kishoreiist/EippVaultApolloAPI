@@ -6,13 +6,12 @@ namespace EVWebApi.DTOs.HR
 {
     public class ConfigurationRequestDto
     {
-        public bool IsExternal { get; set; } = true;
         public int CollectionId { get; set; }
         
         public List<string> Emails { get; set; }
-        
-        public DateTime ExpiryDate { get; set; }
-        
+
+        public DateTime ExpiryDate { get; set; } = DateTime.UtcNow.AddDays(1);
+
         public string? Description { get; set; }
         
     }
@@ -46,7 +45,7 @@ namespace EVWebApi.DTOs.HR
         public string Email { get; set; }
         public string Designation { get; set; }
         public string CollectionName { get; set; }
-
+        public bool IsExternal { get; set; }
         public UploadStatusDto Status { get; set; }
         public List<DocumentTypeDto> Documents { get; set; }
     }
@@ -70,11 +69,12 @@ namespace EVWebApi.DTOs.HR
         public required string Token { get; set; }
 
         public required string Name { get; set; }
-        public required string Email { get; set; }
-        public required string AdhaarNo { get; set; }
-        public required string PAN { get; set; }
+        public string? Email { get; set; }
+        public string? AdhaarNo { get; set; }
+        public string? PAN { get; set; }
         public required string Phone { get; set; }
-        public required DateTime Dob { get; set; }
+        public string? EmployeeId { get; set; }
+        public DateTime? Dob { get; set; }
         public List<UploadItemDto> Files { get; set; }
     }
     public class UploadItemDto

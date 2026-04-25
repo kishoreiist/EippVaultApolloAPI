@@ -8,6 +8,7 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Models;
 using EVWebApi.Models.HR;
 using Microsoft.EntityFrameworkCore;
+using Syncfusion.EJ2.Grids;
 using System.Text.RegularExpressions;
 
 
@@ -18,17 +19,20 @@ namespace EVWebApi.Services
         private readonly AppDbContext _context;
         private readonly IDocumentRepository _docrepo;
         private readonly IConfigurationRepository _repo;
+        private readonly INotificationService _notificationService;
         private readonly IEmailSender _emailSender;
         private readonly string _externalUploadUrl;
         private readonly string _uploadRoot;
         private readonly string _storageRoot;
         private readonly string _clientName;
-        public ConfigurationService(AppDbContext context, IDocumentRepository docrepo, IConfigurationRepository repo, IEmailSender emailSender, IConfiguration config)
+        public ConfigurationService(AppDbContext context, IDocumentRepository docrepo, IConfigurationRepository repo, IEmailSender emailSender, IConfiguration config,
+            INotificationService notificationService)
         {
             _context = context;
             _docrepo = docrepo;
             _repo = repo;
             _emailSender = emailSender;
+            _notificationService = notificationService;
             _externalUploadUrl = config["DocumentSettings:ExternalUploadURL"];
             _uploadRoot = config["DocumentSettings:OnboardingFilePath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
@@ -512,6 +516,22 @@ namespace EVWebApi.Services
             recipient.AccessedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
+            // Notify HR after successful upload
+
+            if (recipient.Status == "Completed")
+            {
+                await _notificationService.CreateAsync(
+                    recipient.Request.CreatedBy,
+                    $"Candidate {recipient.Name} completed all document uploads"
+                );
+            }
+            else
+            {
+                await _notificationService.CreateAsync(
+                    recipient.Request.CreatedBy,
+                    $"Candidate {recipient.Name} uploaded documents, Status - In Progress"
+                );
+            }
 
             var documents = recipient.Request.Collection.CollectionDocumentTypes
                 .Select(cd => new DocumentTypeDto

@@ -92,6 +92,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<PlanDetails>().ToTable("plan_details");
             modelBuilder.Entity<DocumentVersion>().ToTable("document_version");
             modelBuilder.Entity<DocumentLock>().ToTable("document_lock");
+            modelBuilder.Entity<Notification>().ToTable("notifications");
 
 
 
@@ -105,6 +106,7 @@ namespace EVWebApi.Data
             // -------------------
             // Primary Keys
             // -------------------
+            modelBuilder.Entity<Notification>().HasKey(u => u.NotificationId);
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
             modelBuilder.Entity<Group>().HasKey(g => g.GroupId);
             modelBuilder.Entity<AccessRights>().HasKey(a => a.Id);

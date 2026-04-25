@@ -180,7 +180,7 @@ namespace EVWebApi.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                throw new Exception(ex.Message);
             }
 
         }

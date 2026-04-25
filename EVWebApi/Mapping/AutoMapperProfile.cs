@@ -37,7 +37,12 @@ namespace EVWebApi.Mapping
                     src.UserGroup != null && src.UserGroup.Group != null
                     ? src.UserGroup.Group.UserType
                     : null))
-                   
+            .ForMember(dest => dest.Region,
+                opt => opt.MapFrom(src =>
+                    src.UserGroup != null && src.UserGroup.Group != null
+                    ? src.UserGroup.Group.Region
+                    : null))
+
 
             .ForMember(dest => dest.AccessList,
                 opt => opt.MapFrom(src =>

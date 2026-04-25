@@ -41,7 +41,7 @@ namespace EVWebApi.Controllers
             try
             {
                 var group = await _groupService.GetByIdAsync(id);
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Retrieved", group.GroupName);
+               await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Group", "Record Retrieved", group.GroupName);
                 if (group == null) return NotFound();
                 return Ok(group);
             }

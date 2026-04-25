@@ -13,6 +13,9 @@ namespace EVWebApi.Models
 
         [Column("user_type")]
         public string UserType { get; set; }
+
+        [Column("region")]
+        public string? Region { get; set; }
         public DateTime CreatedAt { get; set; }
         public  ICollection<UserGroup>? UserGroups { get; set; } = new List<UserGroup>();
         public ICollection<GroupAccessRight> GroupAccessRights { get; set; }

@@ -4,6 +4,7 @@
     {
         public int GroupId { get; set; }
         public required string GroupName { get; set; }
+        public string? Region { get; set; }
         //public GroupDescriptionDTO? Description { get; set; }
         public string UserType { get; set; }
         public DateTime CreatedAt { get; set; }

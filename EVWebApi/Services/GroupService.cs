@@ -39,7 +39,10 @@ namespace EVWebApi.Services
                     g.GroupName.ToLower().Contains(groupname)
                 );
             }
-
+            if(!string.IsNullOrWhiteSpace(query.Region))
+            {
+                groupsQuery = groupsQuery.Where(g => g.Region == query.Region);
+            }
             //  Date Range
             if (query.FromDate.HasValue)
             {
@@ -95,7 +98,7 @@ namespace EVWebApi.Services
 
         public async Task<GroupDto> CreateAsync(CreateGroupDto dto)
         {
-            var exists = await _uow.Groups.GetByGroupnameAsync(dto.GroupName);
+             var exists = await _uow.Groups.GetByGroupnameAsync(dto.GroupName);
             if (exists != null)
                 throw new ConflictException($"GroupName '{dto.GroupName}' already exists");
 
@@ -125,16 +128,7 @@ namespace EVWebApi.Services
                     });
                 }
             }
-            //var group = new Group
-            //{
-            //    GroupName = dto.GroupName,
-            //    GroupAccessRights = new List<GroupAccessRight>(),
-            //    GroupCabinets = new List<GroupCabinet>(),
-            //    //Description = dto.Description,
-            //    UserType = dto.UserType,
-            //    CreatedAt = DateTime.UtcNow,
 
-            //};
             await _uow.Groups.AddAsync(group);
             await _uow.CompleteAsync();
 
@@ -150,8 +144,8 @@ namespace EVWebApi.Services
 
 
             if (!string.IsNullOrWhiteSpace(dto.GroupName)) group.GroupName = dto.GroupName;
-            //if (dto.Description != null)
-            //    group.Description = dto.Description;
+            if (!string.IsNullOrWhiteSpace(dto.Region)) group.Region = dto.Region;
+
             if (!string.IsNullOrWhiteSpace(dto.UserType)) group.UserType = dto.UserType;
             if (dto.CabinetsList != null && dto.CabinetsList.Count > 0)
             {

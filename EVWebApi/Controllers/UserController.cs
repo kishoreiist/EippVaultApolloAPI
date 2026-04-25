@@ -77,7 +77,7 @@ namespace EVWebApi.Controllers
             }
         }
 
-        [Authorize(Roles = "admin,super_admin")]
+       [Authorize(Roles = "admin,super_admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {

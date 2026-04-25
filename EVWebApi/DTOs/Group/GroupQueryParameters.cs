@@ -7,5 +7,7 @@ namespace EVWebApi.DTOs.Group
     {
         [FromQuery(Name = "group_name")]
         public string? Groupname { get; set; }
+        [FromQuery(Name = "region")]
+        public string? Region { get; set; }
     }
 }

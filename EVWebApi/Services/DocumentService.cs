@@ -232,6 +232,9 @@ namespace EVWebApi.Services
                         break;
                 }
             }
+            //region
+            if (!string.IsNullOrWhiteSpace(query.Region))
+                docQuery = docQuery.Where(d => d.Region == query.Region);
 
             //Document Type
             if (docTypeId.HasValue)
@@ -1174,7 +1177,7 @@ namespace EVWebApi.Services
                         UploadedBy = currentuserid,
                         UploadedAt = DateTime.UtcNow,
                         DocumentTypeId = docType?.Id,
-
+                        Region=record.Region,
                         InvoiceNumber = record.InvoiceNumber,
                         VendorNumber = record.VendorNumber,
                         InvoiceDate = record.InvoiceDate,
@@ -1431,7 +1434,8 @@ namespace EVWebApi.Services
                         ContactNumber = dto.ContactNumber,
                         DOB = dto.DOB,
                         DOJ = dto.DOJ,
-                        CheckNumber = dto.CheckNumber
+                        CheckNumber = dto.CheckNumber,
+                        Region=dto.Region//-----------------------only for Hr cabinet
                     });
 
                     await _storageQuotaService.ValidateAndConsumeStorage(dto.File.Length);

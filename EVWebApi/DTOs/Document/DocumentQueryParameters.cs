@@ -56,7 +56,8 @@ namespace EVWebApi.DTOs.Document
         public string? CheckNumber { get; set; }
         [FromQuery(Name = "status")]
         public string? Status { get; set; }
-
+        [FromQuery(Name = "region")]
+        public string? Region { get; set; }
 
         [FromQuery(Name = "search_type")]
         public SearchType? SearchType { get; set; }

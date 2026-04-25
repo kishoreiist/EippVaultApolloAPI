@@ -16,6 +16,7 @@ namespace EVWebApi.DTOs.User
         //public GroupDescriptionDTO? Description { get; set; }
         public string GroupName { get; set; }
         public string UserType { get; set; }
+        public string? Region { get; set; }
         public List<ListDto> AccessList { get; set; }
         public List<ListDto> CabinetsList { get; set; }
         public string Status { get; set; }

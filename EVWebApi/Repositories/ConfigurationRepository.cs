@@ -1,7 +1,9 @@
 ﻿using DocumentFormat.OpenXml.Drawing;
+using DocumentFormat.OpenXml.Office2010.Excel;
 using EVWebApi.Data;
 using EVWebApi.DTOs.HR;
 using EVWebApi.Interfaces.Repositories;
+using EVWebApi.Models;
 using EVWebApi.Models.HR;
 using Humanizer;
 using Microsoft.EntityFrameworkCore;
@@ -65,32 +67,36 @@ namespace EVWebApi.Repositories
                 .AsQueryable();
 
         }
-        public async Task<ConfigRequest?> GetConfigRequestByIdAsync(int id, string? status)
-        {
+        //public async Task<List<ConfigRequest>> GetConfigRequestAsync(string? status)
+        //{
 
-            var statusFilter = string.IsNullOrEmpty(status) ? "Completed" : status;
+        //    var statusFilter = string.IsNullOrEmpty(status) ? "Completed" : status;
+
+        //    return await _context.ConfigurationRequests
+        //        .Include(r => r.Collection)
+        //            .ThenInclude(c => c.CollectionDocumentTypes)
+        //                .ThenInclude(cd => cd.DocumentType)
+        //        .Include(r => r.Recipients
+        //            .Where(r => r.Status == statusFilter)).ToListAsync();
+        //    //.FirstOrDefaultAsync(r => r.Id == id);
+        //}
+
+
+        public async Task<List<ConfigRequest>> GetConfigRequestAsync(string? status)
+        {
+            var statusFilter = string.IsNullOrEmpty(status) ? "completed" : status;
 
             return await _context.ConfigurationRequests
+                .Where(cr => cr.Recipients.Any(r => r.Status == statusFilter)) 
                 .Include(r => r.Collection)
                     .ThenInclude(c => c.CollectionDocumentTypes)
                         .ThenInclude(cd => cd.DocumentType)
                 .Include(r => r.Recipients
-                    .Where(r => r.Status == statusFilter))
-                .FirstOrDefaultAsync(r => r.Id == id);
-
-
-            //return await _context.ConfigurationRequests
-            //     .Where(r => r.Id == id)
-            //     .Select(r => new ConfigRequest
-            //     {
-            //         Id = r.Id,
-            //         Collection = r.Collection,
-            //         Recipients = r.Recipients
-            //             .Where(rec => rec.Status == statusFilter)
-            //             .ToList()
-            //     })
-            //     .FirstOrDefaultAsync();
+                    .Where(r => r.Status == statusFilter)) // keep filtered recipients
+                .ToListAsync();
         }
+
+        
 
         public async Task<int?>GetUploadCount(int recipientId)
         {
@@ -99,6 +105,19 @@ namespace EVWebApi.Repositories
                .Select(x => x.DocumentTypeId)
                .Distinct()
                .CountAsync();
+        }
+
+        public async Task<OnboardingDocument> GetOnboardingFilesAsync(int docid)
+        {
+            var doc = await _context.OnboardingHRDocument
+                .Include(d=>d.DocumentType)
+                .FirstOrDefaultAsync(d => d.Id == docid);
+
+            if (doc == null)
+                throw new Exception("Document not found");
+
+
+            return doc;
         }
     }
 }

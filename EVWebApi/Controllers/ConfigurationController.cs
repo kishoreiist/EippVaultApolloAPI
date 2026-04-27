@@ -1,4 +1,5 @@
 ﻿using EVWebApi.DTOs.HR;
+using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -185,18 +186,46 @@ namespace EVWebApi.Controllers
 
         }
         [Authorize(Roles = "admin,super_admin")]
-        [HttpGet("requests")]
+        [HttpGet("requests/list")]
         public async Task<IActionResult> GetAllRequests([FromQuery] ConfigQueryParamsDto dto)
         {
             var result = await _service.GetAllConfigsAsync(43, "super_admin", dto);
             return Ok(result);
         }
+
         [Authorize(Roles = "admin,super_admin")]
-        [HttpGet("requests/{id}")]
-        public async Task<IActionResult> GetConfigRequestById(int id, [FromQuery] ConfigQueryDetailDto dto)
+        [HttpGet("requests")]
+        public async Task<IActionResult> GetConfigRequest([FromQuery] ConfigQueryDetailDto dto)
         {
-            var result = await _service.GetConfigRequestByIdAsync(id,dto);
+            var result = await _service.GetConfigRequestsAsync(dto);
             return Ok(result);
+        }
+
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpGet("{id}/preview")]
+        public async Task<IActionResult> PreviewDocument(int id)
+        {
+            var result = await _service.GetDocumentStream(id);
+            if (result == null) return NotFound();
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Hr Docs", "Document View");
+
+            var contentType = FileContentTypeDetectHelper.GetContentType(result.FilePath);
+
+            return File(result.Stream, contentType, enableRangeProcessing: true);
+
+        }
+
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpGet("{id}/download")]
+        public async Task<IActionResult> DownloadDocument(int id)
+        {
+            var download = await _service.GetDocumentStream(id);
+            if (download == null) return NotFound();
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Hr Docs", "Document Download");
+
+            var contentType = FileContentTypeDetectHelper.GetContentType(download.FileName);
+
+            return File(download.Stream, contentType, download.FileName, enableRangeProcessing: true);
         }
     }
  }

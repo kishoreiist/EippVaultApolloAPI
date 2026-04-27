@@ -1,4 +1,6 @@
-﻿using EVWebApi.Data;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using EVWebApi.Data;
+using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.HR;
 using EVWebApi.DTOs.Pagination;
@@ -9,6 +11,7 @@ using EVWebApi.Models;
 using EVWebApi.Models.HR;
 using Microsoft.EntityFrameworkCore;
 using Syncfusion.EJ2.Grids;
+using System.Security;
 using System.Text.RegularExpressions;
 
 
@@ -23,6 +26,7 @@ namespace EVWebApi.Services
         private readonly IEmailSender _emailSender;
         private readonly string _externalUploadUrl;
         private readonly string _uploadRoot;
+        private readonly string _baseUrl;
         private readonly string _storageRoot;
         private readonly string _clientName;
         public ConfigurationService(AppDbContext context, IDocumentRepository docrepo, IConfigurationRepository repo, IEmailSender emailSender, IConfiguration config,
@@ -33,6 +37,7 @@ namespace EVWebApi.Services
             _repo = repo;
             _emailSender = emailSender;
             _notificationService = notificationService;
+            _baseUrl = config["Frontend:BaseUrl"];
             _externalUploadUrl = config["DocumentSettings:ExternalUploadURL"];
             _uploadRoot = config["DocumentSettings:OnboardingFilePath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
@@ -229,7 +234,7 @@ namespace EVWebApi.Services
             };
         }
 
-        public async Task<List<ListDto>> GetCollectionDropDownListAsync(CollectionDropDownQueryDto dto)
+        public async Task<List<CollectionDropDownDto>> GetCollectionDropDownListAsync(CollectionDropDownQueryDto dto)
         {
             var query = _context.DocumentCollections.AsQueryable();
 
@@ -239,11 +244,16 @@ namespace EVWebApi.Services
                 query = query.Where(d => d.IsExternal == dto.IsExternal.Value);
             }
 
+            if(!string.IsNullOrWhiteSpace(dto.Region)) {
+                query = query.Where(d => d.Region == dto.Region);
+            }
+
             return await query
-                .Select(d => new ListDto
+                .Select(d => new CollectionDropDownDto
                 {
                     Id = d.Id,
-                    Name = d.Name
+                    Name = d.Name,
+                    Region=d.Region
                 })
                 .ToListAsync();
 
@@ -305,7 +315,7 @@ namespace EVWebApi.Services
                 {
                     Email = email.Trim(),
                     Token = Guid.NewGuid().ToString(),
-                    Status = "Pending"
+                    Status = "pending"
                 })
                 .ToList();
 
@@ -391,7 +401,7 @@ namespace EVWebApi.Services
            
             if (recipient.Request.ExpiryDate < DateTime.UtcNow)
             {
-                recipient.Status = "Expired";
+                recipient.Status = "expired";
                 await _context.SaveChangesAsync();
                 throw new Exception("Link expired");
             }
@@ -445,7 +455,7 @@ namespace EVWebApi.Services
             var assignedDocsId = recipient.Request.Collection.CollectionDocumentTypes.Select(i => i.DocumentTypeId);
             if (recipient.Request.ExpiryDate < DateTime.UtcNow)
             {
-                recipient.Status = "Expired";
+                recipient.Status = "expired";
                 await _context.SaveChangesAsync();
                 throw new Exception("Link expired");
             }
@@ -511,12 +521,12 @@ namespace EVWebApi.Services
             var uploadedCount = await _repo.GetUploadCount(recipient.Id);
 
             if (uploadedCount == 0)
-                recipient.Status = "Pending";
+                recipient.Status = "pending";
             else if (uploadedCount < totalDocs)
-                recipient.Status = "InProgress";
+                recipient.Status = "inProgress";
             else
             {
-                recipient.Status = "Completed";
+                recipient.Status = "completed";
                 recipient.CompletedAt = DateTime.UtcNow;
             }
             recipient.AccessedAt = DateTime.UtcNow;
@@ -524,12 +534,40 @@ namespace EVWebApi.Services
 
             // Notify HR after successful upload
 
-            if (recipient.Status == "Completed")
+            if (recipient.Status == "completed")
             {
                 await _notificationService.CreateAsync(
                     recipient.Request.CreatedBy,
                     $"Candidate {recipient.Name} completed all document uploads"
                 );
+
+                
+                var hrUser = await _context.Users
+                    .FirstOrDefaultAsync(u => u.UserId == recipient.Request.CreatedBy);
+
+                if (hrUser != null && !string.IsNullOrEmpty(hrUser.Email))
+                {
+                    var subject = "Candidate Document Submission Completed";
+                    var link = $"{_baseUrl}";
+                    var body = $@"
+                        Hello {hrUser.FirstName},
+
+                        The candidate <b>{recipient.Name}</b> has successfully uploaded all required documents.
+
+                        <p><b>Candidate Email:</b> {recipient.Email}</p>
+                        <b>Completion Time:</b> {DateTime.UtcNow}
+
+                        
+                        <p><a href='{link}'>Please log in to review the documents.</a></p>
+
+
+                        <br><p><i>This is a system-generated email. Please do not reply.</i></p></br>
+                        Regards,<br/>
+                        Apollo EIPP Vault Team
+                     ";
+
+                    await _emailSender.SendAsync(hrUser.Email, null,null, subject, body);
+                }
             }
             else
             {
@@ -579,87 +617,139 @@ namespace EVWebApi.Services
                     CreatedAt = r.CreatedAt,
                     Description=r.Description,
                     TotalRecipients = r.Recipients.Count,
-                    Pending = r.Recipients.Count(x => x.Status == "Pending"),
-                    InProgress = r.Recipients.Count(x => x.Status == "InProgress"),
-                    Completed = r.Recipients.Count(x => x.Status == "Completed")
+                    Pending = r.Recipients.Count(x => x.Status == "pending"),
+                    InProgress = r.Recipients.Count(x => x.Status == "inProgress"),
+                    Completed = r.Recipients.Count(x => x.Status == "completed")
                 })
                 .ToListAsync();
 
            
         }
 
-        //public async Task<ConfigRequestDetailsDto> GetConfigRequestByIdAsync(int requestId, ConfigQueryDetailDto dto)
+
+
+        //public async Task<List<ConfigRequestDetailsDto>> GetConfigRequestByIdAsync( ConfigQueryDetailDto dto)
         //{
-        //    var request = await _repo.GetConfigRequestByIdAsync(requestId,dto?.Status);
+        //    var request = await _repo.GetConfigRequestByIdAsync(dto?.Status);
 
         //    if (request == null)
         //        throw new Exception("Request not found");
-        //    var total = request.Collection?.CollectionDocumentTypes?.Count ?? 0;
+
+        //    // All document types in collection
+        //    var docTypes = request.Collection?.CollectionDocumentTypes
+        //        .Select(dt => new DocumentTypeListDto
+        //        {
+        //            DocumentTypeId = dt.DocumentTypeId,
+        //            DocType = dt.DocumentType.Label
+        //        })
+        //        .ToList();
 
         //    var recipientIds = request.Recipients.Select(r => r.Id).ToList();
 
-        //    var uploadCounts = await _context.OnboardingHRDocument
+        //    // Fetch uploaded docs
+        //    var uploadedDocs = await _context.OnboardingHRDocument
         //        .Where(x => recipientIds.Contains(x.RecipientId))
-        //        .GroupBy(x => x.RecipientId)
-        //        .Select(g => new
+        //        .Select(x => new
         //        {
-        //            RecipientId = g.Key,
-        //            Count = g.Select(x => x.DocumentTypeId).Distinct().Count()
+        //            x.RecipientId,
+        //            x.DocumentTypeId,
+        //            x.FilePath,
+        //            DocType = x.DocumentType.Label
         //        })
-        //        .ToDictionaryAsync(x => x.RecipientId, x => x.Count);
+        //        .ToListAsync();
 
-
-        //var recipients =
-        //request.Recipients.Select( r =>
-        //{
-        //    var submitted = uploadCounts.ContainsKey(r.Id) ? uploadCounts[r.Id] : 0;
-
-        //    return new RecipientDto
+        //    // Build recipients
+        //    var recipients = request.Recipients.Select(r =>
         //    {
-        //        RecipientId = r.Id,
-        //        Email = r.Email,
-        //        Name = r.Name,
-        //        PAN = r.PAN,
-        //        Adhaar = r.Adhaar,
-        //        Submitted = submitted ,
-        //        Pending = total - submitted,
-        //        Status = r.Status,
-        //        CompletedAt = r.CompletedAt
+        //        var userDocs = uploadedDocs
+        //            .Where(x => x.RecipientId == r.Id)
+        //            .ToList();
+
+
+        //        // SUBMITTED
+
+        //        var submittedDocuments = userDocs
+        //            .Select(x => new DocumentTypeDetailDto
+        //            {
+        //                DocumentTypeId = x.DocumentTypeId,
+        //                DocType = x.DocType,
+        //                FilePath = x.FilePath
+        //            })
+        //            .ToList();
+
+        //        var submittedDocTypeIds = submittedDocuments
+        //            .Select(d => d.DocumentTypeId)
+        //            .Distinct()
+        //            .ToHashSet();
+
+
+        //        //  PENDING
+
+        //        var pendingDocuments = docTypes
+        //            .Where(dt => !submittedDocTypeIds.Contains(dt.DocumentTypeId))
+        //            .Select(dt => new DocumentTypeListDto
+        //            {
+        //                DocumentTypeId = dt.DocumentTypeId,
+        //                DocType = dt.DocType
+        //            })
+        //            .ToList();
+
+
+        //        // FINAL RECIPIENT
+
+        //        return new RecipientDto
+        //        {
+        //            RecipientId = r.Id,
+        //            Email = r.Email,
+        //            Name = r.Name,
+        //            PAN = r.PAN,
+        //            Adhaar = r.Adhaar,
+        //            Dob=r.DateOfBirth,
+        //            Status = r.Status,
+        //            CompletedAt = r.CompletedAt,
+
+        //            Submitted = new SubmittedDocDto
+        //            {
+        //                TotalSubmittedCount = submittedDocuments.Count,
+        //                Documents = submittedDocuments
+        //            },
+
+        //            Pending = new PendingDocDto
+        //            {
+        //                TotalPendingCount = pendingDocuments.Count,
+        //                Documents = pendingDocuments
+        //            }
+        //        };
+        //    }).ToList();
+
+        //    // Final response
+        //    return new ConfigRequestDetailsDto
+        //    {
+        //        ConfigId = request.Id,
+        //        CollectionName = request.Collection?.Name,
+        //        Description = request.Description,
+        //        CreatedAt = request.CreatedAt,
+        //        TotalDocs = docTypes.Count,
+        //        Recipients = recipients
         //    };
-        //}).ToList() ?? new List<RecipientDto>();
-
-        //return new ConfigRequestDetailsDto
-        //{
-        //    ConfigId = request.Id,
-        //    CollectionName = request.Collection?.Name,
-        //    TotalDocs = total,
-        //    CreatedAt = request.CreatedAt,
-        //    Description = request.Description,
-        //    Recipients = recipients
-        //};
         //}
-
-        public async Task<ConfigRequestDetailsDto> GetConfigRequestByIdAsync(int requestId, ConfigQueryDetailDto dto)
+        public async Task<List<ConfigRequestDetailsDto>> GetConfigRequestsAsync(ConfigQueryDetailDto dto)
         {
-            var request = await _repo.GetConfigRequestByIdAsync(requestId, dto?.Status);
 
-            if (request == null)
-                throw new Exception("Request not found");
+            var requests = await _repo.GetConfigRequestAsync(dto?.Status);
 
-            // All document types in collection
-            var docTypes = request.Collection?.CollectionDocumentTypes
-                .Select(dt => new DocumentTypeListDto
-                {
-                    DocumentTypeId = dt.DocumentTypeId,
-                    DocType = dt.DocumentType.Label
-                })
+            if (requests == null || !requests.Any())
+                return new List<ConfigRequestDetailsDto>();
+
+            var result = new List<ConfigRequestDetailsDto>();
+
+            var allRecipientIds = requests
+                .SelectMany(r => r.Recipients)
+                .Select(r => r.Id)
                 .ToList();
 
-            var recipientIds = request.Recipients.Select(r => r.Id).ToList();
-
-            // Fetch uploaded docs
-            var uploadedDocs = await _context.OnboardingHRDocument
-                .Where(x => recipientIds.Contains(x.RecipientId))
+            var allUploadedDocs = await _context.OnboardingHRDocument
+                .Where(x => allRecipientIds.Contains(x.RecipientId))
                 .Select(x => new
                 {
                     x.RecipientId,
@@ -669,82 +759,126 @@ namespace EVWebApi.Services
                 })
                 .ToListAsync();
 
-            // Build recipients
-            var recipients = request.Recipients.Select(r =>
+            foreach (var request in requests)
             {
-                var userDocs = uploadedDocs
-                    .Where(x => x.RecipientId == r.Id)
-                    .ToList();
-
-           
-                // SUBMITTED
-               
-                var submittedDocuments = userDocs
-                    .Select(x => new DocumentTypeDetailDto
-                    {
-                        DocumentTypeId = x.DocumentTypeId,
-                        DocType = x.DocType,
-                        FilePath = x.FilePath
-                    })
-                    .ToList();
-
-                var submittedDocTypeIds = submittedDocuments
-                    .Select(d => d.DocumentTypeId)
-                    .Distinct()
-                    .ToHashSet();
-
-       
-                //  PENDING
-               
-                var pendingDocuments = docTypes
-                    .Where(dt => !submittedDocTypeIds.Contains(dt.DocumentTypeId))
+                var docTypes = request.Collection?.CollectionDocumentTypes
                     .Select(dt => new DocumentTypeListDto
                     {
                         DocumentTypeId = dt.DocumentTypeId,
-                        DocType = dt.DocType
+                        DocType = dt.DocumentType.Label
                     })
+                    .ToList() ?? new List<DocumentTypeListDto>();
+
+                var recipientIds = request.Recipients.Select(r => r.Id).ToList();
+
+                var uploadedDocs = allUploadedDocs
+                    .Where(x => recipientIds.Contains(x.RecipientId))
                     .ToList();
 
-               
-                // FINAL RECIPIENT
-          
-                return new RecipientDto
+                var recipients = request.Recipients.Select(r =>
                 {
-                    RecipientId = r.Id,
-                    Email = r.Email,
-                    Name = r.Name,
-                    PAN = r.PAN,
-                    Adhaar = r.Adhaar,
-                    Dob=r.DateOfBirth,
-                    Status = r.Status,
-                    CompletedAt = r.CompletedAt,
+                    var userDocs = uploadedDocs
+                        .Where(x => x.RecipientId == r.Id)
+                        .ToList();
 
-                    Submitted = new SubmittedDocDto
+                    var submittedDocuments = userDocs
+                        .Select(x => new DocumentTypeDetailDto
+                        {
+                            DocumentTypeId = x.DocumentTypeId,
+                            DocType = x.DocType,
+                            FilePath = x.FilePath
+                        })
+                        .ToList();
+
+                    var submittedDocTypeIds = submittedDocuments
+                        .Select(d => d.DocumentTypeId)
+                        .ToHashSet();
+
+                    var pendingDocuments = docTypes
+                        .Where(dt => !submittedDocTypeIds.Contains(dt.DocumentTypeId))
+                        .Select(dt => new DocumentTypeListDto
+                        {
+                            DocumentTypeId = dt.DocumentTypeId,
+                            DocType = dt.DocType
+                        })
+                        .ToList();
+
+                    return new RecipientDto
                     {
-                        TotalSubmittedCount = submittedDocuments.Count,
-                        Documents = submittedDocuments
-                    },
+                        RecipientId = r.Id,
+                        Email = r.Email,
+                        Name = r.Name,
+                        PAN = r.PAN,
+                        Adhaar = r.Adhaar,
+                        Dob = r.DateOfBirth,
+                        Status = r.Status,
+                        CompletedAt = r.CompletedAt,
 
-                    Pending = new PendingDocDto
-                    {
-                        TotalPendingCount = pendingDocuments.Count,
-                        Documents = pendingDocuments
-                    }
-                };
-            }).ToList();
+                        Submitted = new SubmittedDocDto
+                        {
+                            TotalSubmittedCount = submittedDocuments.Count,
+                            Documents = submittedDocuments
+                        },
 
-            // Final response
-            return new ConfigRequestDetailsDto
-            {
-                ConfigId = request.Id,
-                CollectionName = request.Collection?.Name,
-                Description = request.Description,
-                CreatedAt = request.CreatedAt,
-                TotalDocs = docTypes.Count,
-                Recipients = recipients
-            };
+                        Pending = new PendingDocDto
+                        {
+                            TotalPendingCount = pendingDocuments.Count,
+                            Documents = pendingDocuments
+                        }
+                    };
+                }).ToList();
+
+                result.Add(new ConfigRequestDetailsDto
+                {
+                    ConfigId = request.Id,
+                    CollectionName = request.Collection?.Name,
+                    Description = request.Description,
+                    CreatedAt = request.CreatedAt,
+                    TotalDocs = docTypes.Count,
+                    Recipients = recipients
+                });
+            }
+
+            return result;
         }
 
+
+        public async Task<DocumentStreamResultDTO?> GetDocumentStream(int id)
+        {
+            var doc = await _repo.GetOnboardingFilesAsync(id);
+            if (doc == null)
+                throw new NotFoundException("Document not found");
+
+            var relativePath = doc.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+            string fileName = Path.GetFileName(relativePath);
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            if (!fullPath.StartsWith(_storageRoot))
+                throw new SecurityException("Invalid file path");
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found in storage");
+
+            var stream = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 1024 * 1024,
+                useAsync: true
+            );
+
+            return new DocumentStreamResultDTO
+            {
+                Stream = stream,
+                FilePath = fullPath,
+                FileName = fileName
+            };
+        }
 
     }
 }

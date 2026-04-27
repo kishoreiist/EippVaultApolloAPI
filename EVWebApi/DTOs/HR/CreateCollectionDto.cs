@@ -1,4 +1,5 @@
-﻿using EVWebApi.Models;
+﻿using EVWebApi.DTOs.Group;
+using EVWebApi.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVWebApi.DTOs.HR
@@ -59,5 +60,12 @@ namespace EVWebApi.DTOs.HR
     {
         [FromQuery(Name = "is_external")]
         public bool? IsExternal { get; set; }
+
+        [FromQuery(Name = "region")]
+        public string? Region { get; set; }
+    }
+    public class CollectionDropDownDto: ListDto
+    {
+        public string Region { get; set; }
     }
 }

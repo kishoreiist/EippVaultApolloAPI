@@ -1,4 +1,5 @@
-﻿using EVWebApi.Models.HR;
+﻿using EVWebApi.DTOs.HR;
+using EVWebApi.Models.HR;
 
 namespace EVWebApi.Interfaces.Repositories
 {
@@ -9,7 +10,7 @@ namespace EVWebApi.Interfaces.Repositories
         IQueryable<DocumentCollection> Query();
         IQueryable<ConfigRequest> GetConfigListAsync();
         Task<ConfigRequestRecipient?> GetConfigRequestByToken(string token);
-        Task<List<ConfigRequest>> GetConfigRequestAsync(string? status);
+        Task<List<ConfigRequest>> GetConfigRequestAsync(ConfigQueryDetailDto dto);
         Task<int?> GetUploadCount(int recipientId);
         Task<OnboardingDocument> GetOnboardingFilesAsync(int docid);
     }

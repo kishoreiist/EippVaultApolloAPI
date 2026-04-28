@@ -70,7 +70,7 @@ namespace EVWebApi.Controllers
                 return StatusCode(500, new
                 {
                     Message = "Group creation failed",
-                    Error = ex.Message
+                    Error = ex.InnerException.Message
                 });
             }
         }

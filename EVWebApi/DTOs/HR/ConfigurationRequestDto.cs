@@ -10,7 +10,7 @@ namespace EVWebApi.DTOs.HR
         
         public List<string> Emails { get; set; }
 
-        public DateTime ExpiryDate { get; set; } = DateTime.UtcNow.AddDays(1);
+        public DateTime? ExpiryDate { get; set; } = DateTime.UtcNow.AddDays(1);
 
         public string? Description { get; set; }
         
@@ -26,6 +26,8 @@ namespace EVWebApi.DTOs.HR
     {
         [FromQuery(Name = "status")]
         public string? Status { get; set; }
+        [FromQuery(Name = "region")]
+        public string? Region { get; set; }
     }
     public class ConfigurationResponseDto
     {
@@ -109,6 +111,7 @@ namespace EVWebApi.DTOs.HR
         public int ConfigId { get; set; }
         public string? Description { get; set; }
         public string CollectionName { get; set; }
+        public string Region { get; set; }
         public DateTime CreatedAt { get; set; }
         public int TotalDocs { get; set; }
         public List<RecipientDto> Recipients { get; set; }

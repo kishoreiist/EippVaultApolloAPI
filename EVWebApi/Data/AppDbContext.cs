@@ -174,7 +174,7 @@ namespace EVWebApi.Data
 
 
             modelBuilder.Entity<DocDownloadLink>()
-            .HasIndex(x => new { x.DocumentId, x.UserId })
+            .HasIndex(x => new { x.DocumentId, x.AssignedTo })
             .IsUnique();
 
             modelBuilder.Entity<User>()

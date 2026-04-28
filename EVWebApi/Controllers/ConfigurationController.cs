@@ -189,7 +189,7 @@ namespace EVWebApi.Controllers
         [HttpGet("requests/list")]
         public async Task<IActionResult> GetAllRequests([FromQuery] ConfigQueryParamsDto dto)
         {
-            var result = await _service.GetAllConfigsAsync(43, "super_admin", dto);
+            var result = await _service.GetAllConfigsAsync(CurrentUserId, "super_admin", dto);
             return Ok(result);
         }
 

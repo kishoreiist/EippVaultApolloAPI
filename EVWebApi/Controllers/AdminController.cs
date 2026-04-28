@@ -1,4 +1,6 @@
-﻿using EVWebApi.DTOs.Audit;
+﻿using Azure;
+using EVWebApi.DTOs.Audit;
+using EVWebApi.DTOs.HR;
 using EVWebApi.DTOs.User;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
@@ -43,8 +45,8 @@ namespace EVWebApi.Controllers
         [Authorize(Roles = "admin,super_admin")]
         [HttpGet("export_csv")]
         public async Task<IActionResult> ExportCsv(
-            [FromQuery] int pagenumber=1,
-            [FromQuery] int pagesize=100,
+            [FromQuery] int pagenumber = 1,
+            [FromQuery] int pagesize = 100,
             [FromQuery] string? search = null,
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null
@@ -59,7 +61,7 @@ namespace EVWebApi.Controllers
                 search,
                 fromDate,
                 toDate
-               
+
             );
             return new EmptyResult();
         }
@@ -101,7 +103,7 @@ namespace EVWebApi.Controllers
                 var result = await cmd.ExecuteScalarAsync();
 
                 if (result == null)
-                    return Ok(new {});
+                    return Ok(new { });
 
                 var json = result.ToString();
                 var rawData = JsonSerializer.Deserialize<DashboardDTO>(json);
@@ -121,7 +123,7 @@ namespace EVWebApi.Controllers
                 };
                 var userActivityPercentage = new
                 {
-                    labels =new[] {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday","Sunday"},
+                    labels = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" },
                     data = rawData.user_activity_percentage
                 };
 
@@ -131,7 +133,7 @@ namespace EVWebApi.Controllers
                     uploadPercentage,
                     cabinetDistribution,
                     userActivityPercentage,
-                    recent_document_activity=rawData.recent_document_activity
+                    recent_document_activity = rawData.recent_document_activity
                 };
 
                 return Ok(response);
@@ -144,6 +146,81 @@ namespace EVWebApi.Controllers
             }
 
 
+        }
+        [HttpGet("hr_dashboard")]
+        public async Task<IActionResult> GetHRDashboard([FromQuery] HrDashboardQueryParameters query)
+        {
+            try
+            {
+                await using var conn = await _dataSource.OpenConnectionAsync();
+
+                string sql;
+                var cmd = new NpgsqlCommand();
+                cmd.Connection = conn;
+
+
+                if (!string.IsNullOrWhiteSpace(query.Region))
+                {
+                    sql = "SELECT public.fn_hr_dashboard_region_login(@p_region)";
+                    cmd.Parameters.AddWithValue("p_region", NpgsqlTypes.NpgsqlDbType.Text, query.Region);
+                }
+                else
+                {
+                    sql = "SELECT public.fn_hr_dashboard_final_correct()";
+                }
+
+                cmd.CommandText = sql;
+
+                var result = await cmd.ExecuteScalarAsync();
+
+                if (result == null || result == DBNull.Value)
+                    return Ok(new { });
+
+                var json = result.ToString();
+                var parsed = JsonDocument.Parse(json!);
+
+                return Ok(parsed);
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, "An error occurred while fetching dashboard data.");
+
+            }
+        }
+
+        [HttpGet("po_dashboard")]
+        public async Task<IActionResult> GetPODashboard([FromQuery] PoDashboardQueryParameters query)
+        {
+            try
+            {
+                await using var conn = await _dataSource.OpenConnectionAsync();
+
+                var cmd = new NpgsqlCommand
+                {
+                    Connection = conn,
+                    CommandText = "SELECT public.get_po_dashboard(@p_user_id, @p_page, @p_page_size)"
+                };
+
+                var userId = CurrentUserId;
+                cmd.Parameters.AddWithValue("p_user_id", NpgsqlTypes.NpgsqlDbType.Integer, userId);
+                cmd.Parameters.AddWithValue("p_page", NpgsqlTypes.NpgsqlDbType.Integer, query.PageNumber);
+                cmd.Parameters.AddWithValue("p_page_size", NpgsqlTypes.NpgsqlDbType.Integer, query.PageSize);
+
+                var result = await cmd.ExecuteScalarAsync();
+
+                if (result == null || result == DBNull.Value)
+                    return Ok(new { });
+
+                var json = result.ToString();
+
+                var parsed = JsonDocument.Parse(json!);
+
+                return Ok(parsed);
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, "An error occurred while fetching dashboard data.");
+            }
         }
     }
 }

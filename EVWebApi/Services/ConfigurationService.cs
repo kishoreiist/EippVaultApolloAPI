@@ -236,7 +236,9 @@ namespace EVWebApi.Services
 
         public async Task<List<CollectionDropDownDto>> GetCollectionDropDownListAsync(CollectionDropDownQueryDto dto)
         {
-            var query = _context.DocumentCollections.AsQueryable();
+            var query = _context.DocumentCollections
+                .Where(d=>d.Status.ToLower() == "active")
+                .AsQueryable();
 
             
             if (dto.IsExternal.HasValue)
@@ -302,7 +304,7 @@ namespace EVWebApi.Services
             var request = new ConfigRequest
             {
                 CollectionId = dto.CollectionId,
-                ExpiryDate = dto.ExpiryDate,
+                ExpiryDate = dto.ExpiryDate.Value,
                 Description = dto.Description,
                 CreatedBy = userId,
                 CreatedAt = DateTime.UtcNow
@@ -736,7 +738,7 @@ namespace EVWebApi.Services
         public async Task<List<ConfigRequestDetailsDto>> GetConfigRequestsAsync(ConfigQueryDetailDto dto)
         {
 
-            var requests = await _repo.GetConfigRequestAsync(dto?.Status);
+            var requests = await _repo.GetConfigRequestAsync(dto);
 
             if (requests == null || !requests.Any())
                 return new List<ConfigRequestDetailsDto>();
@@ -832,6 +834,7 @@ namespace EVWebApi.Services
                 {
                     ConfigId = request.Id,
                     CollectionName = request.Collection?.Name,
+                    Region= request.Collection?.Region,
                     Description = request.Description,
                     CreatedAt = request.CreatedAt,
                     TotalDocs = docTypes.Count,

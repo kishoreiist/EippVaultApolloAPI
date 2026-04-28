@@ -16,6 +16,6 @@ namespace EVWebApi.Interfaces.Repositories
                 CancellationToken ct = default);
 
 
-        Task<BatchResponseDTO> SendDocumentLinkEmailAsync(LinkEmailDto dto);
+        Task<BatchResponseDTO> SendDocumentLinkEmailAsync(LinkEmailDto dto,int CurrentUserId);
     }
 }

@@ -20,12 +20,6 @@
 
                 headers.XXSSProtection = "1; mode=block"; // For older browsers
 
-                //headers.ContentSecurityPolicy =
-                //    "default-src 'self'; " +
-                //    "object-src 'none'; " +
-                //    "frame-ancestors 'none'; " +
-                //    "base-uri 'self';";
-
                 headers.ContentSecurityPolicy =
                     "default-src 'self'; " +
                     "script-src 'self' https://challenges.cloudflare.com; " +

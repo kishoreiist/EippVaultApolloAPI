@@ -80,7 +80,7 @@ namespace EVWebApi.Controllers
             
             try
             {
-                var result = await _emailSender.SendDocumentLinkEmailAsync(data);
+                var result = await _emailSender.SendDocumentLinkEmailAsync(data,CurrentUserId);
 
                 //need to check result and log accordingly
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Email", "Document Link Email Sent",data.GroupName);

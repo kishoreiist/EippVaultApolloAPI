@@ -105,7 +105,7 @@ namespace EVWebApi.Services
         }
 
 
-        public async Task<BatchResponseDTO> SendDocumentLinkEmailAsync(LinkEmailDto dto)
+        public async Task<BatchResponseDTO> SendDocumentLinkEmailAsync(LinkEmailDto dto, int CurrentUserId)
         {
             if (string.IsNullOrWhiteSpace(dto.ReplyTo))
                 throw new ArgumentNullException(nameof(dto.ReplyTo), "Sender email cannot be null or empty.");
@@ -120,7 +120,7 @@ namespace EVWebApi.Services
                 throw new Exception("No documents selected");
 
             var recipients = new List<EmailGroupUserDto>();
-
+            var response = new BatchResponseDTO();
             if (dto.GroupId.HasValue)
             {
                 var users = await _groupRepo.GetUsersByEmailGroupIdAsync(dto.GroupId.Value);
@@ -153,13 +153,21 @@ namespace EVWebApi.Services
                             UserId = ccUser.UserId,
                             Email = ccUser.Email
                         });
+                    else
+                    {
+                        response.TotalProcessed++;
+                        response.Failed++;
+                        response.FailedDocDetails.Add($"User with '{cc}' email not found");
+                        continue;
+                    }
                 }
             }
 
             if (!recipients.Any())
                 throw new Exception("No recipients provided.");
 
-            var response = new BatchResponseDTO();
+          
+            var batchId = Guid.NewGuid();
             foreach (var recipient in recipients)
             {
                 response.TotalProcessed++;
@@ -185,7 +193,9 @@ namespace EVWebApi.Services
                     var links = newDocIds.Select(docId => new DocDownloadLink
                     {
                         DocumentId = docId,
-                        UserId = recipient.UserId,
+                        AssignedTo = recipient.UserId,
+                        CreatedBy=CurrentUserId,
+                        SharedBatchId = batchId,
                         MaxDownloads = dto.MaxDownloads,
                         CurrentDownloads = 0,
                         ExpiryDate = DateTime.UtcNow.AddMonths(1) //expires after one month

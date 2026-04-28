@@ -8,6 +8,7 @@ using EVWebApi.Models.HR;
 using Humanizer;
 using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Ocsp;
+using System.Drawing;
 using System.Linq.Dynamic.Core.Tokenizer;
 
 namespace EVWebApi.Repositories
@@ -82,12 +83,17 @@ namespace EVWebApi.Repositories
         //}
 
 
-        public async Task<List<ConfigRequest>> GetConfigRequestAsync(string? status)
+        public async Task<List<ConfigRequest>> GetConfigRequestAsync(ConfigQueryDetailDto dto)
         {
-            var statusFilter = string.IsNullOrEmpty(status) ? "completed" : status;
+            var statusFilter = string.IsNullOrEmpty(dto.Status) ? "completed" : dto.Status;
 
             return await _context.ConfigurationRequests
-                .Where(cr => cr.Recipients.Any(r => r.Status == statusFilter)) 
+                .Where(cr =>
+                 (string.IsNullOrEmpty(dto.Region) || cr.Collection.Region == dto.Region)
+                 &&
+                 (cr.Recipients.Any(r => r.Status == statusFilter)))
+
+                //cr.Recipients.Any(r => r.Status == statusFilter))
                 .Include(r => r.Collection)
                     .ThenInclude(c => c.CollectionDocumentTypes)
                         .ThenInclude(cd => cd.DocumentType)

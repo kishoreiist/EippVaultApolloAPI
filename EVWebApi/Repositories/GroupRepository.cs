@@ -31,10 +31,11 @@ namespace EVWebApi.Repositories
             return _context.Groups
                  .Include(g => g.GroupAccessRights)
                         .ThenInclude(a => a.AccessRight)
-                .Include(g=>g.GroupCabinets)
-                    .ThenInclude(c=>c.Cabinet)
+                .Include(g => g.GroupCabinets)
+                    .ThenInclude(c => c.Cabinet)
                  .OrderByDescending(x => x.CreatedAt)
-                .AsQueryable();
+                //.AsQueryable();
+                .AsSplitQuery();
         }
         public async Task<List<GroupListDto>> GetGroupsForDropdownAsync()
         {

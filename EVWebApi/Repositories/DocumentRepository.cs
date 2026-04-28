@@ -298,7 +298,7 @@ namespace EVWebApi.Repositories
         public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownload(int? userid)
         {
             var docLink = await _context.DocumentLink
-                .Where(d => d.UserId == userid)
+                .Where(d => d.AssignedTo == userid)
                 .Where(d => d.ExpiryDate > DateTime.UtcNow)
                 .Where(d=>d.CurrentDownloads<d.MaxDownloads)
                 .OrderBy(d => d.ExpiryDate)
@@ -318,7 +318,7 @@ namespace EVWebApi.Repositories
         public async Task<DocDownloadLink> GetByIdDownloadLinkAsync(int docid, int userid)
         {
             var docLink = await _context.DocumentLink
-                .FirstOrDefaultAsync(d => d.DocumentId == docid && d.UserId == userid);
+                .FirstOrDefaultAsync(d => d.DocumentId == docid && d.AssignedTo == userid);
             if (docLink == null)
                 throw new NotFoundException("Download link not found.");
             return docLink;
@@ -332,7 +332,7 @@ namespace EVWebApi.Repositories
 
             return await _context.DocumentLink
                 .Where(d =>
-                    d.UserId == userId &&
+                    d.AssignedTo == userId &&
                     documentIds.Contains(d.DocumentId) &&
                     d.ExpiryDate > DateTime.UtcNow && d.CurrentDownloads<d.MaxDownloads)
                 .Select(d => d.DocumentId)
@@ -345,7 +345,7 @@ namespace EVWebApi.Repositories
             var rowsincremented = await _context.DocumentLink
             .Where(d =>
                 d.DocumentId == docid &&
-                d.UserId == userid &&
+                d.AssignedTo == userid &&
                 d.ExpiryDate > DateTime.UtcNow &&
                 d.CurrentDownloads < d.MaxDownloads)
             .ExecuteUpdateAsync(setters =>

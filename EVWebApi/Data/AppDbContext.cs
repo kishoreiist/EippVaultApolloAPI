@@ -53,6 +53,7 @@ namespace EVWebApi.Data
         public DbSet<OnboardingDocument> OnboardingHRDocument { get; set; }
         public DbSet<ConfigRequestRecipient> ConfigurationRequestRecipient { get; set; }
         public DbSet<ConfigRequest> ConfigurationRequests { get; set; }
+        public DbSet<DocAccessRequest> DocumentAccessRequest { get; set; }
 
 
 
@@ -101,6 +102,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<ConfigRequest>().ToTable("config_requests");
             modelBuilder.Entity<ConfigRequestRecipient>().ToTable("config_request_recipients");
             modelBuilder.Entity<OnboardingDocument>().ToTable("onboarding_documents");
+            modelBuilder.Entity<DocAccessRequest>().ToTable("doc_access_request");
 
 
             // -------------------
@@ -108,6 +110,7 @@ namespace EVWebApi.Data
             // -------------------
             modelBuilder.Entity<Notification>().HasKey(u => u.NotificationId);
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
+            modelBuilder.Entity<DocAccessRequest>().HasKey(u => u.RequestId);
             modelBuilder.Entity<Group>().HasKey(g => g.GroupId);
             modelBuilder.Entity<AccessRights>().HasKey(a => a.Id);
             modelBuilder.Entity<Cabinet>().HasKey(u => u.CabinetId);
@@ -384,6 +387,11 @@ namespace EVWebApi.Data
                     .HasMaxLength(100);
             });
 
+            modelBuilder.Entity<DocAccessRequest>()
+            .HasIndex(x => new { x.RequestedTo, x.Status });
+
+            modelBuilder.Entity<DocAccessRequest>()
+                .HasIndex(x => x.DocLinkId);
         }
     }
 }

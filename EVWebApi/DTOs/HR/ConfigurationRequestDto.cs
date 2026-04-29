@@ -6,6 +6,7 @@ namespace EVWebApi.DTOs.HR
 {
     public class ConfigurationRequestDto
     {
+        public string Name { get; set; }
         public int CollectionId { get; set; }
         
         public List<string> Emails { get; set; }
@@ -109,6 +110,7 @@ namespace EVWebApi.DTOs.HR
     public class ConfigRequestDetailsDto
     {
         public int ConfigId { get; set; }
+        public string ConfigName { get; set; }
         public string? Description { get; set; }
         public string CollectionName { get; set; }
         public string Region { get; set; }
@@ -140,6 +142,7 @@ namespace EVWebApi.DTOs.HR
     {
         public int DocumentTypeId { get; set; }
         public string DocType { get; set; }
+        public int FileId { get; set; }
         public string FilePath { get; set; }
 
     }

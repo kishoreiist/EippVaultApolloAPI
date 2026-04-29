@@ -17,7 +17,7 @@ namespace EVWebApi.Interfaces.Services
         Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId);
         Task<UploadResultDto> UploadDocumentsAsync(OnboardingDocsDto dto);
         Task<List<ConfigListDto>> GetAllConfigsAsync(int userId, string userType, ConfigQueryParamsDto dto);
-        Task<List<ConfigRequestDetailsDto>> GetConfigRequestsAsync( ConfigQueryDetailDto dto);
+        Task<List<ConfigRequestDetailsDto>> GetConfigRequestsAsync(ConfigQueryDetailDto dto);
         Task<DocumentStreamResultDTO?> GetDocumentStream(int id);
     }
 }

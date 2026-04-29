@@ -303,6 +303,7 @@ namespace EVWebApi.Services
 
             var request = new ConfigRequest
             {
+                ConfigName=dto.Name,
                 CollectionId = dto.CollectionId,
                 ExpiryDate = dto.ExpiryDate.Value,
                 Description = dto.Description,
@@ -353,7 +354,7 @@ namespace EVWebApi.Services
                 await semaphore.WaitAsync();
                 try
                 {
-                    var sent = await _emailSender.SendAsync(r.Email, ReplyTo: user.Email, UserName: user.Username, subject, body);
+                    var sent = await _emailSender.SendAsync(r.Email, ReplyTo: user.Email, UserName:"Apollo OnBoarding", subject, body);
 
                     lock (lockObj)
                     {
@@ -479,11 +480,16 @@ namespace EVWebApi.Services
                     var folderPath = _uploadRoot
                         .Replace("{StorageRoot}", _storageRoot)
                         .Replace("{ClientName}", _clientName);
+
                     var folderName = $"{dto.Name}_{dto.Token}";
-                    var finalPath = Path.Combine(folderPath, folderName);
+                    var safeName = dto.Name.Trim().Replace(" ", "_");
+                    safeName = $"{safeName}_{dto.Token}";
+
+                    var finalPath = Path.Combine(folderPath, safeName);
+
                     if (!Directory.Exists(finalPath))
                         Directory.CreateDirectory(finalPath);
-                    var safeName = Regex.Replace(folderName, @"[^a-zA-Z0-9_-]", "");
+
                     var filePath = Path.Combine(finalPath, fileName);
                     var dbPath = Path.Combine(safeName, fileName);
                     using (var stream = new FileStream(filePath, FileMode.Create))
@@ -756,6 +762,7 @@ namespace EVWebApi.Services
                 {
                     x.RecipientId,
                     x.DocumentTypeId,
+                    x.Id,
                     x.FilePath,
                     DocType = x.DocumentType.Label
                 })
@@ -788,6 +795,7 @@ namespace EVWebApi.Services
                         {
                             DocumentTypeId = x.DocumentTypeId,
                             DocType = x.DocType,
+                            FileId=x.Id,
                             FilePath = x.FilePath
                         })
                         .ToList();
@@ -833,6 +841,7 @@ namespace EVWebApi.Services
                 result.Add(new ConfigRequestDetailsDto
                 {
                     ConfigId = request.Id,
+                    ConfigName= request.ConfigName,
                     CollectionName = request.Collection?.Name,
                     Region= request.Collection?.Region,
                     Description = request.Description,

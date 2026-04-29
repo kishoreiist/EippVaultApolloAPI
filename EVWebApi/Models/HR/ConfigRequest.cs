@@ -17,6 +17,8 @@ namespace EVWebApi.Models.HR
         public int CreatedBy { get; set; }
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        [Column("config_name")]
+        public string? ConfigName { get; set; }
 
         // Navigation
         public ICollection<ConfigRequestRecipient> Recipients { get; set; } = new List<ConfigRequestRecipient>();

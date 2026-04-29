@@ -140,7 +140,7 @@ namespace EVWebApi.Controllers
 
                
                 var result = await _service.SendConfigurationAsync(dto, CurrentUserId);
-
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Configuration", "Record Created");
                 return Ok(result);
             }
             catch (Exception ex)
@@ -148,7 +148,7 @@ namespace EVWebApi.Controllers
                 return StatusCode(500, new
                 {
                     message = "Failed to send configuration",
-                    error = ex.Message
+                    error = ex.InnerException.Message
                 });
             }
         }
@@ -177,6 +177,7 @@ namespace EVWebApi.Controllers
                 if (dto.Files == null || !dto.Files.Any())
                     return BadRequest("At least one file is required");
                 var result = await _service.UploadDocumentsAsync(dto);
+                //await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Config_Upload", "Record Created", result.Name);
                 return Ok(result);
             }
             catch (Exception ex)

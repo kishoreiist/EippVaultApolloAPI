@@ -1476,7 +1476,9 @@ namespace EVWebApi.Services
                 //versionEntity.FilePath = Path.Combine(doc.DocumentId.ToString(), doc.FileName);
                 var version = await _docVersionService.CreateVersionAsync(versionEntity, newVersion);
                 doc.Version = version.VersionId;
-                version.Action = dto.Action.ToLower() ?? "create";
+                version.Action = string.IsNullOrWhiteSpace(dto.Action)
+                ? "create"
+                : dto.Action.ToLower();
 
                 await _uow.CompleteAsync();
                 await transaction.CommitAsync(); 

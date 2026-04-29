@@ -299,11 +299,12 @@ namespace EVWebApi.Repositories
         {
             var docLink = await _context.DocumentLink
                 .Where(d => d.AssignedTo == userid)
-                .Where(d => d.ExpiryDate > DateTime.UtcNow)
-                .Where(d=>d.CurrentDownloads<d.MaxDownloads)
+                //.Where(d => d.ExpiryDate > DateTime.UtcNow)
+                //.Where(d=>d.CurrentDownloads<d.MaxDownloads)
                 .OrderBy(d => d.ExpiryDate)
                 .Select(d => new DocDownloadGetDTO
                 {
+                    DocumentLinkId=d.Id,
                     DocumentId = d.DocumentId,
                     ExpiresAt = d.ExpiryDate,
                     RemainingDownloads = d.MaxDownloads-d.CurrentDownloads,

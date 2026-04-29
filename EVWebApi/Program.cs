@@ -114,6 +114,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<ICloudFareTurnstileService, CloudFareTurnstileService>();
 builder.Services.AddScoped<IDocVersionService, DocVersionService>();
 builder.Services.AddScoped<IConfigurationService, ConfigurationService>();
+builder.Services.AddScoped<IDocAccessReqService, DocAccessReqService>();
 
 builder.Services.AddMemoryCache();
 

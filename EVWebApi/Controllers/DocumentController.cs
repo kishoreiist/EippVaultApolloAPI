@@ -49,11 +49,24 @@ namespace EVWebApi.Controllers
             try
             {
                 var result = await _documentService.UploadDocumentChunks(dto, CurrentUserId);
+
+                //CASE 1: Intermediate chunk (result is null)
+                if (result == null)
+                {
+                    return Ok(new
+                    {
+                        message = "Chunk uploaded successfully",
+                        chunkIndex = dto.ChunkIndex,
+                        totalChunks = dto.TotalChunks
+                    });
+                }
+                // CASE 2: Last chunk (file fully processed)
                 if (dto.TotalChunks == null || dto.ChunkIndex == dto.TotalChunks - 1)
                 {
                     _logger.LogInformation("File uploaded: {FileName} Size: {FileSize} UserId: {UserId}", result.FileName, dto.File.Length, CurrentUserId);
                     await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Uploaded", result.FileName, result.CabinetId, filters: filterDetails);
                 }
+                //CASE 3: Duplicate handling
                 if (result.Actions != null)
                 {
                     return StatusCode(409, new

@@ -2058,8 +2058,20 @@ namespace EVWebApi.Services
             if (document == null)
                 throw new KeyNotFoundException("Document not found");
 
-            if (!File.Exists(document.FilePath))
-                throw new FileNotFoundException("Excel file not found");
+            var relativePath = document.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            if (!fullPath.StartsWith(_storageRoot))
+                throw new SecurityException("Invalid file path");
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found in storage");
+
 
             var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -2078,7 +2090,8 @@ namespace EVWebApi.Services
             var application = excelEngine.Excel;
             application.DefaultVersion = ExcelVersion.Xlsx;
 
-            using var stream = new FileStream(document.FilePath, FileMode.Open, FileAccess.Read);
+
+            using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
             var workbook = application.Workbooks.Open(stream);
 
             //var sheetNames = workbook.Worksheets.Select(s => s.Name).ToList();
@@ -2100,9 +2113,20 @@ namespace EVWebApi.Services
             if (document == null)
                 throw new KeyNotFoundException("Document not found");
 
-            if (!File.Exists(document.FilePath))
-                throw new FileNotFoundException("Excel file not found");
-            
+            var relativePath = document.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            if (!fullPath.StartsWith(_storageRoot))
+                throw new SecurityException("Invalid file path");
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found in storage");
+
             var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 ".xls", ".xlsx", ".xlsb", ".xlsm", ".xltx", ".xltm"
@@ -2124,7 +2148,7 @@ namespace EVWebApi.Services
             application.DefaultVersion = ExcelVersion.Xlsx;
 
             using var stream = new FileStream(
-                document.FilePath,
+                fullPath,
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read);

@@ -257,44 +257,55 @@ namespace EVWebApi.Services
                 else
                     docQuery = docQuery.Where(d => d.InvoiceNumber.ToLower().Contains(query.InvoiceNumber.ToLower()));
             }
-            //VendorNumber
-            if (!string.IsNullOrWhiteSpace(query.VendorNumber))
+            //ManufactureId
+            if (!string.IsNullOrWhiteSpace(query.LoginName))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.VendorNumber.ToLower().StartsWith(query.VendorNumber.ToLower()));
+                    docQuery = docQuery.Where(d => d.LoginName.ToLower().StartsWith(query.LoginName.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.VendorNumber.ToLower().Contains(query.VendorNumber.ToLower()));
+                    docQuery = docQuery.Where(d => d.LoginName.ToLower().Contains(query.LoginName.ToLower()));
             }
-            //Check number
-            if (!string.IsNullOrWhiteSpace(query.CheckNumber))
+            //Login ID
+            if (!string.IsNullOrWhiteSpace(query.LoginId))
             {
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.CheckNumber.ToLower().StartsWith(query.CheckNumber.ToLower()));
+                    docQuery = docQuery.Where(d => d.LoginId.ToLower().StartsWith(query.LoginId.ToLower()));
                 else
-                    docQuery = docQuery.Where(d => d.CheckNumber.ToLower().Contains(query.CheckNumber.ToLower()));
+                    docQuery = docQuery.Where(d => d.LoginId.ToLower().Contains(query.LoginId.ToLower()));
             }
             //GST
-            if (query.GST.HasValue)
+            if (query.ManufactureId.HasValue)
             {
-                var gstStr = query.GST.Value.ToString();
+                var gstStr = query.ManufactureId.Value.ToString();
 
                 if (query.SearchType == null || query.SearchType == SearchType.starts_with)
                 {
-                    docQuery = docQuery.Where(d => d.GST.ToString().StartsWith(gstStr));
+                    docQuery = docQuery.Where(d => d.ManufactureId.ToString().StartsWith(gstStr));
                 }
                 else
                 {
-                    docQuery = docQuery.Where(d => d.GST.ToString().Contains(gstStr));
+                    docQuery = docQuery.Where(d => d.ManufactureId.ToString().Contains(gstStr));
                 }
             }
-            //PO NUMBER
-            if (!string.IsNullOrWhiteSpace(query.PoNumber))
+            //Period
+            if (!string.IsNullOrWhiteSpace(query.Period))
             {
-                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
-                    docQuery = docQuery.Where(d => d.PoNumber.ToLower().StartsWith(query.PoNumber.ToLower()));
-                else
-                    docQuery = docQuery.Where(d => d.PoNumber.ToLower().Contains(query.PoNumber.ToLower()));
+                //var formats = new[] { "MMM yyyy", "MMMM yyyy" };
+
+                //if (DateTime.TryParseExact(
+                //        query.Period.Value.ToString("MMM yyyy"),
+                //        formats,
+                //        CultureInfo.InvariantCulture,
+                //        DateTimeStyles.None,
+                //        out var parsedDate))
+                //{
+                //    var period = DateOnly.FromDateTime(parsedDate);
+
+                var period = DateFormatterHelper.ParsePeriod(query.Period);
+                docQuery = docQuery.Where(d => d.Period == period);
             }
+           
+            
             //EMP ID
             if (!string.IsNullOrWhiteSpace(query.EmployeeId))
             {
@@ -527,13 +538,13 @@ namespace EVWebApi.Services
                        Region = first.Region,
                        InvoiceNumber = first.InvoiceNumber,
                        InvoiceDate = first.InvoiceDate,
-                       VendorNumber = first.VendorNumber,
+                       //VendorNumber = first.VendorNumber,
                        StatementDate = first.StatementDate,
-                       PoNumber = first.PoNumber,
+                       //PoNumber = first.PoNumber,
                        Amount = first.Amount,
                        PaidAmount = first.PaidAmount,
-                       GST = first.GST,
-                       CheckNumber = first.CheckNumber,
+                      // GST = first.GST,
+                       //CheckNumber = first.CheckNumber,
                        Version =first.Version,
                        Status = first.Status,
                        CabinetId = first.CabinetId,
@@ -923,8 +934,8 @@ namespace EVWebApi.Services
 
 
                 if (dto.InvoiceNumber != null) document.InvoiceNumber = dto.InvoiceNumber;
-                if (dto.PoNumber != null) document.PoNumber = dto.PoNumber;
-                if (dto.VendorNumber != null) document.VendorNumber = dto.VendorNumber;
+                if (dto.ManufactureId != null) document.ManufactureId = dto.ManufactureId;
+                //if (dto.LoginId != null) document.LoginId = dto.LoginId;
                 if (dto.EmployeeId != null) document.EmployeeId = dto.EmployeeId;
                 if (dto.Name != null) document.Name = dto.Name;
                 if (dto.ContactNumber != null) document.ContactNumber = dto.ContactNumber;
@@ -936,8 +947,12 @@ namespace EVWebApi.Services
                 if (dto.DOJ.HasValue) document.DOJ = dto.DOJ.Value;
                 if (dto.DOB.HasValue) document.DOB = dto.DOB.Value;
                 if (dto.Amount.HasValue) document.Amount = dto.Amount.Value;
-                if (dto.GST.HasValue) document.GST = dto.GST.Value;
-                if (dto.CheckNumber != null) document.CheckNumber = dto.CheckNumber;
+                if (dto.Period != null) document.Period = DateFormatterHelper.ParsePeriod(dto.Period);
+
+
+
+                //if (dto.LoginName != null) document.LoginName = dto.LoginName;
+                if (dto.Remarks != null) document.Remarks = dto.Remarks;
                 if (dto.PaidAmount.HasValue) document.PaidAmount = dto.PaidAmount.Value;
                 document.Version = latestVersion;
                 DocumentTypes? docType = null;
@@ -1051,7 +1066,7 @@ namespace EVWebApi.Services
 
         // ----------------- BATCH UPLOAD------------------------
 
-        public async Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid)
+        public async Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid, string? username, string? fullname)
         {
             if (dto.MetadataFile == null || dto.Files == null || dto.Files.Count == 0)
                 throw new ArgumentException("CSV or PDF files are missing.");
@@ -1179,21 +1194,27 @@ namespace EVWebApi.Services
                         DocumentTypeId = docType?.Id,
                         Region=record.Region,
                         InvoiceNumber = record.InvoiceNumber,
-                        VendorNumber = record.VendorNumber,
+                        
                         InvoiceDate = record.InvoiceDate,
                         Amount = record.Amount,
-                        GST = record.GST,
+                        
                         StatementDate = record.StatementDate,
                         PaidAmount = record.PaidAmount,
                         Department = record.Department,
                         Designation = record.Designation,
                         Name = record.Name,
                         EmployeeId = record.EmployeeId,
-                        PoNumber = record.PoNumber,
+                        
                         ContactNumber = record.ContactNumber,
                         DOB = record.DOB,
                         DOJ = record.DOJ,
-                        CheckNumber = record.CheckNumber
+
+                        ManufactureId = record.ManufactureId,
+                        Period = DateFormatterHelper.ParsePeriod(record.Period),
+                        LoginName = fullname,
+                        LoginId =username,
+                        Remarks = record.Remarks
+
                     };
 
                     _repo.AddDocumentRange(document);
@@ -1242,7 +1263,7 @@ namespace EVWebApi.Services
 
         //---------chunk upload--------------------
 
-        public async Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid)
+        public async Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid, string? username, string? fullname)
         {
             if (dto.TotalChunks == null || dto.TotalChunks <= 1)
             {
@@ -1261,7 +1282,7 @@ namespace EVWebApi.Services
                 }
                 try
                 {
-                    return await FinalizeUploadAsync(dto, currentuserid, tempFilePath);
+                    return await FinalizeUploadAsync(dto, currentuserid, tempFilePath, username, fullname);
                 }
                 finally
                 {
@@ -1270,10 +1291,10 @@ namespace EVWebApi.Services
             }
 
             // NEW behavior (chunk upload)
-            return await UploadChunkAsync(dto, currentuserid);
+            return await UploadChunkAsync(dto, currentuserid, username, fullname);
         }
 
-        private async Task<DocumentResponseDto?> UploadChunkAsync(DocumentUploadDto dto, int? currentuserid)
+        private async Task<DocumentResponseDto?> UploadChunkAsync(DocumentUploadDto dto, int? currentuserid, string? username, string? fullname)
         {
             if (dto.TotalChunks <= 0)
                 throw new BadRequestException("Invalid total chunks");
@@ -1325,7 +1346,7 @@ namespace EVWebApi.Services
             DocumentResponseDto result;
             try
             {
-                result = await FinalizeUploadAsync(dto, currentuserid, mergedFilePath);
+                result = await FinalizeUploadAsync(dto, currentuserid, mergedFilePath, username, fullname);
 
             }
             catch (Exception ex)
@@ -1350,7 +1371,7 @@ namespace EVWebApi.Services
 
         }
 
-        private async Task<DocumentResponseDto> FinalizeUploadAsync(DocumentUploadDto dto, int? currentuserid, string mergedFilePath)
+        private async Task<DocumentResponseDto> FinalizeUploadAsync(DocumentUploadDto dto, int? currentuserid, string mergedFilePath, string? username, string? fullname)
         {
             var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId)
                 ?? throw new Exception("Invalid CabinetId");
@@ -1365,7 +1386,7 @@ namespace EVWebApi.Services
                 );
             }
             // duplicate check
-            var duplicateDoc = await _repo.FindDuplicateAsync(dto);
+            var duplicateDoc = await _repo.FindDuplicateAsync(dto, username, fullname);
 
             if (duplicateDoc != null && string.IsNullOrWhiteSpace(dto.Action))
             {
@@ -1420,21 +1441,27 @@ namespace EVWebApi.Services
                         UploadedAt = DateTime.UtcNow,
                         DocumentTypeId = docType?.Id,
                         InvoiceNumber = dto.InvoiceNumber,
-                        VendorNumber = dto.VendorNumber,
+
+                        ManufactureId = dto.ManufactureId,
+                        LoginId = username,
+                        LoginName = fullname,
+                        Period = DateFormatterHelper.ParsePeriod(dto.Period),
+                        Remarks = dto.Remarks,
+
                         InvoiceDate = dto.InvoiceDate,
                         Amount = dto.Amount,
-                        GST = dto.GST,
+                 
                         StatementDate = dto.StatementDate,
                         PaidAmount = dto.PaidAmount,
                         Department = dto.Department,
                         Designation = dto.Designation,
                         Name = dto.Name,
                         EmployeeId = dto.EmployeeId,
-                        PoNumber = dto.PoNumber,
+                       
                         ContactNumber = dto.ContactNumber,
                         DOB = dto.DOB,
                         DOJ = dto.DOJ,
-                        CheckNumber = dto.CheckNumber,
+                        
                         Region=dto.Region//-----------------------only for Hr cabinet
                     });
 
@@ -1499,7 +1526,7 @@ namespace EVWebApi.Services
         }
 
         //---------------helper methods-----------------------------
-
+        
         private async Task EnforceVersionLimit(int documentId)
         {
             await _docVersionRepo
@@ -1697,7 +1724,7 @@ namespace EVWebApi.Services
 
         //-------------------------     SPLIT & EXTRACT PDF ----------------------
 
-        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId)
+        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId, string? username, string? fullname)
         {
             var originalDoc = await _repo.GetDocument(dto.DocumentId)
                 ?? throw new KeyNotFoundException("Document not found");
@@ -1790,21 +1817,26 @@ namespace EVWebApi.Services
 
 
                     InvoiceNumber = originalDoc.InvoiceNumber,
-                    VendorNumber = originalDoc.VendorNumber,
+                    
                     InvoiceDate = originalDoc.InvoiceDate,
                     Amount = originalDoc.Amount,
-                    GST = originalDoc.GST,
+                    
                     StatementDate = originalDoc.StatementDate,
                     PaidAmount = originalDoc.PaidAmount,
                     Department = originalDoc.Department,
                     Designation = originalDoc.Designation,
                     Name = originalDoc.Name,
                     EmployeeId = originalDoc.EmployeeId,
-                    PoNumber = originalDoc.PoNumber,
+                    
                     ContactNumber = originalDoc.ContactNumber,
                     DOB = originalDoc.DOB,
                     DOJ = originalDoc.DOJ,
-                    CheckNumber = originalDoc.CheckNumber
+
+                    ManufactureId = originalDoc.ManufactureId,
+                    Period = originalDoc.Period,
+                    LoginName = fullname,
+                    LoginId = username,
+                    Remarks = originalDoc.Remarks
                 };
 
                 await _repo.CreateDocument(newDocument);
@@ -2284,6 +2316,13 @@ namespace EVWebApi.Services
                 //if (File.Exists(existingFilePath))
                 //    File.Delete(existingFilePath);
             }
+        }
+
+
+        public async Task<List<ManfactureDto>> GetManufactureDetailsAsync()
+        {
+            return await _repo.GetManufactureDetailsList();
+          
         }
     }
 

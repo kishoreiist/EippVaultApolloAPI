@@ -9,8 +9,8 @@
         public DateTime UploadedAt { get; set; }
         public List<MetadataDTO>? Metadata { get; set; }
         public string? InvoiceNumber { get; set; }
-        public string? PoNumber { get; set; }
-        public string? VendorNumber { get; set; }
+        //public string? PoNumber { get; set; }
+      //  public string? VendorNumber { get; set; }
         public string? EmployeeId { get; set; }
         public string? Name { get; set; }
         public string? ContactNumber { get; set; }
@@ -23,8 +23,8 @@
         public DateTime? DOB { get; set; }
 
         public decimal? Amount { get; set; }
-        public decimal? GST { get; set; }
-        public string? CheckNumber { get; set; }
+        //public decimal? GST { get; set; }
+        //public string? CheckNumber { get; set; }
         public decimal? PaidAmount { get; set; }
         public List<DocumentChildDDTO> DocumentTypes { get; set; }
     }

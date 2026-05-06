@@ -1,4 +1,5 @@
 ﻿using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Group;
 using EVWebApi.Models;
 using System.Xml.Linq;
 
@@ -41,11 +42,14 @@ namespace EVWebApi.Interfaces.Repositories
 
         ///--versioning
       
-        Task<Document?> FindDuplicateAsync(DocumentUploadDto dto);
+        Task<Document?> FindDuplicateAsync(DocumentUploadDto dto, string? username, string? fullname);
         Task<List<Document>> GetDocumentsForDuplicateCheck(int cabinetId);
         bool IsDuplicate(Document dbDoc, DocumentMetadatadto record, string[] fields);
         string GenerateDuplicateKeyFromDocument(Document doc, string[] fields);
         string GenerateDuplicateKeyFromRecord(DocumentMetadatadto record, string[] fields);
+
+
+        Task<List<ManfactureDto>> GetManufactureDetailsList();
 
     }
 }

@@ -59,8 +59,7 @@ namespace EVWebApi.Services
                 FilePath = doc.FilePath,
 
                 InvoiceNumber = doc.InvoiceNumber ?? doc.InvoiceNumber,
-                PoNumber = doc.PoNumber ?? doc.PoNumber,
-                VendorNumber = doc.VendorNumber ?? doc.VendorNumber,
+
                 EmployeeId = doc.EmployeeId ?? doc.EmployeeId,
                 Name = doc.Name ?? doc.Name,
                 ContactNumber = doc.ContactNumber ?? doc.ContactNumber,
@@ -73,10 +72,16 @@ namespace EVWebApi.Services
                 DOJ = doc.DOJ ?? doc.DOJ,
                 DOB = doc.DOB ?? doc.DOB,
                 Amount = doc.Amount ?? doc.Amount,
-                GST = doc.GST ?? doc.GST,
+            
                 PaidAmount = doc.PaidAmount ?? doc.PaidAmount,
-                CheckNumber = doc.CheckNumber ?? doc.CheckNumber,
-                Status="active"
+                Status="active",
+
+
+                ManufactureId = doc.ManufactureId ?? doc.ManufactureId,
+                Period = doc.Period ?? doc.Period,
+                LoginName = doc.LoginName ?? doc.LoginName,
+                LoginId = doc.LoginId ?? doc.LoginId,
+                Remarks = doc.Remarks ?? doc.Remarks
             };
 
             await _uow.DocumentVersions.AddAsync(version);

@@ -12,6 +12,9 @@ namespace EVWebApi.Controllers
         protected string CurrentUsername =>
              User.FindFirst("username")?.Value ?? string.Empty;
 
+        protected string CurrentUserFullname =>
+            User.FindFirst("name")?.Value ?? string.Empty;
+
         protected string CurrentUserType =>
             User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
     }

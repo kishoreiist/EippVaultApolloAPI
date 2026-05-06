@@ -228,12 +228,13 @@ public class AuthService : IAuthService
 
         var securityKey = new RsaSecurityKey(rsa);
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
-
+        var fullname = $"{user.FirstName} {user.LastName}";
         var claims = new [] {
             new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
             new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
             new Claim("userId", user.UserId.ToString()),
             new Claim("username", user.Username),
+            new Claim("name",fullname),
             new Claim(ClaimTypes.Role, userType),
             new Claim("session_id", session.SessionId.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, session.JwtId.ToString()),

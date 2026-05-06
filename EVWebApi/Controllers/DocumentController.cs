@@ -31,7 +31,7 @@ namespace EVWebApi.Controllers
         private readonly IAuditLogService _auditlogservice;
         private readonly IDocumentRepository _documentRepo;
         private readonly ILogger<DocumentController> _logger;
-        public DocumentController(IDocumentService documentService, IAuditLogService auditLogService, IDocumentRepository documentRepo, 
+        public DocumentController(IDocumentService documentService, IAuditLogService auditLogService, IDocumentRepository documentRepo,
             ILogger<DocumentController> logger)
         {
             _documentService = documentService;
@@ -48,7 +48,7 @@ namespace EVWebApi.Controllers
             string filterDetails = dto.ToFilterLog("Index Details - ");
             try
             {
-                var result = await _documentService.UploadDocumentChunks(dto, CurrentUserId);
+                var result = await _documentService.UploadDocumentChunks(dto, CurrentUserId,CurrentUsername,CurrentUserFullname);
 
                 //CASE 1: Intermediate chunk (result is null)
                 if (result == null)
@@ -72,7 +72,7 @@ namespace EVWebApi.Controllers
                     return StatusCode(409, new
                     {
                         message = "Duplicate found",
-                        requiresAction=true,
+                        requiresAction = true,
                         documentId = result.DocumentId,
                         actions = result.Actions
                     });
@@ -105,7 +105,7 @@ namespace EVWebApi.Controllers
                 if (dto.Files == null || dto.Files.Count == 0)
                     return BadRequest("At least one document file is required");
 
-                var result = await _documentService.BatchUploadDocuments(dto, CurrentUserId);
+                var result = await _documentService.BatchUploadDocuments(dto, CurrentUserId, CurrentUsername, CurrentUserFullname);
 
                 string filterDetails = result.ToFilterLog("Upload Status - ");
 
@@ -160,11 +160,11 @@ namespace EVWebApi.Controllers
             try
             {
 
-            var docs = await _documentService.GetGroupedDocuments(cabinetId, query);
-            string filterDetails = query.ToFilterLog();
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Retrieved", null, cabinetId, null, filters: filterDetails);
+                var docs = await _documentService.GetGroupedDocuments(cabinetId, query);
+                string filterDetails = query.ToFilterLog();
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Retrieved", null, cabinetId, null, filters: filterDetails);
 
-            return Ok(docs);
+                return Ok(docs);
 
             }
             catch (Exception ex)
@@ -468,7 +468,7 @@ namespace EVWebApi.Controllers
 
             try
             {
-                var result = await _documentService.SplitAndExtractPdfAsync(dto, CurrentUserId);
+                var result = await _documentService.SplitAndExtractPdfAsync(dto, CurrentUserId, CurrentUsername, CurrentUserFullname);
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "PDF SPLIT", $"{dto.FromPage} - {dto.ToPage} into {dto.DocumentType} document Type", dto.CabinetId);
 
                 return Ok(result);
@@ -594,7 +594,7 @@ namespace EVWebApi.Controllers
             try
             {
                 var json = await _documentService.OpenExcelSheetAsync(dto);
-                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open",null,null,filters: filterDetails);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open", null, null, filters: filterDetails);
                 return Content(json, "application/json");
             }
             catch (KeyNotFoundException ex)
@@ -603,7 +603,7 @@ namespace EVWebApi.Controllers
             }
             catch (Exception ex)
             {
-               await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open fail", null, null, filters: filterDetails);
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Excel open fail", null, null, filters: filterDetails);
                 return StatusCode(500, new
                 {
                     message = "An error occurred while opening the Excel sheet",
@@ -613,7 +613,25 @@ namespace EVWebApi.Controllers
 
         }
 
-        
+        [HttpGet("manufacture_details")]
+        public async Task<IActionResult> GetManufactureDetails()
+        {
+            try
+            {
+                var details = await _documentService.GetManufactureDetailsAsync();
+                if (details == null) return NotFound();
+                return Ok(new {data= details});
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An error occurred while fetching manufacture details",
+                    error = ex.Message
+                });
+            }
+
+        }
     }
 
 }

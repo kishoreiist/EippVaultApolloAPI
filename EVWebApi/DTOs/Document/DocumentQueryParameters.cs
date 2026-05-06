@@ -32,14 +32,14 @@ namespace EVWebApi.DTOs.Document
         [FromQuery(Name = "page_size")]
         public int PageSize { get; set; } = 10;
 
-        [FromQuery(Name = "vendor")]
-        public string? VendorNumber { get; set; }
-        [FromQuery(Name = "gst")]
-        public decimal? GST { get; set; }
+        [FromQuery(Name = "manufacture_id")]
+        public int? ManufactureId { get; set; }
+        [FromQuery(Name = "period")]
+        public string? Period { get; set; }
         [FromQuery(Name = "invoice")]
         public string? InvoiceNumber { get; set; }
-        [FromQuery(Name = "po")]
-        public string? PoNumber { get; set; }
+        [FromQuery(Name = "login_name")]
+        public string? LoginName { get; set; }
 
         [FromQuery(Name = "document_type")]
         public string? DocType { get; set; }
@@ -52,8 +52,8 @@ namespace EVWebApi.DTOs.Document
         public string? ContactNumber { get; set; }
         [FromQuery(Name = "designation")]
         public string? Designation { get; set; }
-        [FromQuery(Name = "check_number")]
-        public string? CheckNumber { get; set; }
+        [FromQuery(Name = "login_id")]
+        public string? LoginId { get; set; }
         [FromQuery(Name = "status")]
         public string? Status { get; set; }
         [FromQuery(Name = "region")]

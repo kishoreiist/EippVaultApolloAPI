@@ -10,6 +10,7 @@ using EVWebApi.Models;
 using EVWebApi.Models.HR;
 using EVWebApi.Models.Security;
 using System;
+using System.Globalization;
 
 namespace EVWebApi.Mapping
 {
@@ -144,6 +145,8 @@ namespace EVWebApi.Mapping
                         opt => opt.MapFrom(src => src.DocumentType != null
                             ? src.DocumentType.Label
                             : null))
+
+
                 .ReverseMap();
 
             CreateMap<Document, DocumentChildDDTO>()
@@ -178,6 +181,14 @@ namespace EVWebApi.Mapping
 
 
             CreateMap<Document, DocumentVersion>();
+
+            CreateMap<Document, DocumentResponseDto>()
+
+                 .ForMember(dest => dest.Period,
+                opt => opt.MapFrom(src =>
+                src.Period.HasValue
+                ? src.Period.Value.ToString("yyyy-MM", CultureInfo.InvariantCulture)
+                : null));
 
             //---------------onboarding-------------------
         }

@@ -24,14 +24,14 @@ namespace EVWebApi.Interfaces.Services
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
         Task<List<string>> GetDocTypeAsync();
 
-        Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid);
-        Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid);
+        Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid, string? username, string? fullname);
+        Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid,string? username,string? fullname);
         Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int? userId);
 
         Task<List<string>> GetSuggestionsAsync(AutoSuggestionRequestDto dto);
         Task<object> GetAutoFillAsync(AutoFillRequestDto dto);
 
-        Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId);
+        Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId, string? username, string? fullname);
         //Task ArchiveDocument(int id);
         //Task RestoreDocument(int id);
         //--------------NOTES------------
@@ -56,5 +56,9 @@ namespace EVWebApi.Interfaces.Services
 
 
         Task MergeUploadFileAsync(string existingFilePath, IFormFile newFile, string outputPath);
+
+
+
+        Task<List<ManfactureDto>> GetManufactureDetailsAsync();
     }
 }

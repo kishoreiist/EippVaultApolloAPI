@@ -1,11 +1,14 @@
 ﻿using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.Data;
 using EVWebApi.DTOs.Document;
+using EVWebApi.DTOs.Group;
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
+using Humanizer;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EVWebApi.Repositories
@@ -304,10 +307,10 @@ namespace EVWebApi.Repositories
                 .OrderBy(d => d.ExpiryDate)
                 .Select(d => new DocDownloadGetDTO
                 {
-                    DocumentLinkId=d.Id,
+                    DocumentLinkId = d.Id,
                     DocumentId = d.DocumentId,
                     ExpiresAt = d.ExpiryDate,
-                    RemainingDownloads = d.MaxDownloads-d.CurrentDownloads,
+                    RemainingDownloads = d.MaxDownloads - d.CurrentDownloads,
                     FileName = d.Document.FileName
                 })
                  .ToListAsync();
@@ -326,7 +329,7 @@ namespace EVWebApi.Repositories
         }
 
         //to determine the active document ids in the list for which download email have sent
-        public async Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId,IEnumerable<int> documentIds)
+        public async Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId, IEnumerable<int> documentIds)
         {
             if (documentIds == null || !documentIds.Any())
                 return new List<int>();
@@ -335,7 +338,7 @@ namespace EVWebApi.Repositories
                 .Where(d =>
                     d.AssignedTo == userId &&
                     documentIds.Contains(d.DocumentId) &&
-                    d.ExpiryDate > DateTime.UtcNow && d.CurrentDownloads<d.MaxDownloads)
+                    d.ExpiryDate > DateTime.UtcNow && d.CurrentDownloads < d.MaxDownloads)
                 .Select(d => d.DocumentId)
                 .ToListAsync();
         }
@@ -364,7 +367,7 @@ namespace EVWebApi.Repositories
 
 
         //---------------FIND DUPLICATE DOCUMENTS BASED ON CABINET RULES-----------------
-        public async Task<Document?> FindDuplicateAsync(DocumentUploadDto dto)
+        public async Task<Document?> FindDuplicateAsync(DocumentUploadDto dto, string? username, string? fullname)
         {
             if (!CabinetDuplicateRulesHelper.TryGetRules(dto.CabinetId, out var fields))
                 return null;
@@ -373,10 +376,12 @@ namespace EVWebApi.Repositories
                 _context.Documents.Where(d => d.CabinetId == dto.CabinetId);
 
             bool hasAnyFilter = false;
+            dto.LoginId = username;
+            dto.LoginName = fullname;
             foreach (var field in fields)
             {
                 query = ApplyDuplicateFilter(query, field, dto, ref hasAnyFilter);
-                
+
             }
             if (!hasAnyFilter)
                 return null;
@@ -386,7 +391,7 @@ namespace EVWebApi.Repositories
                 .FirstOrDefaultAsync();
         }
 
-        private IQueryable<Document> ApplyDuplicateFilter(IQueryable<Document> query,string field,DocumentUploadDto dto,ref bool hasAnyFilter)
+        private IQueryable<Document> ApplyDuplicateFilter(IQueryable<Document> query, string field, DocumentUploadDto dto, ref bool hasAnyFilter)
         {
             switch (field)
             {
@@ -446,19 +451,36 @@ namespace EVWebApi.Repositories
                     }
                     break;
 
-                case "VendorNumber":
-                    if (!string.IsNullOrWhiteSpace(dto.VendorNumber))
+                case "ManufactureId":
+                    if (dto.ManufactureId != null)
                     {
                         hasAnyFilter = true;
-                        query = query.Where(d => d.VendorNumber == dto.VendorNumber);
+                        query = query.Where(d => d.ManufactureId == dto.ManufactureId);
                     }
                     break;
 
-                case "PoNumber":
-                    if (!string.IsNullOrWhiteSpace(dto.PoNumber))
+                case "LoginId":
+                    if (!string.IsNullOrWhiteSpace(dto.LoginId))
                     {
                         hasAnyFilter = true;
-                        query = query.Where(d => d.PoNumber == dto.PoNumber);
+                        query = query.Where(d => d.LoginId == dto.LoginId);
+                    }
+                    break;
+
+                case "LoginName":
+                    if (!string.IsNullOrWhiteSpace(dto.LoginName))
+                    {
+                        hasAnyFilter = true;
+                        query = query.Where(d => d.LoginName == dto.LoginName);
+                    }
+                    break;
+
+                case "Period":
+                    if (!string.IsNullOrWhiteSpace(dto.Period))
+                    {
+                        hasAnyFilter = true;
+                        DateOnly? period = DateFormatterHelper.ParsePeriod(dto.Period);
+                        query = query.Where(d => d.Period == period);
                     }
                     break;
             }
@@ -499,12 +521,21 @@ namespace EVWebApi.Repositories
                         if (!IsEqual(dbDoc.StatementDate, record.StatementDate)) return false;
                         break;
 
-                    case "VendorNumber":
-                        if (!IsEqual(dbDoc.VendorNumber, record.VendorNumber)) return false;
+                    case "ManufactureId":
+                        if (!IsEqual(dbDoc.ManufactureId, record.ManufactureId)) return false;
                         break;
 
-                    case "PoNumber":
-                        if (!IsEqual(dbDoc.PoNumber, record.PoNumber)) return false;
+                    case "LoginId":
+                        if (!IsEqual(dbDoc.LoginId, record.LoginId)) return false;
+                        break;
+
+                    case "LoginName":
+                        if (!IsEqual(dbDoc.LoginName, record.LoginName)) return false;
+                        break;
+
+                    case "Period":
+                        DateOnly? period = DateFormatterHelper.ParsePeriod(record.Period);
+                        if (!IsEqual(dbDoc.Period, period)) return false;
                         break;
                 }
             }
@@ -541,8 +572,10 @@ namespace EVWebApi.Repositories
                     "ContactNumber" => doc.ContactNumber ?? "",
                     "Name" => doc.Name ?? "",
                     "StatementDate" => doc.StatementDate?.ToString("yyyyMMdd") ?? "",
-                    "VendorNumber" => doc.VendorNumber ?? "",
-                    "PoNumber" => doc.PoNumber ?? "",
+                    "ManufactureId" => doc.ManufactureId?.ToString() ?? "",
+                    "LoginId" => doc.LoginId ?? "",
+                    "LoginName" => doc.LoginName ?? "",
+                    "Period" => doc.Period?.ToString("yyyy-MM") ?? "",
                     _ => ""
                 };
                 values.Add(NormalizeValue(val));
@@ -566,8 +599,10 @@ namespace EVWebApi.Repositories
                     "ContactNumber" => record.ContactNumber ?? "",
                     "Name" => record.Name ?? "",
                     "StatementDate" => record.StatementDate?.ToString("yyyyMMdd") ?? "",
-                    "VendorNumber" => record.VendorNumber ?? "",
-                    "PoNumber" => record.PoNumber ?? "",
+                    "ManufactureId" => record.ManufactureId?.ToString() ?? "",
+                    "LoginId" => record.LoginId ?? "",
+                    "LoginName" => record.LoginName ?? "",
+                    "Period" => record.Period?? "",
                     _ => ""
                 };
                 values.Add(NormalizeValue(val));
@@ -582,30 +617,43 @@ namespace EVWebApi.Repositories
             if (value == null)
                 return "";
 
-            
+
             if (value is decimal dec)
                 return dec.ToString("0.00");
 
             if (value is double dbl)
                 return dbl.ToString("0.00");
 
-            
+
             if (value is string str)
             {
                 str = str.Trim();
 
-               
+
                 if (decimal.TryParse(str, out var parsed))
                     return parsed.ToString("0.00");
 
                 return str.ToLower();
             }
- 
+
             if (value is DateTime dt)
                 return dt.ToString("yyyyMMdd");
 
             return value.ToString().Trim().ToLower();
         }
 
+        public async Task<List<ManfactureDto>> GetManufactureDetailsList()
+         {
+            return await _context.ManufactureDetails
+                .Where(d => d.ManufactureId != null)
+                .Select(d => new ManfactureDto
+                {
+                    Id = d.Id,
+                    ManfactureId=d.ManufactureId,
+                    ManfactureName = d.ManufactureName
+                })
+                .Distinct()
+                .ToListAsync();
+    }
     }
 }

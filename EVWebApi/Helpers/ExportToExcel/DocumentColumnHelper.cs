@@ -7,7 +7,7 @@ namespace EVWebApi.Helpers.ExportToExcel
         public static readonly Dictionary<string, Func<Document, object?>> ColumnMap = new()
         {
             ["EmployeeId"] = d => d.EmployeeId,
-            ["Name"] = d => d.Name,
+            
             ["ContactNumber"] = d => d.ContactNumber,
             ["Designation"] = d => d.Designation,
             ["DOB"] = d => d.DOB,
@@ -15,13 +15,15 @@ namespace EVWebApi.Helpers.ExportToExcel
             ["DocType"] = d => d.DocType,
 
 
-            ["VendorNumber"] = d => d.VendorNumber,
-            ["CheckNumber"] = d => d.CheckNumber,
+            ["ManufactureId"] = d => d.ManufactureId,
+            ["Manufacture Name"] = d => d.Name,
+            ["LoginId"] = d => d.LoginId,
             ["InvoiceDate"] = d => d.InvoiceDate,
             ["Amount"] = d => d.Amount,
             ["InvoiceNumber"] = d => d.InvoiceNumber,
-            ["GST"]=d=>d.GST,
-            ["PONumber"]=d=>d.PoNumber
+            ["LoginName"] =d=>d.LoginName,
+            ["Remarks"] =d=>d.Remarks,
+            ["Period"] =d=>d.Period
 
         };
 

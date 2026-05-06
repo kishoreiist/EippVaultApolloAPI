@@ -10,9 +10,10 @@ namespace EVWebApi.Helpers
             // CabinetId → Fields that define duplication
             { 1, new[] { "InvoiceNumber", "Amount", "InvoiceDate" } },
             { 2, new[] { "EmployeeId" ,  "ContactNumber" } },
-            { 3, new[] { "Name", "Amount", "StatementDate" } },
-            { 4, new[] { "VendorNumber", "Name",  "PoNumber",  "Amount", "InvoiceDate" } },
-            { 5, new[] { "Name", "Amount", "VendorNumber", "PoNumber", "InvoiceDate" } }
+            //{ 3, new[] { "Name", "Amount", "StatementDate" } },
+            //{ 4, new[] { "VendorNumber", "Name",  "PoNumber",  "Amount", "InvoiceDate" } },
+            { 5, new[] { "Name", "ManufactureId", "LoginId", "LoginName", "Period" } }
+           // { 5, new[] { "Name", "ManufactureId", "Period" } }
         };
 
         public static bool TryGetRules(int cabinetId, out string[] fields)
@@ -39,8 +40,10 @@ namespace EVWebApi.Helpers
                     "ContactNumber" => !string.IsNullOrWhiteSpace(dto.ContactNumber),
                     "Name" => !string.IsNullOrWhiteSpace(dto.Name),
                     "StatementDate" => dto.StatementDate != null,
-                    "VendorNumber" => !string.IsNullOrWhiteSpace(dto.VendorNumber),
-                    "PoNumber" => !string.IsNullOrWhiteSpace(dto.PoNumber),
+                    "ManufactureId" => dto.ManufactureId!=null,
+                    //"LoginId" => !string.IsNullOrWhiteSpace(dto.LoginId),
+                    //"LoginName" => !string.IsNullOrWhiteSpace(dto.LoginName),
+                    "Period" => dto.Period != null,
                     _ => true // ignore unknown fields
                 };
 

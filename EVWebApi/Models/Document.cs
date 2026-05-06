@@ -27,17 +27,11 @@ namespace EVWebApi.Models
         [Column("invoice_number")]
         public string? InvoiceNumber { get; set; }
 
-        [Column("po_number")]
-        public string? PoNumber { get; set; }
 
-        [Column("vendor_number")]
-        public string? VendorNumber { get; set; }
 
         [Column("employee_id")]
         public string? EmployeeId { get; set; }
 
-        [Column("name")]
-        public string? Name { get; set; }
 
         [Column("contact_number")]
         public string? ContactNumber { get; set; }
@@ -66,15 +60,30 @@ namespace EVWebApi.Models
         [Column("amount")]
         public decimal? Amount { get; set; }
 
-        [Column("gst")]
-        public decimal? GST { get; set; }
 
-        [Column("check_number")]
-        public string? CheckNumber { get; set; }
 
         [Column("paid_amount")]
         public decimal? PaidAmount { get; set; }
 
+
+
+        [Column("manufacture_id")]
+        public int? ManufactureId { get; set; }
+
+        [Column("name")]
+        public string? Name { get; set; }
+
+        [Column("period")]
+        public DateOnly? Period { get; set; }
+
+        [Column("login_id")]
+        public string? LoginId { get; set; }
+
+        [Column("login_name")]
+        public string? LoginName { get; set; }
+
+        [Column("remarks")]
+        public string? Remarks { get; set; }
 
         [NotMapped]
         public string? DocType { get; set; }

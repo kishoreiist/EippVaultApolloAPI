@@ -54,6 +54,7 @@ namespace EVWebApi.Data
         public DbSet<ConfigRequestRecipient> ConfigurationRequestRecipient { get; set; }
         public DbSet<ConfigRequest> ConfigurationRequests { get; set; }
         public DbSet<DocAccessRequest> DocumentAccessRequest { get; set; }
+        public DbSet<ManufactureDetails> ManufactureDetails { get; set; }
 
 
 
@@ -103,6 +104,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<ConfigRequestRecipient>().ToTable("config_request_recipients");
             modelBuilder.Entity<OnboardingDocument>().ToTable("onboarding_documents");
             modelBuilder.Entity<DocAccessRequest>().ToTable("doc_access_request");
+            modelBuilder.Entity<ManufactureDetails>().ToTable("manufacture_details");
 
 
             // -------------------
@@ -131,6 +133,7 @@ namespace EVWebApi.Data
             modelBuilder.Entity<UserMfaToken>()
                 .HasKey(t => t.TokenId);
             modelBuilder.Entity<Notes>().HasKey(n => n.NoteId);
+            modelBuilder.Entity<ManufactureDetails>().HasKey(m => m.Id);
 
             modelBuilder.Entity<GroupAccessRight>().HasKey(a => new { a.GroupId, a.AccessId });
             modelBuilder.Entity<GroupCabinet>().HasKey(c => new { c.GroupId, c.CabinetId });

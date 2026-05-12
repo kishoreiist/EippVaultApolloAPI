@@ -18,6 +18,17 @@ namespace EVWebApi.Interfaces.Services
         Task<UploadResultDto> UploadDocumentsAsync(OnboardingDocsDto dto);
         Task<List<ConfigListDto>> GetAllConfigsAsync(int userId, string userType, ConfigQueryParamsDto dto);
         Task<List<ConfigRequestDetailsDto>> GetConfigRequestsAsync(ConfigQueryDetailDto dto);
-        Task<DocumentStreamResultDTO?> GetDocumentStream(int id);
+        Task<DocumentStreamResultDTO?> GetOnboardingDocumentStream(int id);
+
+        Task<HrUploadResponseDto> OnboardingExcelUploadAsync(OnboardingUploadDto dto,int? userId);
+        Task<(byte[], string)> ExportFailedRowsAsync(int batchId);
+        Task<ConfirmedCandidateDto> ConfirmOnboardingBatchAsync(int batchId, int userId);
+        Task<DocumentResponseDto> SplitOnboardingDocumentAsync(SplitAndExtractPdfDto dto);
+        Task<(byte[], string)> ExportOnboardingReport(ExportOnboardingReportQuery query);
+
+
+        Task<StatusCountResponseDto> GetCandidatesStatusCountAsync(StatusCountQueryParamDto dto);
+
+
     }
 }

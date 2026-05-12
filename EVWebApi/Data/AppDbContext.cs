@@ -55,6 +55,8 @@ namespace EVWebApi.Data
         public DbSet<ConfigRequest> ConfigurationRequests { get; set; }
         public DbSet<DocAccessRequest> DocumentAccessRequest { get; set; }
         public DbSet<ManufactureDetails> ManufactureDetails { get; set; }
+        public DbSet<HrConfirmationBatch> HrConfirmationBatches { get; set; }
+        public DbSet<HrConfirmationBatchRow> HrConfirmationBatchRows { get; set; }
 
 
 
@@ -105,11 +107,15 @@ namespace EVWebApi.Data
             modelBuilder.Entity<OnboardingDocument>().ToTable("onboarding_documents");
             modelBuilder.Entity<DocAccessRequest>().ToTable("doc_access_request");
             modelBuilder.Entity<ManufactureDetails>().ToTable("manufacture_details");
+            modelBuilder.Entity<HrConfirmationBatchRow>().ToTable("hr_confirmation_batch_rows");
+            modelBuilder.Entity<HrConfirmationBatch>().ToTable("hr_confirmation_batches");
 
 
             // -------------------
             // Primary Keys
             // -------------------
+            modelBuilder.Entity<HrConfirmationBatchRow>().HasKey(u => u.RowId);
+            modelBuilder.Entity<HrConfirmationBatch>().HasKey(u => u.BatchId);
             modelBuilder.Entity<Notification>().HasKey(u => u.NotificationId);
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
             modelBuilder.Entity<DocAccessRequest>().HasKey(u => u.RequestId);
@@ -182,7 +188,9 @@ namespace EVWebApi.Data
             modelBuilder.Entity<DocDownloadLink>()
             .HasIndex(x => new { x.DocumentId, x.AssignedTo })
             .IsUnique();
-
+            modelBuilder.Entity<DocDownloadLink>()
+            .HasIndex(x => new { x.OnboardingDocId, x.AssignedTo })
+            .IsUnique();
             modelBuilder.Entity<User>()
                 .Property(u => u.UserId)
                 .HasColumnName("user_id");
@@ -268,6 +276,20 @@ namespace EVWebApi.Data
             modelBuilder.Entity<OnboardingDocument>()
                 .HasIndex(u => new { u.RecipientId, u.DocumentTypeId })
                 .IsUnique();
+
+
+            modelBuilder.Entity<HrConfirmationBatch>()
+                .HasMany(x => x.Rows)
+                .WithOne(x => x.Batch)
+                .HasForeignKey(x => x.BatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<HrConfirmationBatchRow>()
+                .HasOne(x => x.Candidate)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Restrict); 
+
             // -------------------
             // Auth Entities
             // -------------------

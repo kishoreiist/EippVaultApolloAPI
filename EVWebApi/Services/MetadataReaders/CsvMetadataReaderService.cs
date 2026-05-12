@@ -11,8 +11,8 @@ namespace EVWebApi.Services.MetadataReaders
     {
        public bool CanRead(string fileExtension)
             => fileExtension.Equals(".csv", StringComparison.OrdinalIgnoreCase);
-        public Task<MetadataReadResultDTO<DocumentMetadatadto>> ReadAsync(IFormFile file)
-        => DelimitedFileReadHelper.ReadAsync(file, ',');
+        public Task<MetadataReadResultDTO<T>> ReadAsync<T>(IFormFile file)
+        => DelimitedFileReadHelper.ReadAsync<T>(file, ',');
 
     }
 }

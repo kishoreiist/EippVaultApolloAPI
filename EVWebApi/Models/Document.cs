@@ -1,3 +1,4 @@
+using EVWebApi.Models.HR;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Xml.Linq;
 namespace EVWebApi.Models
@@ -10,9 +11,9 @@ namespace EVWebApi.Models
         [Column("cabinet_id")]
         public int CabinetId { get; set; }
         [Column("file_name")]
-        public string FileName { get; set; }
+        public string? FileName { get; set; }
         [Column("file_path")]
-        public string FilePath { get; set; }
+        public string? FilePath { get; set; }
         [Column("doc_type_id")]
         public int? DocumentTypeId { get; set; }
         [Column("version_id")]
@@ -85,6 +86,11 @@ namespace EVWebApi.Models
         [Column("remarks")]
         public string? Remarks { get; set; }
 
+
+        [Column("candidate_id")]
+        public int? CandidateId { get; set; }
+
+
         [NotMapped]
         public string? DocType { get; set; }
 
@@ -92,6 +98,10 @@ namespace EVWebApi.Models
         public ICollection<Metadata> MetadataList { get; set; }
         public  ICollection<Notes> Notes { get; set; } = new List<Notes>();
         public DocumentTypes? DocumentType { get; set; }//one to one
+
+        [ForeignKey("CandidateId")]
+        public ConfigRequestRecipient Candidate { get; set; }
+
         //public DocumentVersion? LatestVersion { get; set; }
     }
 }

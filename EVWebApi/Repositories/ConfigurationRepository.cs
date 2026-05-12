@@ -68,19 +68,6 @@ namespace EVWebApi.Repositories
                 .AsQueryable();
 
         }
-        //public async Task<List<ConfigRequest>> GetConfigRequestAsync(string? status)
-        //{
-
-        //    var statusFilter = string.IsNullOrEmpty(status) ? "Completed" : status;
-
-        //    return await _context.ConfigurationRequests
-        //        .Include(r => r.Collection)
-        //            .ThenInclude(c => c.CollectionDocumentTypes)
-        //                .ThenInclude(cd => cd.DocumentType)
-        //        .Include(r => r.Recipients
-        //            .Where(r => r.Status == statusFilter)).ToListAsync();
-        //    //.FirstOrDefaultAsync(r => r.Id == id);
-        //}
 
 
         public async Task<List<ConfigRequest>> GetConfigRequestAsync(ConfigQueryDetailDto dto)
@@ -124,6 +111,120 @@ namespace EVWebApi.Repositories
 
 
             return doc;
+        }
+
+        public async Task<HrConfirmationBatch> CreateOnboardingBatch(HrConfirmationBatch batch)
+        {
+            _context.HrConfirmationBatches.Add(batch);
+            
+            return batch;
+        }
+
+        public async Task<HrConfirmationBatchRow> CreateOnboardingBatchRows(HrConfirmationBatchRow batchrows)
+        {
+            _context.HrConfirmationBatchRows.Add(batchrows);
+            
+            return batchrows;
+        }
+
+        //public async Task<ConfigRequestRecipient?> MatchOnboardingCandidateAsync(HrParsedRowDto row)
+        //{
+        //    var normalizedEmail = NormalizeInput(row.Email);
+        //    var normalizedPan = NormalizeInput(row.PAN);
+        //    var normalizedAadhaar = NormalizeInput(row.Aadhaar);
+
+        //    var query = _context.ConfigurationRequestRecipient
+        //        .Where(x =>
+        //            x.Status == "completed" ||
+        //            x.Status == "inProgress");
+
+        //    var candidates = await query.ToListAsync();
+
+        //    return candidates.FirstOrDefault(x =>
+
+        //        (!string.IsNullOrWhiteSpace(normalizedEmail) &&
+        //         NormalizeInput(x.Email) == normalizedEmail)
+
+        //        &&
+
+        //        (!string.IsNullOrWhiteSpace(normalizedPan) &&
+        //         NormalizeInput(x.PAN) == normalizedPan)
+
+        //        &&
+
+        //        (!string.IsNullOrWhiteSpace(normalizedAadhaar) &&
+        //         NormalizeInput(x.Adhaar) == normalizedAadhaar)
+        //    );
+        //}
+        public async Task<ConfigRequestRecipient?> MatchOnboardingCandidateAsync(HrParsedRowDto row)
+        {
+            var normalizedEmail = NormalizeInput(row.Email);
+            var normalizedPan = NormalizeInput(row.PAN);
+            var normalizedAadhaar = NormalizeInput(row.Aadhaar);
+
+            var candidates = await _context.ConfigurationRequestRecipient
+                .Where(x =>
+                    x.Status == "completed" ||
+                    x.Status == "inProgress")
+                .ToListAsync();
+
+            return candidates.FirstOrDefault(x =>
+
+                NormalizeInput(x.Email) == normalizedEmail &&
+
+                NormalizeInput(x.PAN) == normalizedPan &&
+
+                NormalizeInput(x.Adhaar) == normalizedAadhaar
+            );
+        }
+
+        public async Task<string>GetOnboardingFileNameById(int id)
+        {
+                return await _context.OnboardingHRDocument
+                    .Where(d => d.Id == id)
+                    .Select(d => d.FileName)
+                    .FirstOrDefaultAsync() ?? throw new Exception("Document not found");
+        }
+
+        public async Task<List<int>> GetActiveOnboardDocIdsForUserAsync(int userId, IEnumerable<int> documentIds)
+        {
+            if (documentIds == null || !documentIds.Any())
+                return new List<int>();
+
+            return await _context.DocumentLink
+                .Where(d =>
+                    d.AssignedTo == userId &&
+                    documentIds.Contains(d.OnboardingDocId.Value) &&
+                    d.ExpiryDate > DateTime.UtcNow && d.CurrentDownloads < d.MaxDownloads)
+                .Select(d => d.OnboardingDocId.Value)
+                .ToListAsync();
+        }
+        public async Task<OnboardingDocument> DeleteOnboardingDocument(int id)
+        {
+            var doc = await _context.OnboardingHRDocument.FindAsync(id);
+            if (doc == null || doc.Status=="archived")
+                throw new Exception("Document not found");
+            else
+            {
+                //_context.Documents.Remove(doc);
+                doc.Status = "archived";
+                _context.OnboardingHRDocument.Update(doc);
+                await _context.SaveChangesAsync();
+                return doc;
+            }
+        }
+
+
+
+
+        private static string NormalizeInput(string? value)
+        {
+            return value?
+                .Trim()
+                .Replace(" ", "")
+                .Replace("-", "")
+                .ToUpperInvariant()
+                ?? string.Empty;
         }
     }
 }

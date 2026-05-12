@@ -14,12 +14,12 @@ namespace EVWebApi.Interfaces.Services
         Task<PagedResponse<DocumentResponseDto>> GetDocumentsByCabinetId(int cabinetId, DocumentQueryParameters query);
         Task<GroupedPaginationResponse<GroupedDocResponseDTO>> GetGroupedDocuments(int cabinetId, DocumentQueryParameters query);
         Task<DocumentResponseDto> UpdateDocumentAsync(int id,UpdateDocumentDto dto,int? userId);
-        Task<DocumentStreamResultDTO?> GetDocumentStream(int id);
+        Task<DocumentStreamResultDTO?> GetDocumentStream(DocumentRequestDto dto);
         Task<DocumentDownloadDto?> GetDocumentForDownload(int id);
-        Task<(int cabinetId, bool status)> DeleteDocument(int id);
-        Task<BatchResponseDTO> DeleteMultipleDocuments(List<int> ids);
-        Task<Stream?> GetMergedDocumentStream(List<int> documentIds);
-        Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(BatchDocDto dto);
+        Task<(int cabinetId, bool status)> DeleteDocument(DocumentRequestDto dto);
+        Task<BatchResponseDTO> DeleteMultipleDocuments(ExportDto ids);
+        Task<Stream?> GetMergedDocumentStream(ExportDto dto);
+        Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(ExportDto dto);
         Task<(byte[] Excel, string FileName)> GetExportExcel(ExportExcelDocDto dto);
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
         Task<List<string>> GetDocTypeAsync();
@@ -49,7 +49,7 @@ namespace EVWebApi.Interfaces.Services
 
         Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int? userid);
 
-        Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int? userid);
+        Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(DocumentRequestDto dto, int? userid);
 
         Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId);
         Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto);

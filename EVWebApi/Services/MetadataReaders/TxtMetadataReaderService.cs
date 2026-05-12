@@ -17,13 +17,13 @@ namespace EVWebApi.Services.MetadataReaders
         public bool CanRead(string fileExtension)
             => fileExtension.Equals(".txt", StringComparison.OrdinalIgnoreCase);
 
-        public async Task<MetadataReadResultDTO<DocumentMetadatadto>> ReadAsync(IFormFile file)
+        public async Task<MetadataReadResultDTO<T>> ReadAsync<T>(IFormFile file)
         {
             char? delimiter = await DetectDelimiterAsync(file);
 
             if (delimiter == null)
             {
-                return new MetadataReadResultDTO<DocumentMetadatadto>
+                return new MetadataReadResultDTO<T>
                 {
                     Errors =
                 {
@@ -32,7 +32,7 @@ namespace EVWebApi.Services.MetadataReaders
                 };
             }
 
-            return await DelimitedFileReadHelper.ReadAsync(file, delimiter.Value);
+            return await DelimitedFileReadHelper.ReadAsync<T>(file, delimiter.Value);
         }
 
         private static async Task<char?> DetectDelimiterAsync(IFormFile file)

@@ -7,8 +7,14 @@ namespace EVWebApi.Controllers
 {
     public abstract class BaseController : ControllerBase
     {
+        //protected int CurrentUserId =>
+        //    int.TryParse(User.FindFirst("userId")?.Value, out var id) ? id : throw new UnauthorizedAccessException("User Id is missing");
+
+
         protected int CurrentUserId =>
-            int.TryParse(User.FindFirst("userId")?.Value, out var id) ? id : throw new UnauthorizedAccessException("User Id is missing");
+    int.TryParse(User.FindFirst("userId")?.Value, out var id)
+        ? id
+        : 0;
         protected string CurrentUsername =>
              User.FindFirst("username")?.Value ?? string.Empty;
 

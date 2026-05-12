@@ -19,14 +19,14 @@ namespace EVWebApi.Models.HR
         public string? Name { get; set; }
         [Column("phone")]
         public string? Phone { get; set; }
-        [Column("emp_id")]
-        public string? EmployeeId { get; set; }
+        [Column("is_hired")]
+        public bool IsHired { get; set; } = false;
         [Column("dob")]
         public DateTime? DateOfBirth { get; set; }
         [Column("token")]
         public string Token { get; set; }
         [Column("status")]
-        public string Status { get; set; } = "Pending"; // Pending / InProgress / Completed / Expired
+        public string Status { get; set; } = "pending"; // Pending / InProgress / Completed / Expired
         [Column("accessed_at")]
         public DateTime? AccessedAt { get; set; }
         [Column("completed_at")]

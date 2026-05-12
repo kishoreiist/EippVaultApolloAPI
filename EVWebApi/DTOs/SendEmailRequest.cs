@@ -1,6 +1,8 @@
 ﻿
 
 
+using EVWebApi.DTOs.Document;
+
 namespace EVWebApi.DTOs
 {
     public class SendEmailRequest
@@ -21,7 +23,7 @@ namespace EVWebApi.DTOs
         public List<string>? Cc { get; set; }
         public string Subject { get; set; }
         public string? Body { get; set; }
-        public List<int> AttachmentIds { get; set; }
+        public List<DocumentRequestDto>? AttachmentIds { get; set; }
         public int MaxDownloads { get; set; } = 2;
 
        

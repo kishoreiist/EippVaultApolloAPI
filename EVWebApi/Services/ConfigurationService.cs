@@ -1,24 +1,34 @@
-﻿using DocumentFormat.OpenXml.Spreadsheet;
+﻿using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Office2010.Excel;
+using DocumentFormat.OpenXml.Spreadsheet;
 using EVWebApi.Data;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.HR;
 using EVWebApi.DTOs.Pagination;
 using EVWebApi.Exceptions;
+using EVWebApi.Helpers.ExportToExcel;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
+using EVWebApi.Interfaces.Services.MetaDataReaders;
 using EVWebApi.Models;
 using EVWebApi.Models.HR;
+using Humanizer;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using PdfSharpCore.Pdf;
+using PdfSharpCore.Pdf.IO;
 using Syncfusion.EJ2.Grids;
+using System.Data.Common;
 using System.Security;
 using System.Text.RegularExpressions;
-
 
 namespace EVWebApi.Services
 {
     public class ConfigurationService : IConfigurationService
     {
+        private readonly IMetadataReaderFactoryService _metadataReaderFactory;
         private readonly AppDbContext _context;
         private readonly IDocumentRepository _docrepo;
         private readonly IConfigurationRepository _repo;
@@ -29,19 +39,22 @@ namespace EVWebApi.Services
         private readonly string _baseUrl;
         private readonly string _storageRoot;
         private readonly string _clientName;
+        private readonly NpgsqlDataSource _dataSource;
         public ConfigurationService(AppDbContext context, IDocumentRepository docrepo, IConfigurationRepository repo, IEmailSender emailSender, IConfiguration config,
-            INotificationService notificationService)
+            IMetadataReaderFactoryService metadataReaderFactory, INotificationService notificationService, NpgsqlDataSource dataSource)
         {
             _context = context;
             _docrepo = docrepo;
             _repo = repo;
             _emailSender = emailSender;
             _notificationService = notificationService;
+            _metadataReaderFactory= metadataReaderFactory;
             _baseUrl = config["Frontend:BaseUrl"];
             _externalUploadUrl = config["DocumentSettings:ExternalUploadURL"];
             _uploadRoot = config["DocumentSettings:OnboardingFilePath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
             _clientName = config["DocumentSettings:ClientName"];
+            _dataSource = dataSource;
         }
 
         public async Task<CollectionResponseDto> CreateCollectionAsync(CreateCollectionDto dto, int? userId)
@@ -460,7 +473,7 @@ namespace EVWebApi.Services
             {
                 recipient.Status = "expired";
                 await _context.SaveChangesAsync();
-                throw new Exception("Link expired");
+                throw new BadRequestException("Link expired");
             }
 
             recipient.Name = dto.Name;
@@ -468,7 +481,6 @@ namespace EVWebApi.Services
             recipient.DateOfBirth = dto.Dob;
             recipient.Adhaar = dto.AdhaarNo;
             recipient.PAN = dto.PAN;
-            recipient.EmployeeId = dto.EmployeeId;
             foreach (var doc in dto.Files)
             {
                 if (doc.File == null || doc.File.Length == 0)
@@ -476,22 +488,35 @@ namespace EVWebApi.Services
                 if (assignedDocsId.Contains(doc.DocumentTypeId))
                 {
 
-                    var fileName = $"{Guid.NewGuid()}_{doc.File.FileName}";
+                    //var fileName = $"{Guid.NewGuid()}_{doc.File.FileName}";
                     var folderPath = _uploadRoot
                         .Replace("{StorageRoot}", _storageRoot)
                         .Replace("{ClientName}", _clientName);
 
                     var folderName = $"{dto.Name}_{dto.Token}";
-                    var safeName = dto.Name.Trim().Replace(" ", "_");
-                    safeName = $"{safeName}_{dto.Token}";
+                    var safecandidateName = dto.Name.Trim().Replace(" ", "_");
+                    var orgfolderName = $"{safecandidateName}_{dto.Token}";
 
-                    var finalPath = Path.Combine(folderPath, safeName);
+                    var finalPath = Path.Combine(folderPath, orgfolderName);
 
                     if (!Directory.Exists(finalPath))
                         Directory.CreateDirectory(finalPath);
 
-                    var filePath = Path.Combine(finalPath, fileName);
-                    var dbPath = Path.Combine(safeName, fileName);
+                    var originalExtension = Path.GetExtension(doc.File.FileName);
+
+                    // safer doc type label
+                    var docTypeLabel = recipient.Request.Collection.CollectionDocumentTypes
+                        .First(x => x.DocumentTypeId == doc.DocumentTypeId)
+                        .DocumentType.Label
+                        .Trim()
+                        .Replace(" ", "_");
+
+                    // display filename
+                    var displayFileName = $"{safecandidateName}_{docTypeLabel}{originalExtension}";
+
+
+                    var filePath = Path.Combine(finalPath, displayFileName);
+                    var dbPath = Path.Combine(orgfolderName, displayFileName);
                     using (var stream = new FileStream(filePath, FileMode.Create))
                     {
                         await doc.File.CopyToAsync(stream);
@@ -513,7 +538,10 @@ namespace EVWebApi.Services
                             RecipientId = recipient.Id,
                             DocumentTypeId = doc.DocumentTypeId,
                             FilePath = dbPath,
-                            UploadedAt = DateTime.UtcNow
+                            FileName = displayFileName,
+                            UploadedAt = DateTime.UtcNow,
+                            Status = "active",
+                            Source = "candidate_upload"
                         });
                     }
                 }
@@ -823,7 +851,7 @@ namespace EVWebApi.Services
                         Dob = r.DateOfBirth,
                         Status = r.Status,
                         CompletedAt = r.CompletedAt,
-
+                        IsHired = r.IsHired,
                         Submitted = new SubmittedDocDto
                         {
                             TotalSubmittedCount = submittedDocuments.Count,
@@ -855,7 +883,7 @@ namespace EVWebApi.Services
         }
 
 
-        public async Task<DocumentStreamResultDTO?> GetDocumentStream(int id)
+        public async Task<DocumentStreamResultDTO?> GetOnboardingDocumentStream(int id)
         {
             var doc = await _repo.GetOnboardingFilesAsync(id);
             if (doc == null)
@@ -890,6 +918,693 @@ namespace EVWebApi.Services
                 FilePath = fullPath,
                 FileName = fileName
             };
+        }
+
+
+        //-----------------------------------------HR Onboarding Confirmation Batch Upload------------------------------
+
+        public async Task<HrUploadResponseDto> OnboardingExcelUploadAsync(OnboardingUploadDto dto, int? userId)
+        {
+            if (dto.File == null || dto.File.Length == 0)
+                throw new ValidationException("File is required");
+
+            var extension = Path.GetExtension(dto.File.FileName)
+                .ToLower();
+
+            var reader = _metadataReaderFactory.GetReader(extension);
+
+            var parseResult =
+                await reader.ReadAsync<HrParsedRowDto>(dto.File);
+
+            if (!parseResult.Records.Any())
+                throw new ValidationException("No records found");
+
+
+            // validate headers
+            ValidateHeaders(parseResult.Headers);
+
+            // create batch
+            var batch = new HrConfirmationBatch
+            {
+                FileName = dto.File.FileName,
+                UploadedBy = userId.Value,
+                UploadedAt = DateTime.UtcNow,
+                Status = "pending"
+            };
+
+            await _repo.CreateOnboardingBatch(batch);
+            await _context.SaveChangesAsync();
+            var response = new HrUploadResponseDto();
+
+            int rowNumber = 1;
+
+            foreach (var row in parseResult.Records)
+            {
+                var batchRow = new HrConfirmationBatchRow
+                {
+                    BatchId = batch.BatchId,
+                    RowNumber = rowNumber,
+                    EmployeeId = row.EmployeeId,
+                    Designation = row.Designation,
+                    DOJ = row.DOJ,
+                    CandidateName = row.Name,
+                    Email = row.Email,
+                    Phone = row.Phone,
+                    PAN = row.PAN,
+                    Aadhaar = row.Aadhaar,
+                    DOB = row.DOB
+                };
+
+                try
+                {
+                    // row validation
+                    ValidateRow(row);
+
+                    // candidate matching
+                    var candidate =
+                        await _repo.MatchOnboardingCandidateAsync(row);
+
+                    if (candidate == null)
+                    {
+                        batchRow.Status = "candidate_not_found";
+                        batchRow.ErrorMessage =
+                            "No matching candidate found";
+                    }
+                   
+                    else
+                    {
+                        batchRow.CandidateId = candidate.Id;
+
+                        var alreadyConfirmed =
+                        await _context.HrConfirmationBatchRows
+                            .AnyAsync(x =>
+                            x.CandidateId == candidate.Id 
+                           && x.IsConfirmed 
+                            );
+                        var existingPendingRows = await _context.HrConfirmationBatchRows
+                            .Where(x =>
+                                x.CandidateId == candidate.Id &&
+                                x.IsConfirmed != true &&
+                                x.Status == "matched")
+                            .ToListAsync();
+
+
+                        if (alreadyConfirmed)
+                        {
+                            batchRow.Status = "already_confirmed";
+                            batchRow.ErrorMessage =
+                                "Candidate is already hired";
+                        }
+
+                        else
+                        {
+                            foreach (var oldRow in existingPendingRows)
+                            {
+                                oldRow.Status = "superseded";
+                            }
+                            batchRow.Status = "matched";
+                        }
+
+                    }
+                }
+                catch (Exception ex)
+                {
+                    batchRow.Status = "validation_failed";
+                    batchRow.ErrorMessage = ex.Message;
+                }
+
+                
+
+                await _repo.CreateOnboardingBatchRows(batchRow);
+
+                response.Records.Add(new RowResponseDto
+                {
+                    RowNumber = rowNumber,
+                    CandidateId = batchRow.CandidateId,
+                    CandidateName = row.Name,
+                    EmployeeId = row.EmployeeId,
+                    Status = batchRow.Status,
+                    ErrorMessage = batchRow.ErrorMessage
+                });
+
+                rowNumber++;
+            }
+
+            await _context.SaveChangesAsync();
+
+
+            response.BatchId = batch.BatchId;
+            response.TotalRows = response.Records.Count;
+            response.SuccessCount =
+                response.Records.Count(x => x.Status == "matched");
+
+            response.FailureCount =
+                response.Records.Count(x => x.Status != "matched");
+
+            batch.TotalRows = response.TotalRows;
+            batch.SuccessCount = response.SuccessCount;
+            batch.FailureCount = response.FailureCount;
+
+            await _context.SaveChangesAsync();
+
+            return response;
+        }
+
+
+        //----------export to excel failed report
+        public async Task<(byte[], string)> ExportFailedRowsAsync(int batchId)
+        {
+            var failedRows = await _context.HrConfirmationBatchRows
+                .Where(x =>
+                    x.BatchId == batchId &&
+                    x.Status != "matched")
+                .AsNoTracking()
+                .ToListAsync();
+
+            var columns = new List<string>
+            {
+                "RowNumber",
+                "EmployeeId",
+                "CandidateName",
+                "Email",
+                "PAN",
+                "Aadhaar",
+                "Designation",
+                "DOJ",
+                "Status",
+                "ErrorMessage"
+             };
+
+            var excel = ExportExcelBuildHelper.BuildExcel(
+                failedRows,
+                columns,
+                (x, col) => ExcelColumnsHelper.GetOnboardingFailedColumnValue(x, col)
+            );
+
+            return (
+                excel,
+                $"OnboardingFailedRows_{batchId}_{DateTime.UtcNow:yyyy-MM-dd_HH-mm-ss}.xlsx"
+            );
+        }
+
+        //----------------------------------insetion into doc table for confirmed candidates------------------------------
+     
+
+        public async Task<ConfirmedCandidateDto> ConfirmOnboardingBatchAsync(int batchId, int userId)
+        {
+            var batch = await _context.HrConfirmationBatches
+                .Include(b => b.Rows)
+                .FirstOrDefaultAsync(x => x.BatchId == batchId);
+
+            if (batch == null)
+                throw new ValidationException("Batch not found");
+
+            if (batch.Status == "processed")
+                throw new ValidationException("Batch already processed");
+
+            var matchedRows = await _context.HrConfirmationBatchRows
+                .Include(x => x.Candidate)
+                    .ThenInclude(c => c.Request)
+                        .ThenInclude(r => r.Collection)
+                .Where(x =>
+                    x.BatchId == batchId &&
+                    x.Status == "matched")
+                .ToListAsync();
+
+            if (!matchedRows.Any())
+                throw new ValidationException("No matched rows found");
+
+            int inserted = 0;
+            int skipped = 0;
+
+            foreach (var row in matchedRows)
+            {
+                // Prevent duplicate insertion
+                var alreadyExists = await _context.Documents.AnyAsync(d =>
+                    d.CandidateId == row.CandidateId &&
+                    d.EmployeeId == row.EmployeeId);
+
+                if (alreadyExists)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var document = new Document
+                {
+                    CandidateId = row.CandidateId,
+                    CabinetId=2,
+                    Region=row.Candidate.Request.Collection.Region,
+                    // Basic onboarding details
+                    Designation = row.Designation,
+                    DOJ = row.DOJ,
+                    EmployeeId = row.EmployeeId,
+                    DOB=row.DOB,
+                    ContactNumber=row.Phone,
+                    Name = row.CandidateName,
+                    
+                    //FileName = string.Empty,
+                    //FilePath = string.Empty,
+
+                    Status = "active",
+                    UploadedAt = DateTime.UtcNow,
+                    UploadedBy = userId
+                };
+
+                _context.Documents.Add(document);
+                row.IsConfirmed= true;
+                row.Status = "converted";
+                row.ConfirmedAt = DateTime.UtcNow;
+                inserted++;
+            }
+
+            batch.Status = "processed";
+            
+            var reciepint= await _context.ConfigurationRequestRecipient
+                .FirstOrDefaultAsync(x => x.Id == matchedRows.First().Candidate.Id);
+            reciepint.IsHired = true;
+            //batch.proccessedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            if(inserted>0 && skipped > 0)
+            {
+                return new ConfirmedCandidateDto
+                {
+                    BatchId = batchId,
+                    Inserted = inserted,
+                    Skipped = skipped,
+                    Message = $"Successfully confirmed onboarding of {inserted} candidates and {skipped} candidates are skipped due to technical issues."
+                };
+
+            }
+            else if(inserted > 0)
+            {
+                return new ConfirmedCandidateDto
+                {
+                    BatchId = batchId,
+                    Inserted = inserted,
+                    Skipped = skipped,
+                    Message = $"Successfully confirmed onboarding of {inserted} candidates."
+                };
+            }
+            else
+            {
+                return new ConfirmedCandidateDto
+                {
+                    BatchId = batchId,
+                    Inserted = inserted,
+                    Skipped = skipped,
+                    Message = $"No candidates were confirmed due to technical issues. Please check the batch details and try again."
+                };
+            }
+
+
+        }
+
+
+        public async Task<OnboardingDocument> InternalDocumentUploadAsync(InternalUploaddto dto)
+        {
+            var recipient = await _context.ConfigurationRequestRecipient
+                .FirstOrDefaultAsync(x => x.Id == dto.RecipientId);
+
+            if (recipient == null)
+                throw new NotFoundException("Recipient not found");
+
+            var folderPath = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var safeCandidateName = recipient.Name
+                .Trim()
+                .Replace(" ", "_");
+
+            var orgFolderName = $"{safeCandidateName}_{recipient.Token}";
+
+            var finalPath = Path.Combine(folderPath, orgFolderName);
+
+            if (!Directory.Exists(finalPath))
+                Directory.CreateDirectory(finalPath);
+
+            var finalFilePath = Path.Combine(finalPath, dto.FileName);
+
+            File.Move(dto.TempFilePath, finalFilePath, true);
+
+            var dbPath = Path.Combine(orgFolderName, dto.FileName);
+
+            var entity = new OnboardingDocument
+            {
+                RecipientId = dto.RecipientId,
+                DocumentTypeId = dto.DocumentTypeId,
+                FilePath = dbPath,
+                FileName = dto.FileName,
+                UploadedAt = DateTime.UtcNow,
+                Status = "active",
+                Source = dto.Source
+            };
+
+            _context.OnboardingHRDocument.Add(entity);
+
+            await _context.SaveChangesAsync();
+
+            return entity;
+        }
+
+
+        public async Task<DocumentResponseDto> SplitOnboardingDocumentAsync(SplitAndExtractPdfDto dto)
+        {
+            if (dto.Source != DocumentSourceType.Onboarding)
+                throw new BadRequestException("Invalid method");
+
+            var originalDoc= await _repo.GetOnboardingFilesAsync(dto.Id);
+            if (originalDoc == null)
+                throw new NotFoundException("Document not found");
+
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var relativePath = originalDoc.FilePath
+                .TrimStart('/')
+                .Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found");
+
+            string tempExtractedPath = Path.GetTempFileName();
+            string tempRemainingPath = Path.GetTempFileName();
+
+            try
+            {
+                using var originalPdf =
+                    PdfReader.Open(fullPath, PdfDocumentOpenMode.Import);
+
+                if (dto.FromPage < 1 ||
+                    dto.ToPage < 1 ||
+                    dto.FromPage > dto.ToPage ||
+                    dto.ToPage > originalPdf.PageCount)
+                {
+                    throw new ValidationException(
+                        $"Invalid page range. PDF has {originalPdf.PageCount} pages.");
+                }
+
+                var extractedPdf = new PdfDocument();
+                var remainingPdf = new PdfDocument();
+
+                for (int i = 0; i < originalPdf.PageCount; i++)
+                {
+                    int pageNumber = i + 1;
+
+                    if (pageNumber >= dto.FromPage &&
+                        pageNumber <= dto.ToPage)
+                    {
+                        extractedPdf.AddPage(originalPdf.Pages[i]);
+                    }
+                    else
+                    {
+                        remainingPdf.AddPage(originalPdf.Pages[i]);
+                    }
+                }
+
+                if (extractedPdf.PageCount == 0)
+                    throw new ValidationException("No pages extracted");
+
+                extractedPdf.Save(tempExtractedPath);
+                remainingPdf.Save(tempRemainingPath);
+
+                // replace original with remaining pages
+                File.Move(tempRemainingPath, fullPath, true);
+
+                var extension = Path.GetExtension(originalDoc.FileName);
+
+                var originalName =
+                    Path.GetFileNameWithoutExtension(originalDoc.FileName);
+
+                var newFileName =
+                    $"{dto.DocumentType}_{originalName}_{Guid.NewGuid():N}{extension}";
+                var docType =await _docrepo.GetOrCreateDocLabelAsync(dto.DocumentType);
+                var uploadDto = new InternalUploaddto
+                {
+                    RecipientId = originalDoc.RecipientId,
+                    DocumentTypeId = docType.Id,
+                    FileName = newFileName,
+                    TempFilePath = tempExtractedPath,
+                    Source = "hr_split"
+                };
+
+                var uploadedDoc =
+                    await InternalDocumentUploadAsync(uploadDto);
+
+                return new DocumentResponseDto
+                {
+                    DocumentId = uploadedDoc.Id,
+                    FileName = uploadedDoc.FileName,
+                    FilePath = uploadedDoc.FilePath,
+                    Status = uploadedDoc.Status
+                };
+            }
+            catch
+            {
+                if (File.Exists(tempExtractedPath))
+                    File.Delete(tempExtractedPath);
+
+                if (File.Exists(tempRemainingPath))
+                    File.Delete(tempRemainingPath);
+
+                throw;
+            }
+        }
+
+
+        public async Task<(byte[], string)> ExportOnboardingReport(ExportOnboardingReportQuery query)
+        {
+            await using var conn = await _dataSource.OpenConnectionAsync();
+
+            await using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sp_export_onboarding_report(" +
+                "@p_report_type," +
+                "@p_region," +
+                "@p_status," +
+                "@p_config_id," +
+                "@p_from_date," +
+                "@p_to_date)",
+                conn);
+
+            cmd.Parameters.AddWithValue(
+                "p_report_type",
+                NpgsqlTypes.NpgsqlDbType.Text,
+                (object?)query.ReportType ?? DBNull.Value);
+
+            cmd.Parameters.AddWithValue(
+                "p_region",
+                (object?)query.Region ?? DBNull.Value);
+
+            cmd.Parameters.AddWithValue(
+                "p_status",
+                (object?)query.Status ?? DBNull.Value);
+
+            cmd.Parameters.AddWithValue(
+                "p_config_id",
+                (object?)query.ConfigId ?? DBNull.Value);
+
+            cmd.Parameters.AddWithValue(
+                "p_from_date",
+                (object?)query.FromDate ?? DBNull.Value);
+
+            cmd.Parameters.AddWithValue(
+                "p_to_date",
+                (object?)query.ToDate ?? DBNull.Value);
+
+            var rows = new List<OnboardingReportRowDto>();
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                rows.Add(new OnboardingReportRowDto
+                {
+                    RecipientId = Convert.ToInt64(reader["recipient_id"]),
+                    CandidateName = reader["candidate_name"]?.ToString(),
+                    Email = reader["email"]?.ToString(),
+                    Region = reader["region"]?.ToString(),
+                    OverAllStatus = reader["overall_status"]?.ToString(),
+                    CompletionPercent = Convert.ToDecimal(reader["completion_percent"]),
+                    DocumentName = reader["document_name"]?.ToString(),
+                    DocumentStatus = reader["document_status"]?.ToString(),
+                    IsHired = Convert.ToBoolean(reader["is_hired"])
+                });
+            }
+
+            var documentColumns = rows
+                .Select(x => x.DocumentName)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+
+            var exportData = rows
+                .GroupBy(x => x.RecipientId)
+                .Select(g =>
+                {
+                    var first = g.First();
+
+                    var dto = new OnboardingReportExportDto
+                    {
+                        CandidateName = first.CandidateName,
+                        Email = first.Email,
+                        Region = first.Region,
+                        OverAllStatus = first.OverAllStatus,
+                        CompletionPercent = first.CompletionPercent,
+                        IsHired = first.IsHired
+                    };
+
+                    foreach (var doc in documentColumns)
+                    {
+                        var docRow = g.FirstOrDefault(x => x.DocumentName == doc);
+
+                        dto.Documents[doc] =
+                            docRow == null
+                                ? "N/A"
+                                : docRow.DocumentStatus;
+                    }
+
+                    return dto;
+                })
+                .ToList();
+
+            var columns = new List<string>
+            {
+                "CandidateName",
+                "Email",
+                "Region",
+                "OverAllStatus",
+                "IsHired",
+                "CompletionPercent"
+            };
+
+            columns.AddRange(documentColumns);
+
+            var excel = ExportExcelBuildHelper.BuildExcel(
+                exportData,
+                columns,
+                (item, col) =>
+                {
+                    return col switch
+                    {
+                        "CandidateName" => item.CandidateName,
+                        "Email" => item.Email,
+                        "Region" => item.Region,
+                        "OverAllStatus" => item.OverAllStatus,
+                        "IsHired" => item.IsHired ? "Yes" : "No",
+                        "CompletionPercent" => item.CompletionPercent,
+                        _ => item.Documents.ContainsKey(col)
+                                ? item.Documents[col]
+                                : ""
+                    };
+                });
+
+            return (
+                excel,
+                $"Onboarding_Report_{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx"
+            );
+        }
+
+
+        public async Task<StatusCountResponseDto> GetCandidatesStatusCountAsync(StatusCountQueryParamDto dto)
+        {
+            var query = _context.ConfigurationRequestRecipient
+                .AsNoTracking()
+                .Where(r =>
+                    dto.Region == null ||
+                        r.Request.Collection.Region == dto.Region);
+            if (dto.FromDate.HasValue)
+            {
+                query = query.Where(r => r.Request.CreatedAt >= dto.FromDate.Value);
+            }
+            if (dto.ToDate.HasValue)
+            {
+                query = query.Where(r => r.Request.CreatedAt <= dto.ToDate.Value);
+            }
+            var stats = await query
+                .GroupBy(x => 1)
+                .Select(g => new StatusCountResponseDto
+                {
+                    Total = g.Count(),
+
+                    Pending = g.Count(x =>
+                        x.Status== "pending"),
+
+                    Completed = g.Count(x =>
+                        x.Status== "completed"),
+
+                    InProgress = g.Count(x =>
+                        x.Status == "inProgress"),
+                    
+                    Expired= g.Count(x =>
+                        x.Status == "expired")
+                })
+                .FirstOrDefaultAsync();
+            //return new StatusCountResponseDto
+            //{
+            //    Total = stats.Total,
+            //    Pending = stats.Pending,
+            //    Completed = stats.Completed,
+            //    InProgress = stats.InProgress,
+            //    Expired= stats.Expired
+            //};
+            return stats ?? new StatusCountResponseDto();
+        }
+
+        //-------------------------helpers---------------------------------------
+        private static void ValidateHeaders(List<string> headers)
+        {
+            var requiredHeaders = new[]
+            {
+                "employeeid",
+                 "designation",
+                 "doj",
+                "email",
+                //"filename",
+                "aadhaar",
+                "pan",
+                //"dob"
+             };
+
+            var missingHeaders = requiredHeaders
+                .Except(headers,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (missingHeaders.Any())
+            {
+                throw new ValidationException(
+                    $"Missing required columns: {string.Join(", ", missingHeaders)}");
+            }
+
+        }
+
+        private static void ValidateRow(HrParsedRowDto row)
+        {
+            if (string.IsNullOrWhiteSpace(row.EmployeeId))
+                throw new ValidationException("EmployeeId is required");
+
+            if (string.IsNullOrWhiteSpace(row.Designation))
+                throw new ValidationException("Designation is required");
+
+            if (row.DOJ == null)
+                throw new ValidationException("DOJ is required");
+
+            if (string.IsNullOrWhiteSpace(row.Email))
+                throw new ValidationException("Email is required");
+
+            if (string.IsNullOrWhiteSpace(row.Aadhaar))
+                throw new ValidationException("Aadhaar is required");
+
+            if (string.IsNullOrWhiteSpace(row.PAN))
+                throw new ValidationException("PAN is required");
         }
 
     }

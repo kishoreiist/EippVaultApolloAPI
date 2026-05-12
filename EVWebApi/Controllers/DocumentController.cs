@@ -1,23 +1,11 @@
-﻿using DocumentFormat.OpenXml.ExtendedProperties;
-using DocumentFormat.OpenXml.Spreadsheet;
-using EVWebApi.DTOs.Document;
-using EVWebApi.Exceptions;
+﻿using EVWebApi.DTOs.Document;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
-using EVWebApi.Models;
-using EVWebApi.Services;
-using EVWebAPI.Controllers;
 using Humanizer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.StaticFiles;
-using Syncfusion.XlsIO;
-using System.IO.Compression;
-using System.Threading.Tasks;
-using static Microsoft.CodeAnalysis.Host.HostWorkspaceServices;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+
 
 
 namespace EVWebApi.Controllers
@@ -180,10 +168,10 @@ namespace EVWebApi.Controllers
 
         // PDF Preview (stream)
 
-        [HttpGet("{id}/preview")]
-        public async Task<IActionResult> PreviewDocument(int id)
+        [HttpPost("preview")]
+        public async Task<IActionResult> PreviewDocument([FromBody] DocumentRequestDto dto)
         {
-            var result = await _documentService.GetDocumentStream(id);
+            var result = await _documentService.GetDocumentStream(dto);
             if (result == null) return NotFound();
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document View");
 
@@ -195,10 +183,10 @@ namespace EVWebApi.Controllers
 
         // Download
 
-        [HttpGet("{id}/download")]
-        public async Task<IActionResult> DownloadDocument(int id)
+        [HttpPost("download")]
+        public async Task<IActionResult> DownloadDocument([FromBody] DocumentRequestDto dto)
         {
-            var download = await _documentService.GetDocumentStream(id);
+            var download = await _documentService.GetDocumentStream(dto);
             if (download == null) return NotFound();
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Download");
 
@@ -211,7 +199,7 @@ namespace EVWebApi.Controllers
 
         //edit by doc id
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateDocument(int id, [FromBody] UpdateDocumentDto dto)
+        public async Task<IActionResult> UpdateDocument(int id, [FromQuery] UpdateDocumentDto dto)
         {
             var updated = await _documentService.UpdateDocumentAsync(id, dto, CurrentUserId);
 
@@ -223,22 +211,22 @@ namespace EVWebApi.Controllers
             return Ok(updated);
         }
         // SINGLE DELETE DOC
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteDocument(int id)
+        [HttpDelete]
+        public async Task<IActionResult> DeleteDocument([FromQuery] DocumentRequestDto dto)
         {
-            var (cabinetId, isSuccess) = await _documentService.DeleteDocument(id);
+            var (cabinetId, isSuccess) = await _documentService.DeleteDocument(dto);
 
             if (!isSuccess)
-                return NotFound(new { message = "Document not found" });
-            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete", id.ToString(), cabinetId);
+                return NotFound(new { message = "Document deletion failed" });
+            await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Delete", dto.Id.ToString(), cabinetId);
             return Ok(new { message = "Document deleted successfully" });
         }
 
         // BATCH DELETE DOCS
         [HttpPost("batch_delete")]
-        public async Task<IActionResult> BatchDeleteDocuments([FromBody] BatchDocDto dto)
+        public async Task<IActionResult> BatchDeleteDocuments([FromBody] ExportDto dto)
         {
-            var result = await _documentService.DeleteMultipleDocuments(dto.DocumentIds);
+            var result = await _documentService.DeleteMultipleDocuments(dto);
             string filterDetails = result.ToFilterLog("Summary - ");
 
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Batch Document Delete", null, dto.CabinetId, null, filters: filterDetails);
@@ -273,12 +261,12 @@ namespace EVWebApi.Controllers
         // Merge and Preview Documents
 
         [HttpPost("merge_pdf")]
-        public async Task<IActionResult> ExportMergedDocuments([FromBody] BatchDocDto dto)
+        public async Task<IActionResult> ExportMergedDocuments([FromBody] ExportDto dto)
         {
-            if (dto.DocumentIds == null || !dto.DocumentIds.Any())
+            if (dto == null || dto.Documents == null || !dto.Documents.Any())
                 return BadRequest("No document IDs provided");
 
-            var mergedStream = await _documentService.GetMergedDocumentStream(dto.DocumentIds);
+            var mergedStream = await _documentService.GetMergedDocumentStream(dto);
             if (mergedStream == null)
                 return NotFound();
 
@@ -304,10 +292,10 @@ namespace EVWebApi.Controllers
 
 
         [HttpPost("export_zip")]
-        public async Task<IActionResult> ExportZip([FromBody] BatchDocDto dto)
+        public async Task<IActionResult> ExportZip([FromBody] ExportDto dto)
         {
-            if (dto.DocumentIds == null || !dto.DocumentIds.Any())
-                return BadRequest("No document IDs provided.");
+            if (dto == null || dto.Documents == null || !dto.Documents.Any())
+                return BadRequest("No document IDs provided");
             var zip_stream = await _documentService.GetZIPFile(dto);
             if (zip_stream.ZipStream == null)
                 return NotFound();
@@ -529,12 +517,12 @@ namespace EVWebApi.Controllers
         }
 
         //download encrypted one
-        [HttpGet("download_record/{id}")]
-        public async Task<IActionResult> DownloadEncryptedDocument(int id)
+        [HttpPost("download_record")]
+        public async Task<IActionResult> DownloadEncryptedDocument([FromBody] DocumentRequestDto dto)
         {
             try
             {
-                var result = await _documentService.GenerateProtectedDownloadAsync(id, CurrentUserId);
+                var result = await _documentService.GenerateProtectedDownloadAsync(dto, CurrentUserId);
                 //var stream = new FileStream(result.ProtectedFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 16 * 1024 * 1024, useAsync: true);
                 // var contentType = FileContentTypeDetectHelper.GetContentType(result.ProtectedFilePath);
                 /// return File(stream, "application/octet-stream", contentType, enableRangeProcessing: true);

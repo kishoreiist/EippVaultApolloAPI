@@ -12,9 +12,11 @@ namespace EVWebApi.Models.HR
         [Column("doc_link_id")]
         public int DocLinkId { get; set; }
 
-        [Required]
+        //[Required]
         [Column("document_id")]
-        public int DocumentId { get; set; }
+        public int? DocumentId { get; set; }
+        [Column("onboarding_doc_id")]
+        public int? OnboardingDocId { get; set; }
 
         [Required]
         [Column("requested_by")]

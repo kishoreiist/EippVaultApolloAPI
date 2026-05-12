@@ -1,6 +1,7 @@
 ﻿using EVWebApi.DTOs.Audit;
 using EVWebApi.DTOs.Security;
 using EVWebApi.Models;
+using EVWebApi.Models.HR;
 using EVWebApi.Models.Security;
 
 namespace EVWebApi.Helpers.ExportToExcel
@@ -104,6 +105,30 @@ namespace EVWebApi.Helpers.ExportToExcel
         {
             return IPStatusColumns.TryGetValue(column, out var selector)
                 ? selector(ip)
+                : null;
+        }
+
+        //===========================Onboarding failed report===================================
+        public static readonly Dictionary<string, Func<HrConfirmationBatchRow, object?>> OnboardingFailedColumns = new()
+        {
+            ["RowNumber"] = x => x.RowNumber,
+            ["EmployeeId"] = x => x.EmployeeId,
+            ["CandidateName"] = x => x.CandidateName,
+            ["Email"] = x => x.Email,
+            ["PAN"] = x => x.PAN,
+            ["Aadhaar"] = x => x.Aadhaar,
+            ["Designation"] = x => x.Designation,
+            ["DOJ"] = x => x.DOJ,
+            ["Status"] = x => x.Status,
+            ["ErrorMessage"] = x => x.ErrorMessage
+        };
+
+        public static object? GetOnboardingFailedColumnValue(
+            HrConfirmationBatchRow row,
+            string column)
+        {
+            return OnboardingFailedColumns.TryGetValue(column, out var selector)
+                ? selector(row)
                 : null;
         }
 

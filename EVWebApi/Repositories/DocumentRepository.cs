@@ -6,6 +6,7 @@ using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
+using EVWebApi.Models.HR;
 using Humanizer;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -83,10 +84,10 @@ namespace EVWebApi.Repositories
             await _context.SaveChangesAsync();
         }
         // ---------------- DELETE -------------------
-        public async Task DeleteDocument(int documentId)
+        public async Task<Document> DeleteDocument(int documentId)
         {
             var doc = await _context.Documents.FindAsync(documentId);
-            if (doc == null)
+            if (doc == null || doc.Status == "archived")
                 throw new Exception("Document not found");
             else
             {
@@ -94,8 +95,8 @@ namespace EVWebApi.Repositories
                 doc.Status = "archived";
                 _context.Documents.Update(doc);
                 await _context.SaveChangesAsync();
-
             }
+            return doc;
         }
 
         //---------------------File explorer -----------------------
@@ -222,6 +223,22 @@ namespace EVWebApi.Repositories
             return columns;
         }
 
+
+        //-------------------get columns of cabinet for upload--------------//
+        public async Task<List<string>> GetCabinetUploadColumns(int cabinetId)
+        {
+            var columns = await _context.CabinetGroupingRules
+                .Where(c => c.Cabinet.CabinetId == cabinetId && c.IsRequiredUpload == "true")
+                .OrderBy(c => c.GroupingOrder)
+                .Select(c => c.GroupingCol)
+                .ToListAsync();
+
+            if (!columns.Any())
+                throw new KeyNotFoundException(
+                    $"Configuration Error: No grouping rules defined for Cabinet ID {cabinetId}.");
+
+            return columns;
+        }
         //-------------------------NOTES---------------------------------------//
 
         //-----------CREATE-------------------
@@ -304,11 +321,12 @@ namespace EVWebApi.Repositories
                 .Where(d => d.AssignedTo == userid)
                 //.Where(d => d.ExpiryDate > DateTime.UtcNow)
                 //.Where(d=>d.CurrentDownloads<d.MaxDownloads)
-                .OrderBy(d => d.ExpiryDate)
+                .OrderByDescending(d => d.ExpiryDate)
                 .Select(d => new DocDownloadGetDTO
                 {
                     DocumentLinkId = d.Id,
                     DocumentId = d.DocumentId,
+                    OnboardingDocId = d.OnboardingDocId,
                     ExpiresAt = d.ExpiryDate,
                     RemainingDownloads = d.MaxDownloads - d.CurrentDownloads,
                     FileName = d.Document.FileName
@@ -337,31 +355,81 @@ namespace EVWebApi.Repositories
             return await _context.DocumentLink
                 .Where(d =>
                     d.AssignedTo == userId &&
-                    documentIds.Contains(d.DocumentId) &&
+                    documentIds.Contains(d.DocumentId.Value) &&
                     d.ExpiryDate > DateTime.UtcNow && d.CurrentDownloads < d.MaxDownloads)
-                .Select(d => d.DocumentId)
+                .Select(d => d.DocumentId.Value)
                 .ToListAsync();
         }
 
         //atomic  counter increment
-        public async Task<int> CounterDocumentDownload(int docid, int? userid)
-        {
-            var rowsincremented = await _context.DocumentLink
-            .Where(d =>
-                d.DocumentId == docid &&
-                d.AssignedTo == userid &&
-                d.ExpiryDate > DateTime.UtcNow &&
-                d.CurrentDownloads < d.MaxDownloads)
-            .ExecuteUpdateAsync(setters =>
-                setters.SetProperty(
-                    d => d.CurrentDownloads,
-                    d => d.CurrentDownloads + 1)
-                .SetProperty(
-                    d => d.UpdatedAt,
-                    d => DateTime.UtcNow)
+        //public async Task<int> CounterDocumentDownload(DocumentRequestDto dto, int? userid)
+        //{
+        //    int rowsincremented;
+        //    if (dto.Source== DocumentSourceType.Onboarding)
+        //    {  
 
-                );
-            return rowsincremented;// can return count of updated rows , so can update more than 1 doc id
+        //        rowsincremented = await _context.DocumentLink
+        //        .Where(d =>
+        //            d.OnboardingDocId == dto.Id &&
+        //            d.AssignedTo == userid &&
+        //            d.ExpiryDate > DateTime.UtcNow &&
+        //            d.CurrentDownloads < d.MaxDownloads)
+        //        .ExecuteUpdateAsync(setters =>
+        //            setters.SetProperty(
+        //                d => d.CurrentDownloads,
+        //                d => d.CurrentDownloads + 1)
+        //            .SetProperty(
+        //                d => d.UpdatedAt,
+        //                d => DateTime.UtcNow)
+        //            );
+        //        return rowsincremented;// can return count of updated rows , so can update more than 1 doc id
+        //    }
+
+
+        //    rowsincremented = await _context.DocumentLink
+        //    .Where(d =>
+        //        d.DocumentId == dto.Id &&
+        //        d.AssignedTo == userid &&
+        //        d.ExpiryDate > DateTime.UtcNow &&
+        //        d.CurrentDownloads < d.MaxDownloads)
+        //    .ExecuteUpdateAsync(setters =>
+        //        setters.SetProperty(
+        //            d => d.CurrentDownloads,
+        //            d => d.CurrentDownloads + 1)
+        //        .SetProperty(
+        //            d => d.UpdatedAt,
+        //            d => DateTime.UtcNow)
+
+        //        );
+        //    return rowsincremented;// can return count of updated rows , so can update more than 1 doc id
+        //}
+
+
+        public async Task<int> CounterDocumentDownload(DocumentRequestDto dto,int? userid)
+        {
+            var query = _context.DocumentLink
+                .Where(d =>
+                    d.AssignedTo == userid &&
+                      d.IsActive &&
+                    d.ExpiryDate > DateTime.UtcNow &&
+                    d.CurrentDownloads < d.MaxDownloads);
+
+            query = dto.Source == DocumentSourceType.Onboarding
+                ? query.Where(d => d.OnboardingDocId == dto.Id)
+                : query.Where(d => d.DocumentId == dto.Id);
+
+            return await query.ExecuteUpdateAsync(setters =>
+                setters
+                    .SetProperty(
+                        d => d.CurrentDownloads,
+                        d => d.CurrentDownloads + 1)
+                    .SetProperty(
+                        d => d.UpdatedAt,
+                        d => DateTime.UtcNow)
+                .SetProperty(
+                    d=>d.IsActive,
+                    d=>d.CurrentDownloads+1<d.MaxDownloads
+                ));
         }
 
 
@@ -553,7 +621,7 @@ namespace EVWebApi.Repositories
         public async Task<List<Document>> GetDocumentsForDuplicateCheck(int cabinetId)
         {
             return await _context.Documents
-                .Where(d => d.CabinetId == cabinetId)
+                .Where(d => d.CabinetId == cabinetId && d.Status == "active")
                 .ToListAsync();
         }
 
@@ -602,7 +670,7 @@ namespace EVWebApi.Repositories
                     "ManufactureId" => record.ManufactureId?.ToString() ?? "",
                     "LoginId" => record.LoginId ?? "",
                     "LoginName" => record.LoginName ?? "",
-                    "Period" => record.Period?? "",
+                    "Period" => record.Period ?? "",
                     _ => ""
                 };
                 values.Add(NormalizeValue(val));
@@ -643,17 +711,18 @@ namespace EVWebApi.Repositories
         }
 
         public async Task<List<ManfactureDto>> GetManufactureDetailsList()
-         {
+        {
             return await _context.ManufactureDetails
                 .Where(d => d.ManufactureId != null)
                 .Select(d => new ManfactureDto
                 {
                     Id = d.Id,
-                    ManfactureId=d.ManufactureId,
+                    ManfactureId = d.ManufactureId,
                     ManfactureName = d.ManufactureName
                 })
                 .Distinct()
                 .ToListAsync();
-    }
+        }
+        
     }
 }

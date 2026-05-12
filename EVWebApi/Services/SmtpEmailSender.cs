@@ -1,4 +1,5 @@
-﻿using EVWebApi.DTOs;
+﻿
+using EVWebApi.DTOs;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.Exceptions;
@@ -20,17 +21,19 @@ namespace EVWebApi.Services
         private readonly IUserRepository _userRepo;
         private readonly IGroupRepository _groupRepo;
         private readonly IDocumentRepository _docRepo;
+        private readonly IConfigurationRepository _configRepo;
         private readonly IUnitOfWork _uow;
 
         private readonly string _pdfviewurl;
         private readonly string _userdisplay;
         public SmtpEmailSender(IOptions<EmailSettings> options, IUserRepository userRepo, IGroupRepository groupRepo, IDocumentRepository docRepo
-            ,IUnitOfWork uow, IConfiguration config)
+            ,IUnitOfWork uow, IConfigurationRepository configRepo, IConfiguration config)
         { 
             _settings = options.Value; 
             _userRepo = userRepo;
             _groupRepo = groupRepo;
             _docRepo = docRepo;
+            _configRepo = configRepo;
             _uow = uow;
             _pdfviewurl = config["PDFViewFEUrl:BaseUrl"];
             
@@ -116,7 +119,7 @@ namespace EVWebApi.Services
             if (!dto.GroupId.HasValue && string.IsNullOrWhiteSpace(dto.To))
                 throw new Exception("Group or To address is required");
 
-            if (!dto.AttachmentIds.Any())
+            if (dto.AttachmentIds == null || !dto.AttachmentIds.Any())
                 throw new Exception("No documents selected");
 
             var recipients = new List<EmailGroupUserDto>();
@@ -168,26 +171,38 @@ namespace EVWebApi.Services
 
           
             var batchId = Guid.NewGuid();
+            List<int> allAssignedDocIds = dto.AttachmentIds
+                .Where(a=>a.Source== DocumentSourceType.Document)
+                .Select(a => a.Id)
+                .ToList();
+            List<int> allOnboardingDocIds = dto.AttachmentIds
+                .Where(a => a.Source == DocumentSourceType.Onboarding)
+                .Select(a => a.Id)
+                .ToList();
+            var expiryDate = DateTime.UtcNow.AddMonths(1);
             foreach (var recipient in recipients)
             {
                 response.TotalProcessed++;
                 using var transaction = await _uow.BeginTransactionAsync();
                 try
                 {
-                    var alreadyAssignedDocIds =
-                    await _docRepo.GetActiveDocumentIdsForUserAsync(recipient.UserId,dto.AttachmentIds);
+                    var alreadyAssignedDocIds = await _docRepo.GetActiveDocumentIdsForUserAsync(recipient.UserId, allAssignedDocIds);
+                    var newDocIds = allAssignedDocIds
+                        .Except(alreadyAssignedDocIds)
+                        .ToList();
 
-                var newDocIds = dto.AttachmentIds
-                    .Except(alreadyAssignedDocIds)
-                    .ToList();
+                    var alreadyAssignedOnboardingDocIds =await _configRepo.GetActiveOnboardDocIdsForUserAsync(recipient.UserId, allOnboardingDocIds);
+                    var newOnboardingDocIds = allOnboardingDocIds
+                        .Except(alreadyAssignedOnboardingDocIds)
+                        .ToList();
 
-                if (!newDocIds.Any())
-                {
-                    response.Failed++;
-                    response.FailedDocDetails.Add(
-                        $"Email:{recipient.Email}, Error:All selected documents are already assigned.");
-                    continue;
-                }
+                    if (!newDocIds.Any() && !newOnboardingDocIds.Any())
+                    {
+                        response.Failed++;
+                        response.FailedDocDetails.Add(
+                            $"Email:{recipient.Email}, Error:All selected documents are already assigned.");
+                        continue;
+                    }
                
 
                     var links = newDocIds.Select(docId => new DocDownloadLink
@@ -198,11 +213,23 @@ namespace EVWebApi.Services
                         SharedBatchId = batchId,
                         MaxDownloads = dto.MaxDownloads,
                         CurrentDownloads = 0,
-                        ExpiryDate = DateTime.UtcNow.AddMonths(1) //expires after one month
+                        ExpiryDate = expiryDate //expires after one month
                     }).ToList();
+
+
+                     links.AddRange(newOnboardingDocIds.Select(docId => new DocDownloadLink
+                     {
+                         OnboardingDocId = docId,
+                         AssignedTo = recipient.UserId,
+                         CreatedBy = CurrentUserId,
+                         SharedBatchId = batchId,
+                         MaxDownloads = dto.MaxDownloads,
+                         CurrentDownloads = 0,
+                         ExpiryDate = expiryDate //expires after one month
+                     }));
                     await _docRepo.CreateDocDownloadLinkAsync(links);
                     await _uow.CompleteAsync();
-
+                    await transaction.CommitAsync();
 
                     var htmlBody= $"""
                         <div>
@@ -266,25 +293,27 @@ namespace EVWebApi.Services
                           htmlBody: htmlBody
                       );
                      if (send)
-                     {
-                        await transaction.CommitAsync();
+                     { 
                         response.Success++;
 
                      }
                     else
                     {
+
+                        //await transaction.RollbackAsync();
                         response.Failed++;
                         response.FailedDocDetails.Add(
-                            $"Email:{recipient.Email}, Error:Failed to send email."
+                            $"Email:{recipient.Email}, Error:Failed to send email after document assignment."
                         );
-                        
+                        continue;
                     }
                                                                           
-                    if (alreadyAssignedDocIds.Any())
+                    if (alreadyAssignedDocIds.Any() || alreadyAssignedOnboardingDocIds.Any())
                     {
                         response.FailedDocDetails.Add(
-                            $"Email:{recipient.Email}, Skipped Doc ids: {string.Join(",", alreadyAssignedDocIds)} (already assigned)");
+                            $"Email:{recipient.Email}, Skipped Doc ids: {string.Join(",", alreadyAssignedDocIds)},{string.Join(",", alreadyAssignedOnboardingDocIds)} (already assigned)");
                     }
+
                 }
 
                 catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx)

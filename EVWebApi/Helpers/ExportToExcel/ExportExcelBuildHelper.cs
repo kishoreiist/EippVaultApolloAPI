@@ -32,10 +32,6 @@ namespace EVWebApi.Helpers.ExportToExcel
                 {
                     var value = valueSelector(item, columns[col]);
 
-                    //sheet.Range[row, col + 1].Text =
-                    //    value is DateTime dt
-                    //        ? dt.ToString("dd/MM/yyyy HH:mm:ss")
-                    //        : value?.ToString();
 
                     if (value is DateTime dt)
                     {

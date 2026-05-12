@@ -17,7 +17,16 @@ namespace EVWebApi.Models.HR
         [Column("file_path")]
         public string FilePath { get; set; }
 
+        [Column("file_name")]
+        public string FileName { get; set; }
+
         [Column("uploaded_at")]
         public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+        [Column("status")]
+        public string Status { get; set; }
+        [Column("source")]
+        public string Source { get; set; }
+
+
     }
 }

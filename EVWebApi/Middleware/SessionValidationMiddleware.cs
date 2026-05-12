@@ -23,6 +23,7 @@ namespace EVWebApi.Middleware
             if (context.User.Identity?.IsAuthenticated == true)
             {
                 var sessionIdClaim = context.User.FindFirst("session_id");
+                var userIdClaim = context.User.FindFirst("userId");
 
                 if (sessionIdClaim == null)
                 {
@@ -31,17 +32,27 @@ namespace EVWebApi.Middleware
                     return;
                 }
 
-                if (sessionIdClaim != null &&
-                    Guid.TryParse(sessionIdClaim.Value, out var sessionId))
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out _))
                 {
-                    var session = await repo.GetByIdAsync(sessionId);
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsync("User Id missing");
+                    return;
+                }
 
-                    if (session == null || session.IsRevoked || session.ExpiresAt < DateTime.UtcNow)
-                    {
-                        context.Response.StatusCode = 403;
-                        await context.Response.WriteAsync("Session expired");
-                        return;
-                    }
+                if (!Guid.TryParse(sessionIdClaim.Value, out var sessionId))
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsync("Invalid session");
+                    return;
+                }
+
+                var session = await repo.GetByIdAsync(sessionId);
+
+                if (session == null || session.IsRevoked || session.ExpiresAt < DateTime.UtcNow)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsync("Session expired");
+                    return;
                 }
             }
 

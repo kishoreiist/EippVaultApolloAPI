@@ -7,6 +7,14 @@ namespace EVWebApi.DTOs.HR
 
         [FromQuery(Name = "region")]
         public string? Region { get; set; }
+
+        [FromQuery(Name = "from_date")]
+        public DateTime? FromDate { get; set; }
+
+        [FromQuery(Name = "to_date")]
+        public DateTime? ToDate { get; set; }
+        [FromQuery(Name = "filter_type")]
+        public string? FilterType { get; set; }
     }
 
     public class PoDashboardQueryParameters

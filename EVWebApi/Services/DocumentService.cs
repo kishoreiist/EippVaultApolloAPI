@@ -1,22 +1,12 @@
 ﻿using AutoMapper;
-using Azure;
-using ClosedXML.Excel;
-using CsvHelper;
-using CsvHelper.Configuration;
-using DocumentFormat.OpenXml.Bibliography;
-using DocumentFormat.OpenXml.InkML;
-using DocumentFormat.OpenXml.Office.SpreadSheetML.Y2024.WorkbookCompatibilityVersion;
-using DocumentFormat.OpenXml.Office2010.Excel;
-using DocumentFormat.OpenXml.Spreadsheet;
-using DocumentFormat.OpenXml.Wordprocessing;
+
 using EVWebApi.Controllers;
 using EVWebApi.Data;
-using EVWebApi.DTOs;
-using EVWebApi.DTOs.Cabinet;
+
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.Pagination;
-using EVWebApi.DTOs.Plan;
+
 using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Helpers.ExportToExcel;
@@ -24,32 +14,26 @@ using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Interfaces.Services.MetaDataReaders;
 using EVWebApi.Models;
-using EVWebApi.Repositories;
-using Humanizer;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.Data.SqlClient;
+
 using Microsoft.EntityFrameworkCore;
-using Mono.TextTemplating.CodeCompilation;
+
 using Npgsql;
 using PdfSharpCore.Pdf;
-using PdfSharpCore.Pdf.Content.Objects;
+
 using PdfSharpCore.Pdf.IO;
-using SkiaSharp;
-using Syncfusion.EJ2.Charts;
-using Syncfusion.EJ2.Spreadsheet;
+
 using Syncfusion.XlsIO;
-using Syncfusion.XlsIO.Implementation.Security;
-using System;
+
+
 using System.Data;
-using System.Globalization;
-using System.IO;
+
+
 using System.IO.Compression;
-using System.Linq;
+
 using System.Linq.Dynamic.Core;
-using System.Reflection;
+
 using System.Security;
-using System.Text;
+
 using System.Text.Json;
 using static PdfSharpCore.Pdf.PdfDictionary;
 using static SkiaSharp.HarfBuzz.SKShaper;
@@ -62,6 +46,7 @@ namespace EVWebApi.Services
     public class DocumentService : IDocumentService
     {
         private readonly IDocumentRepository _repo;
+        private readonly IConfigurationRepository _configrepo;
         private readonly IUserRepository _userrepo;
         private readonly IMetadataRepository _metadataRepo;
         private readonly IMetadataReaderFactoryService _metadataReaderFactory;
@@ -73,10 +58,12 @@ namespace EVWebApi.Services
         private readonly string _storageRoot;
         private readonly string _clientName;
         private readonly string _versionRoot;
+        private readonly string _onboardingPath;
         private readonly IUnitOfWork _uow;
         private readonly IMapper _mapper;
 
         private readonly IEmailSender _emailSender;
+        private readonly IConfigurationService _configService;
         private readonly NpgsqlDataSource _dataSource;
         public readonly IDocVersionService _docVersionService;
         public readonly IDocVersionRepository _docVersionRepo;
@@ -86,7 +73,7 @@ namespace EVWebApi.Services
         public DocumentService(IDocumentRepository repo, IMetadataRepository metadataRepo, IMetadataReaderFactoryService metadataReaderFactory,
             IWebHostEnvironment env, IUnitOfWork uow, IMapper mapper, IConfiguration config, IDocumentGroupingService docGrpService, NpgsqlDataSource dataSource
             , IEmailSender emailSender, IUserRepository userrepo, IStorageQuotaService storageQuotaService, IDocVersionService docVersionService,
-            IDocVersionRepository docVersionRepository, AppDbContext context, ILogger<DocumentController> logger)
+            IDocVersionRepository docVersionRepository, AppDbContext context, ILogger<DocumentController> logger, IConfigurationService configService, IConfigurationRepository configrepo  )
         {
             _repo = repo;
             _metadataRepo = metadataRepo;
@@ -100,6 +87,7 @@ namespace EVWebApi.Services
             _tempRoot = config["DocumentSettings:TempPath"];
             _versionRoot = config["DocumentSettings:VersionPath"];
             _clientName = config["DocumentSettings:ClientName"];
+            _onboardingPath = config["DocumentSettings:OnboardingPath"];
 
 
             _docGrpService = docGrpService;
@@ -110,6 +98,8 @@ namespace EVWebApi.Services
             _docVersionService = docVersionService;
             _docVersionRepo = docVersionRepository;
             _logger = logger;
+            _configService = configService;
+            _configrepo = configrepo;
         }
 
         // ---------------------- SINGLE UPLOAD ----------------------
@@ -518,7 +508,26 @@ namespace EVWebApi.Services
             }
 
 
-            var groupingKey = await _docGrpService.GetDynamicGroupingKeyAsync(cabinetId);
+            var groupingKey = await _docGrpService.GetDynamicGroupingKeyAsync(cabinetId, "grouping");
+            //fetching onboarding docs basd on candidate id
+            var onboardingCandidateIds = documents
+                .Where(x =>
+                    string.IsNullOrWhiteSpace(x.FileName) &&
+                    string.IsNullOrWhiteSpace(x.FilePath) &&
+                    x.CandidateId != null && x.Status == "active")
+                .Select(x => x.CandidateId!.Value)
+                .Distinct()
+                .ToList();
+
+            var candidateDocs = await _context.OnboardingHRDocument
+                .Where(x => onboardingCandidateIds.Contains(x.RecipientId) && x.Status == "active")
+                .ToListAsync();
+
+            var groupedCandidateDocs = candidateDocs
+                .GroupBy(x => x.RecipientId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToList());
 
             var result = documents
                .GroupBy(d =>
@@ -549,13 +558,58 @@ namespace EVWebApi.Services
                        Status = first.Status,
                        CabinetId = first.CabinetId,
 
-                       DocumentTypes = g.Select(d => new DocumentChildDDTO
+                       //DocumentTypes = g.Select(d => new DocumentChildDDTO
+                       //{
+                       //    DocumentId = d.DocumentId,
+                       //    DocumentType = d.DocumentType?.Label,
+                       //    NotesCount = d.Notes?.Count ?? 0,
+                       //    FileName = d.FileName,
+                       //    FilePath = d.FilePath
+                       //}).ToList()
+
+
+                       DocumentTypes = g.SelectMany(d =>
                        {
-                           DocumentId = d.DocumentId,
-                           DocumentType = d.DocumentType?.Label,
-                           NotesCount = d.Notes?.Count ?? 0,
-                           FileName = d.FileName,
-                           FilePath = d.FilePath
+                           // Normal uploaded document
+
+                           if (!string.IsNullOrWhiteSpace(d.FileName) &&
+                               !string.IsNullOrWhiteSpace(d.FilePath))
+                           {
+                               return new List<DocumentChildDDTO>
+                                {
+                                    new DocumentChildDDTO
+                                    {
+                                        DocumentId = d.DocumentId,
+                                        DocumentType = d.DocumentType?.Label,
+                                        NotesCount = d.Notes?.Count ?? 0,
+                                        FileName = d.FileName,
+                                        FilePath = d.FilePath
+                                    }
+                                };
+                           }
+
+                       
+                           // Onboarding documents
+                  
+
+                           if (d.CandidateId != null &&
+                               groupedCandidateDocs.TryGetValue(
+                                   d.CandidateId.Value,
+                                   out var uploads))
+                           {
+                               return uploads.Select(u => new DocumentChildDDTO
+                               {
+                                   //DocumentId = u.Id,
+                                   DocumentId = d.DocumentId,
+                                   OnboardingDocId = u.Id,
+                                   DocumentType = u.DocumentType?.Label,
+                                   NotesCount = d.Notes?.Count ?? 0,
+                                   FileName = u.FileName,
+                                   FilePath = u.FilePath
+                               }).ToList();
+                           }
+
+                           return Enumerable.Empty<DocumentChildDDTO>();
                        }).ToList()
                    };
                })
@@ -595,13 +649,79 @@ namespace EVWebApi.Services
         }
 
         // ---------------------- PREVIEW STREAM ----------------------
-        public async Task<DocumentStreamResultDTO?> GetDocumentStream(int id)
+        //public async Task<DocumentStreamResultDTO?> GetDocumentStream(DocumentRequestDto dto)
+        //{
+        //    if (dto.DocumentId == null && dto.OnboardingDocId == null)
+        //        throw new ArgumentException("Either DocumentId or OnboardingDocId must be provided");
+
+
+        //    var doc = await _repo.GetDocument(dto.DocumentId.Value);
+        //    if (doc == null)
+        //        throw new NotFoundException("Document not found");
+
+        //    if (dto.OnboardingDocId != null || (doc.FileName==null && doc.FilePath==null && doc.CandidateId!=null))
+        //    {
+        //        if(doc.CandidateId!=null)
+        //            dto.OnboardingDocId = doc.CandidateId;
+        //        var onboardingDoc = await _configService.GetOnboardingDocumentStream(dto.OnboardingDocId.Value);
+        //        if (onboardingDoc != null)
+        //            return onboardingDoc;
+        //    }
+
+        //    var relativePath = doc.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+
+        //    var uploadRootTemplate = _uploadRoot
+        //        .Replace("{StorageRoot}", _storageRoot)
+        //        .Replace("{ClientName}", _clientName);
+
+        //    var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+        //    if (!fullPath.StartsWith(_storageRoot))
+        //        throw new SecurityException("Invalid file path");
+
+        //    if (!File.Exists(fullPath))
+        //        throw new NotFoundException("File not found in storage");
+
+        //    var stream = new FileStream(
+        //        fullPath,
+        //        FileMode.Open,
+        //        FileAccess.Read,
+        //        FileShare.Read,
+        //        bufferSize: 1024 * 1024,
+        //        useAsync: true
+        //    );
+
+        //    return new DocumentStreamResultDTO
+        //    {
+        //        Stream = stream,
+        //        FilePath = fullPath,
+        //        FileName = doc.FileName
+        //    };
+        //}
+
+        public async Task<DocumentStreamResultDTO?> GetDocumentStream(DocumentRequestDto dto)
         {
-            var doc = await _repo.GetDocument(id);
+            if (dto.Id <= 0)
+                throw new ArgumentException("Invalid Id");
+
+            if (dto.Source == DocumentSourceType.Onboarding)
+            {
+                var onboardingDoc = await _configService.GetOnboardingDocumentStream(dto.Id);
+                if (onboardingDoc == null)
+                    throw new NotFoundException("Onboarding document not found");
+
+                return onboardingDoc;
+            }
+
+            var doc = await _repo.GetDocument(dto.Id);
             if (doc == null)
                 throw new NotFoundException("Document not found");
 
-            var relativePath = doc.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var relativePath = doc.FilePath?.TrimStart('/', '\\')
+                .Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            if (string.IsNullOrEmpty(relativePath))
+                throw new NotFoundException("Invalid document path");
 
             var uploadRootTemplate = _uploadRoot
                 .Replace("{StorageRoot}", _storageRoot)
@@ -631,8 +751,6 @@ namespace EVWebApi.Services
                 FileName = doc.FileName
             };
         }
-
-
         // ---------------------- DOWNLOAD ----------------------
         public async Task<DocumentDownloadDto?> GetDocumentForDownload(int id)
         {
@@ -694,39 +812,87 @@ namespace EVWebApi.Services
 
 
         // -----------------SINGLE-DELETE--------------------
-        public async Task<(int cabinetId, bool status)> DeleteDocument(int id)
+        public async Task<(int cabinetId, bool status)> DeleteDocument(DocumentRequestDto dto)
         {
-            var doc = await _repo.GetDocument(id);
-            if (doc == null)
-                throw new NotFoundException("Document not found");
-            int cabinetid = doc.CabinetId;
+            //var doc = await _repo.GetDocument(id);
+            //if (doc == null)
+            //    throw new NotFoundException("Document not found");
+            int cabinetid;
 
-            await _repo.DeleteDocument(id);
-            return (cabinetid, true);
+
+            
+            try
+            {
+                if (dto == null)
+                    throw new BadRequestException("Invalid request data.");
+                if (dto.Source == DocumentSourceType.Document)
+                {
+                    var doc = await _repo.DeleteDocument(dto.Id);
+                    cabinetid = doc.CabinetId;
+                }
+                else
+                {
+                    var doc=await _configrepo.DeleteOnboardingDocument(dto.Id);
+
+                    await IsAllOnboardingDocsArchived(doc.RecipientId);
+                    cabinetid = 2;//hardcoding hr cabinet id
+                }
+                return (cabinetid, true);
+            }
+            catch(Exception ex)
+            { return (0, false); }
+        }
+
+        private async Task IsAllOnboardingDocsArchived(int candidateId)
+        {
+            bool hasActiveDocs =
+            await _context.OnboardingHRDocument
+            .AnyAsync(x =>
+            x.RecipientId == candidateId &&
+            x.Status != "archived");
+
+            if (!hasActiveDocs)
+            {
+                var parentDoc = await _context.Documents
+                    .FirstOrDefaultAsync(x =>
+                        x.CandidateId == candidateId);
+
+                if (parentDoc != null)
+                {
+                    parentDoc.Status = "archived";
+                }
+            }
+            await _context.SaveChangesAsync();
         }
 
         // -----------------MULTI-DELETE--------------------
-        public async Task<BatchResponseDTO> DeleteMultipleDocuments(List<int> ids)
+        public async Task<BatchResponseDTO> DeleteMultipleDocuments(ExportDto dto)
         {
             var summary = new BatchResponseDTO();
-            foreach (var id in ids)
+
+            
+            foreach (var item in dto.Documents)
             {
                 summary.TotalProcessed++;
                 try
                 {
-                    var doc = await _repo.GetDocument(id);
-                    if (doc.Status == "archived")
-                        throw new AuthorizationException("Access to archived document is forbidden");
-                    if (doc != null)
+                    if (item.Source == DocumentSourceType.Document)
                     {
-
-                        await _repo.DeleteDocument(id);
+                        await _repo.DeleteDocument(item.Id);
                         summary.Success++;
                     }
+                    else
+                    {
+                        var doc=await _configrepo.DeleteOnboardingDocument(item.Id);
+                        await IsAllOnboardingDocsArchived(doc.RecipientId);
+                        summary.Success++;
+                    }
+                  
+                   
                 }
                 catch (Exception ex)
                 {
-                    summary.FailedDocDetails.Add($"Error deleting Document ID {id}: {ex.Message}");
+                    summary.FailedDocDetails.Add($"Error deleting Document ID {item.Id}: {ex.Message}");
                     summary.Failed++;
                 }
 
@@ -735,17 +901,57 @@ namespace EVWebApi.Services
         }
         //-------------------- Export Merged PDF-----------------------
 
-        public async Task<Stream?> GetMergedDocumentStream(List<int> documentIds)
+        //public async Task<Stream?> GetMergedDocumentStream(List<int> documentIds)
+        //{
+        //    var outputStream = new MemoryStream();
+
+        //    using (var outputDocument = new PdfSharpCore.Pdf.PdfDocument())
+        //    {
+        //        foreach (var id in documentIds)
+        //        {
+        //            var pdfStream = await GetDocumentStream(id);
+        //            if (pdfStream == null)
+        //                throw new NotFoundException($"Document not found: {id}");
+
+        //            using (pdfStream.Stream)
+        //            using (var inputDocument = PdfSharpCore.Pdf.IO.PdfReader.Open(
+        //                pdfStream.Stream,
+        //                PdfSharpCore.Pdf.IO.PdfDocumentOpenMode.Import))
+        //            {
+        //                for (int i = 0; i < inputDocument.PageCount; i++)
+        //                {
+        //                    outputDocument.AddPage(inputDocument.Pages[i]);
+        //                }
+        //            }
+        //        }
+
+        //        outputDocument.Save(outputStream, false);
+        //    }
+
+        //    outputStream.Position = 0;
+        //    return outputStream;
+        //}
+        public async Task<Stream?> GetMergedDocumentStream(ExportDto dto)
         {
             var outputStream = new MemoryStream();
 
             using (var outputDocument = new PdfSharpCore.Pdf.PdfDocument())
             {
-                foreach (var id in documentIds)
+                foreach (var item in dto.Documents)
                 {
-                    var pdfStream = await GetDocumentStream(id);
+                    DocumentStreamResultDTO? pdfStream = null;
+
+                    if (item.Source == DocumentSourceType.Document)
+                    {
+                        pdfStream = await GetDocumentStream(item);
+                    }
+                    else if (item.Source == DocumentSourceType.Onboarding)
+                    {
+                        pdfStream = await _configService.GetOnboardingDocumentStream(item.Id);
+                    }
+
                     if (pdfStream == null)
-                        throw new NotFoundException($"Document not found: {id}");
+                        throw new NotFoundException($"Document not found: {item.Id}");
 
                     using (pdfStream.Stream)
                     using (var inputDocument = PdfSharpCore.Pdf.IO.PdfReader.Open(
@@ -768,26 +974,39 @@ namespace EVWebApi.Services
 
         //--------------------- EXPORT TO ZIP File-------------------
 
-        public async Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(BatchDocDto dto)
+        public async Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(ExportDto dto)
         {
             var memoryStream = new MemoryStream();
 
             using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
             {
-                foreach (var id in dto.DocumentIds)
+                foreach (var item in dto.Documents)
                 {
-                    // Fetch PDF stream for invoice
-                    var pdfStream = await GetDocumentStream(id);
+                    DocumentStreamResultDTO? pdfStream = null;
+                   // var originalFileName=default(string);
+                    if (item.Source == DocumentSourceType.Document)
+                    {
+                        pdfStream = await GetDocumentStream(item);
+                        //originalFileName = await _repo.GetDocumentName(item.Id);
+                    }
+                    else if (item.Source == DocumentSourceType.Onboarding)
+                    {
+                        pdfStream = await _configService.GetOnboardingDocumentStream(item.Id);
+                        //originalFileName = await _configrepo.GetOnboardingFileNameById(item.Id);
+                        
+                    }
+
                     if (pdfStream == null)
-                        throw new NotFoundException($"Document not found: {id}");
+                        throw new NotFoundException($"Document not found: {item.Id}");
 
                     // Generate file name
-                    var originalFileName = await _repo.GetDocumentName(id);
+                   
 
                     // Generate unique filename for ZIP: originalname_id.pdf
-                    var fileNameWithoutExt = Path.GetFileNameWithoutExtension(originalFileName);
-                    var extension = Path.GetExtension(originalFileName);
-                    var FileName = $"{fileNameWithoutExt}_{id}{extension}";
+                    //var fileNameWithoutExt = Path.GetFileNameWithoutExtension(originalFileName);
+                    var fileNameWithoutExt = Path.GetFileNameWithoutExtension(pdfStream.FileName);
+                    var extension = Path.GetExtension(pdfStream.FileName);
+                    var FileName = $"{fileNameWithoutExt}_{item.Id}{extension}";
 
                     var zipEntry = archive.CreateEntry(FileName, CompressionLevel.Fastest);
                     using (var entryStream = zipEntry.Open())
@@ -832,7 +1051,7 @@ namespace EVWebApi.Services
         public async Task<(byte[] Excel,string FileName)> GetExportExcel(ExportExcelDocDto dto)
         {
             var documents = await _repo.ExcelExportQuery(dto);
-            var keys = await _docGrpService.GetDynamicGroupingKeyAsync(dto.CabinetId);
+            var keys = await _docGrpService.GetDynamicGroupingKeyAsync(dto.CabinetId, "grouping");
 
             var hasDocType = documents.Any(d => d.DocumentTypeId != null);
             var needGrouping = documents
@@ -1077,10 +1296,31 @@ namespace EVWebApi.Services
             var extension = Path.GetExtension(dto.MetadataFile.FileName).ToLower();
             var reader = _metadataReaderFactory.GetReader(extension);
 
-            var metadataResult = await reader.ReadAsync(dto.MetadataFile);
+            var metadataResult = await reader.ReadAsync<DocumentMetadatadto>(dto.MetadataFile);
 
             if (metadataResult.TotalRecords == 0 || metadataResult.Records.Count == 0)
                 throw new ArgumentException("Unable to read metadata file");
+            
+            //validation
+            var requiredHeaders = await _docGrpService.GetDynamicGroupingKeyAsync(dto.CabinetId,"upload");
+            if (requiredHeaders != null)
+            {
+                requiredHeaders.Add("FileName");
+                if (cabinet.CabinetId == 2)
+                    requiredHeaders.Add("DocumentType");
+            }
+            var missingHeaders = requiredHeaders
+                .Except(metadataResult.Headers,
+                 StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (missingHeaders.Any())
+            {
+                throw new ValidationException(
+                    $"Missing required columns: {string.Join(", ", missingHeaders)}");
+            }
+
+
 
             var summary = new BatchResponseDTO();
             summary.Failed += metadataResult.Errors.Count;
@@ -1182,7 +1422,19 @@ namespace EVWebApi.Services
                         }
                     }
 
-                    
+                    if (record.DOB.HasValue && record.DOJ.HasValue && record.DOJ < record.DOB)
+                    {
+                        throw new ValidationException("DOJ cannot be earlier than DOB");
+                    }
+                    if (record.DOJ > DateTime.UtcNow || record.DOB > DateTime.UtcNow)
+                    {
+                        throw new ValidationException("DOJ and DOB cannot be in the future");
+                    }
+                    if (record.DOB.HasValue && (DateTime.UtcNow.Year - record.DOB.Value.Year) < 18)
+                    {
+                        throw new ValidationException("DOB indicates age less than 18 years, please verify");
+                    }
+
                     var document = new Document
                     {
                         CabinetId = dto.CabinetId,
@@ -1377,6 +1629,21 @@ namespace EVWebApi.Services
                 ?? throw new Exception("Invalid CabinetId");
 
             await _storageQuotaService.ValidateAndConsumeStorage(dto.File.Length);
+
+            if (dto.DOB.HasValue && dto.DOJ.HasValue && dto.DOJ < dto.DOB)
+            {
+                throw new ValidationException("DOJ cannot be earlier than DOB");
+            }
+            if(dto.DOJ> DateTime.UtcNow || dto.DOB > DateTime.UtcNow)
+            {
+                throw new ValidationException("DOJ or DOB cannot be in the future");
+            }
+            if(dto.DOB.HasValue && (DateTime.UtcNow.Year - dto.DOB.Value.Year) < 18)
+            {
+                throw new ValidationException("DOB indicates age less than 18 years, please verify");
+            }
+            
+
             //validation for mandatory firlds
             var missingFields = CabinetDuplicateRulesHelper.ValidateMandatoryFields(dto.CabinetId, dto);
             if (missingFields.Any() || missingFields.Count != 0 )
@@ -1724,20 +1991,20 @@ namespace EVWebApi.Services
 
         //-------------------------     SPLIT & EXTRACT PDF ----------------------
 
-        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto, int? userId, string? username, string? fullname)
+        public async Task<DocumentResponseDto> SplitRegularDocumentAsync(SplitAndExtractPdfDto dto, Cabinet cab, int? userId, string? username, string? fullname)
         {
-            var originalDoc = await _repo.GetDocument(dto.DocumentId)
+            var originalDoc = await _repo.GetDocument(dto.Id)
                 ?? throw new KeyNotFoundException("Document not found");
 
-            var cabinet = await _uow.Cabinets.GetByIdAsync(originalDoc.CabinetId)
-                ?? throw new Exception("Invalid cabinet");
+            //var cabinet = await _uow.Cabinets.GetByIdAsync(originalDoc.CabinetId)
+            //    ?? throw new Exception("Invalid cabinet");
 
 
             // Resolve physical original file path
             var relativePath = originalDoc.FilePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
             var uploadRootTemplate = _uploadRoot.Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
             var fullPath = Path.Combine(uploadRootTemplate, relativePath);
-            
+
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found in storage");
 
@@ -1781,9 +2048,9 @@ namespace EVWebApi.Services
                 using var transaction = await _uow.BeginTransactionAsync();
 
                 // Resolve folder structure (same as UploadDocument)
-                string folderName = cabinet.CabinetName;
+                string folderName = cab.CabinetName;
                 string dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
-                string cabinetFolder = Path.Combine(uploadRootTemplate,folderName, dateFolder);
+                string cabinetFolder = Path.Combine(uploadRootTemplate, folderName, dateFolder);
 
                 if (!Directory.Exists(cabinetFolder))
                     Directory.CreateDirectory(cabinetFolder);
@@ -1811,23 +2078,23 @@ namespace EVWebApi.Services
                     FilePath = $@"{folderName}\{dateFolder}\{newFileName}",
                     UploadedBy = userId,
                     UploadedAt = DateTime.UtcNow,
-                   // Version = version,
+                    // Version = version,
                     Status = "active",
                     DocumentTypeId = docType?.Id,
 
 
                     InvoiceNumber = originalDoc.InvoiceNumber,
-                    
+
                     InvoiceDate = originalDoc.InvoiceDate,
                     Amount = originalDoc.Amount,
-                    
+
                     StatementDate = originalDoc.StatementDate,
                     PaidAmount = originalDoc.PaidAmount,
                     Department = originalDoc.Department,
                     Designation = originalDoc.Designation,
                     Name = originalDoc.Name,
                     EmployeeId = originalDoc.EmployeeId,
-                    
+
                     ContactNumber = originalDoc.ContactNumber,
                     DOB = originalDoc.DOB,
                     DOJ = originalDoc.DOJ,
@@ -1870,12 +2137,48 @@ namespace EVWebApi.Services
             }
         }
 
+        public async Task<DocumentResponseDto> SplitAndExtractPdfAsync(SplitAndExtractPdfDto dto,int? userId,string? username,string? fullname)
+        {
+            //var sourceDoc = await GetSourceDocument(dto);
+
+            //if (sourceDoc == null)
+            //    throw new NotFoundException("Document not found");
+
+            var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
+
+            if (cabinet == null)
+                throw new ValidationException("Invalid cabinet");
+            
+            bool isHrOnboardingCabinet=false;
+            if (dto.Source == DocumentSourceType.Onboarding && cabinet.CabinetId == 2)
+                isHrOnboardingCabinet = true;
+            
+
+            if (isHrOnboardingCabinet)
+            {
+                return await _configService.SplitOnboardingDocumentAsync(
+                    dto
+                    //sourceDoc,
+                    //userId,
+                    //username,
+                    //fullname
+                    );
+            }
+
+            return await SplitRegularDocumentAsync(
+                dto,
+                cabinet,
+                userId,
+                username,
+                fullname);
+        }
         //------------------------- DOCUMENT DOWNLOAD LINK ----------------------------------//
 
         // get all document for download
         public async Task<List<DocDownloadGetDTO>> GetAllDocumentForDownloadAsync(int? userid)
         {
             var documents = await _uow.Documents.GetAllDocumentForDownload(userid);
+
             //if (documents == null || documents.Count == 0)
             //    throw new NotFoundException("No documents available for download.");
             return documents ?? new List<DocDownloadGetDTO>();
@@ -1883,20 +2186,31 @@ namespace EVWebApi.Services
 
         //downlaod encrypt
 
-        public async Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(int docid, int? userid)
+        public async Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(DocumentRequestDto dto, int? userid)
         {
-            var doc = await _repo.GetDocument(docid);
+            if(dto == null)
+                throw new BadRequestException("Invalid request data.");
 
-            if (doc == null)
-                throw new NotFoundException("Document not found");
+
+            if (dto.Source == DocumentSourceType.Document)
+            {
+                var doc = await _repo.GetDocument(dto.Id);
+
+                if (doc == null)
+                    throw new NotFoundException("Document not found");
+            }
+            else
+            {
+                var onboardingDoc = await _configrepo.GetOnboardingFilesAsync(dto.Id);
+
+                if (onboardingDoc == null)
+                    throw new NotFoundException("Document not found");
+            }
+
 
             //var user = await _userrepo.GetByIdAsync(userid);
             ////if (user == null)
             ////    throw new NotFoundException($"User with id {userid} not found");
-
-            User? user = null;
-            if (userid.HasValue)
-                user = await _userrepo.GetByIdAsync(userid.Value);
 
             //if (user == null)
             //    throw new NotFoundException($"User with id {userid} not found");
@@ -1938,16 +2252,24 @@ namespace EVWebApi.Services
 
 
             //var data = await GetDocumentStream(docid);
-            var rowsincremented = await _repo.CounterDocumentDownload(docid, userid);
-            if (rowsincremented == 0)//not updated any rows
-                throw new UnauthorizedAccessException("Download limit exceeded or link expired.");
 
+
+
+
+            var rowsincremented = await _repo.CounterDocumentDownload(dto, userid);
+            if (rowsincremented == 0)//not updated any rows
+                throw new BadRequestException("Download limit exceeded or link expired.");
+            var streamResult = await GetDocumentStream(dto);
+            if (streamResult == null)
+                throw new NotFoundException("Unable to generate document stream.");
             //if (data != null)
             //{
             //    downloadLink.CurrentDownloads++;
             //    await _uow.CompleteAsync();
             //}
-            return await GetDocumentStream(docid);
+
+
+            return streamResult;
 
         }
 

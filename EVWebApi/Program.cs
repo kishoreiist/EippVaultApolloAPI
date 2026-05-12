@@ -130,6 +130,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         var publicKeyPath = builder.Configuration["Jwt:PublicKeyPath"];
+        if (string.IsNullOrWhiteSpace(publicKeyPath))
+        {
+            throw new Exception("JWT PublicKeyPath is missing in configuration.");
+        }
         var rsa = RSA.Create();
         rsa.ImportFromPem(File.ReadAllText(publicKeyPath));
 
@@ -286,21 +290,31 @@ builder.Services.AddRateLimiter(options =>
 
 
 //serilog
-Log.Logger = new LoggerConfiguration()
+var logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .Enrich.WithMachineName()
     .Enrich.WithThreadId()
-    .WriteTo.Console(new JsonFormatter())
+    .WriteTo.Console()
     .WriteTo.File(
         new JsonFormatter(),
         "logs/log-.json",
         rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 15)//on 16th day, the first log file will be deleted
-    .CreateLogger();
+        retainedFileCountLimit: 15);//on 16th day, the first log file will be deleted
 
-builder.Host.UseSerilog();
+if (OperatingSystem.IsWindows())
+{
+    logger.WriteTo.EventLog(
+        source: "EVWebApi",
+        manageEventSource: false,
+        restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Information); 
+}
+
+Log.Logger = logger.CreateLogger();
+Log.Error("APPLICATION START TEST ERROR");
+builder.Logging.ClearProviders();
+builder.Host.UseSerilog(Log.Logger);
 
 var app = builder.Build();
 

@@ -51,6 +51,7 @@ namespace EVWebApi.Services
             {
                 DocLinkId = dto.DocLinkId,
                 DocumentId = docLink.DocumentId,
+                OnboardingDocId = docLink.OnboardingDocId,
                 RequestedBy = userId,
                 RequestedTo = docLink.CreatedBy,
                 Reason = dto.Reason,
@@ -63,17 +64,42 @@ namespace EVWebApi.Services
 
 
             // Combined admin + document
-            var emailData = await (
-                from d in _context.Documents
-                join u in _context.Users on docLink.CreatedBy equals u.UserId
-                where d.DocumentId == docLink.DocumentId
-                select new
+            var docEmailData= new
+            {
+                AdminEmail = string.Empty,
+                AdminName = string.Empty,
+                FileName = string.Empty
+            };
+
+            if (docLink.DocumentId.HasValue)
+            { 
+                 docEmailData = await (
+                    from d in _context.Documents
+                    join u in _context.Users on docLink.CreatedBy equals u.UserId
+                    where d.DocumentId == docLink.DocumentId
+                    select new
+                    {
+                        AdminEmail = u.Email,
+                        AdminName = u.FirstName,
+                        FileName = d.FileName
+                    }
+                ).FirstOrDefaultAsync();
+            }
+            else
                 {
-                    AdminEmail = u.Email,
-                    AdminName = u.FirstName,
-                    FileName = d.FileName
-                }
-            ).FirstOrDefaultAsync();
+                 docEmailData = await (
+                    from d in _context.OnboardingHRDocument
+                    join u in _context.Users on docLink.CreatedBy equals u.UserId
+                    where d.Id == docLink.OnboardingDocId
+                    select new
+                    {
+                        AdminEmail = u.Email,
+                        AdminName = u.FirstName,
+                        FileName = d.FileName
+                    }
+                ).FirstOrDefaultAsync();
+            }
+
 
             var userEmail = await _context.Users
                 .Where(x => x.UserId == userId)
@@ -84,16 +110,16 @@ namespace EVWebApi.Services
             await _emailSender.SendAsync(
                 ReplyTo: null,
                 UserName: null,
-                toEmail: emailData.AdminEmail,
+                toEmail: docEmailData.AdminEmail,
                 subject: "Document Access Request",
                 htmlBody: $@"
-            <p>Dear {emailData?.AdminName ?? "Admin"},</p>
+            <p>Dear {docEmailData?.AdminName ?? "Admin"},</p>
 
             <p>A user has requested re-access to a document.</p>
 
             <ul>
                 <li><strong>Requested By:</strong> {userEmail}</li>
-                <li><strong>File Name:</strong> {emailData?.FileName}</li>
+                <li><strong>File Name:</strong> {docEmailData?.FileName}</li>
                 <li><strong>Reason:</strong> {request.Reason ?? "N/A"}</li>
                 <li><strong>Requested On:</strong> {DateTime.Now:dd MMM yyyy hh:mm tt}</li>
             </ul>
@@ -149,17 +175,55 @@ namespace EVWebApi.Services
 
 
             // Fetch email data (single query)
-            var emailData = await (
-                from u in _context.Users
-                join d in _context.Documents on docLink.DocumentId equals d.DocumentId
-                where u.UserId == request.RequestedBy
-                select new
-                {
-                    UserEmail = u.Email,
-                    UserName = u.FirstName,
-                    FileName = d.FileName
-                }
+            var emailData = new
+            {
+                UserEmail = string.Empty,
+                UserName = string.Empty,
+                FileName = string.Empty
+            };
+
+            if (docLink.DocumentId.HasValue)
+            {
+                emailData = await (
+                   from u in _context.Users
+                   join d in _context.Documents on docLink.DocumentId equals d.DocumentId
+                   where u.UserId == request.RequestedBy
+                   select new
+                   {
+                       UserEmail = u.Email,
+                       UserName = u.FirstName,
+                       FileName = d.FileName
+                   }
+                ).FirstOrDefaultAsync();
+            }
+            else
+            {
+                emailData = await (
+                  from u in _context.Users
+                  join d in _context.OnboardingHRDocument on docLink.OnboardingDocId equals d.Id
+                  where u.UserId == request.RequestedBy
+                  select new
+                  {
+                      UserEmail = u.Email,
+                      UserName = u.FirstName,
+                      FileName = d.FileName
+                  }
             ).FirstOrDefaultAsync();
+            }
+
+
+
+            //var emailData = await (
+            //    from u in _context.Users
+            //    join d in _context.Documents on docLink.DocumentId equals d.DocumentId
+            //    where u.UserId == request.RequestedBy
+            //    select new
+            //    {
+            //        UserEmail = u.Email,
+            //        UserName = u.FirstName,
+            //        FileName = d.FileName
+            //    }
+            //).FirstOrDefaultAsync();
 
 
       
@@ -174,6 +238,7 @@ namespace EVWebApi.Services
                 var newAccess = new DocDownloadLink
                 {
                     DocumentId = docLink.DocumentId,
+                    OnboardingDocId=docLink.OnboardingDocId,
                     AssignedTo = request.RequestedBy,
                     CreatedBy = adminId,
                     MaxDownloads = dto.MaxDownload.Value,

@@ -16,10 +16,23 @@ namespace EVWebApi.Services
             _docrepo = docrepo;
         }
 
-        public async Task<List<string>> GetDynamicGroupingKeyAsync(int cabinetId)
+        public async Task<List<string>> GetDynamicGroupingKeyAsync(int cabinetId,string action)
         {
-
-            var columns = await _docrepo.GetCabinetGroupingColumns(cabinetId);
+            var columns = new List<string>();
+            if (action=="upload")
+            {   
+                columns = await _docrepo.GetCabinetUploadColumns(cabinetId);
+                
+            }
+            else if(action=="grouping")
+            {
+                 columns = await _docrepo.GetCabinetGroupingColumns(cabinetId);
+            }
+             else
+            {
+                throw new ArgumentException($"Invalid action: {action}. Expected 'upload' or 'grouping'.");
+            }
+            //columns = await _docrepo.GetCabinetGroupingColumns(cabinetId);
             // Maping DB Columns to EF Property Names
             var entityType = _context.Model.FindEntityType(typeof(Document));
 

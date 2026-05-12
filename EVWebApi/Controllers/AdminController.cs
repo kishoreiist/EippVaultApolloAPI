@@ -157,16 +157,18 @@ namespace EVWebApi.Controllers
                 string sql;
                 var cmd = new NpgsqlCommand();
                 cmd.Connection = conn;
-
+                cmd.Parameters.AddWithValue("p_filter_type",NpgsqlTypes.NpgsqlDbType.Text,(object?)query.FilterType ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("v_from_date",NpgsqlTypes.NpgsqlDbType.Date,(object?)query.FromDate ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("v_to_date",NpgsqlTypes.NpgsqlDbType.Date,(object?)query.ToDate ?? DBNull.Value);
 
                 if (!string.IsNullOrWhiteSpace(query.Region))
                 {
-                    sql = "SELECT public.fn_hr_dashboard_region_login(@p_region)";
-                    cmd.Parameters.AddWithValue("p_region", NpgsqlTypes.NpgsqlDbType.Text, query.Region);
+                    sql = "SELECT public.fn_hr_dashboard_region_login(@p_region,@p_filter_type,@v_from_date,@v_to_date)";
+                    cmd.Parameters.AddWithValue("p_region",NpgsqlTypes.NpgsqlDbType.Text,(object?)query.Region ?? DBNull.Value);
                 }
                 else
                 {
-                    sql = "SELECT public.fn_hr_dashboard_final_correct()";
+                    sql = "SELECT public.fn_hr_dashboard_final_correct(@p_filter_type,@v_from_date,@v_to_date)";
                 }
 
                 cmd.CommandText = sql;

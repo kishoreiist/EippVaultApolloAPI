@@ -5,6 +5,6 @@ namespace EVWebApi.Interfaces.Services.MetaDataReaders
     public interface IMetadataReaderService
     {
         bool CanRead(string fileExtension);
-        Task<MetadataReadResultDTO<DocumentMetadatadto>> ReadAsync(IFormFile file);
+        Task<MetadataReadResultDTO<T>> ReadAsync<T>(IFormFile file);
     }
 }

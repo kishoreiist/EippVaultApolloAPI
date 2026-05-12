@@ -48,7 +48,11 @@
 
     <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
 
+    <PackageReference Include="Serilog.Sinks.AzureLogAnalytics" Version="7.0.0" />
+
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+
+    <PackageReference Include="Serilog.Sinks.EventLog" Version="4.0.0" />
 
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />

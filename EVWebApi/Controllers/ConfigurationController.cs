@@ -83,8 +83,8 @@ namespace EVWebApi.Controllers
             try
             {
                 var result = await _service.GetCollectionDropDownListAsync(dto);
-                
-                return Ok( result );
+
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -138,7 +138,7 @@ namespace EVWebApi.Controllers
                 if (dto.ExpiryDate <= DateTime.UtcNow)
                     return BadRequest("Expiry date must be in future");
 
-               
+
                 var result = await _service.SendConfigurationAsync(dto, CurrentUserId);
                 await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Configuration", "Record Created");
                 return Ok(result);
@@ -206,7 +206,7 @@ namespace EVWebApi.Controllers
         [HttpGet("{id}/preview")]
         public async Task<IActionResult> PreviewDocument(int id)
         {
-            var result = await _service.GetDocumentStream(id);
+            var result = await _service.GetOnboardingDocumentStream(id);
             if (result == null) return NotFound();
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Hr Docs", "Document View");
 
@@ -220,13 +220,72 @@ namespace EVWebApi.Controllers
         [HttpGet("{id}/download")]
         public async Task<IActionResult> DownloadDocument(int id)
         {
-            var download = await _service.GetDocumentStream(id);
+            var download = await _service.GetOnboardingDocumentStream(id);
             if (download == null) return NotFound();
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Hr Docs", "Document Download");
 
             var contentType = FileContentTypeDetectHelper.GetContentType(download.FileName);
 
             return File(download.Stream, contentType, download.FileName, enableRangeProcessing: true);
+        }
+
+
+        [HttpPost("onboarding_excel_upload")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> Upload([FromForm] OnboardingUploadDto dto)
+        {
+            try
+            {
+
+                var result = await _service.OnboardingExcelUploadAsync(dto, CurrentUserId);
+
+                return Ok(result);
+
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+
+        [HttpGet("onboarding_failed_report/{batchId}")]
+        public async Task<IActionResult> ExportFailedRows(int batchId)
+        {
+            var (bytes, fileName) = await _service.ExportFailedRowsAsync(batchId);
+
+            return File(
+                bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+
+        }
+
+        [HttpPost("batch/{batchId}/confirm")]
+        public async Task<IActionResult> ConfirmOnboardingBatch(int batchId)
+        {
+
+
+            var result = await _service.ConfirmOnboardingBatchAsync(batchId, CurrentUserId);
+
+            return Ok(result);
+        }
+
+        [HttpGet("export_onboarding_report")]
+        public async Task<IActionResult> ExportOnboardingReport([FromQuery] ExportOnboardingReportQuery query)
+        {
+            var result = await _service.ExportOnboardingReport(query);
+
+            return File(
+                result.Item1,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                result.Item2);
+        }
+
+        [HttpGet("status_count")]
+        public async Task<IActionResult> GetCandidatesStatusCount([FromQuery] StatusCountQueryParamDto dto)
+        {
+            var result = await _service.GetCandidatesStatusCountAsync(dto);
+            return Ok(result);
         }
     }
  }

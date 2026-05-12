@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using EVWebApi.Models.HR;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EVWebApi.Models
@@ -8,12 +9,18 @@ namespace EVWebApi.Models
         [Column("id")]
         public int Id { get; set; }
 
-        [Required]
+        //[Required]
         [Column("document_id")]
-        public int DocumentId { get; set; }
+        public int? DocumentId { get; set; }
 
         [ForeignKey(nameof(DocumentId))]
         public Document? Document { get; set; }
+
+        [Column("onboarding_doc_id")]
+        public int? OnboardingDocId { get; set; }
+
+        [ForeignKey(nameof(OnboardingDocId))]
+        public OnboardingDocument? OnboardingDocument { get; set; }
 
         [Required]
         [Column("assigned_to")]
@@ -51,5 +58,7 @@ namespace EVWebApi.Models
         public DateTime? UpdatedAt { get; set; }
         [Column("shared_batch_id")]
         public Guid SharedBatchId { get; set; }
+        [Column("is_active")]
+        public bool IsActive { get; set; } = true;
     }
 }

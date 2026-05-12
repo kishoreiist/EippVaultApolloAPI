@@ -7,12 +7,11 @@ namespace EVWebApi.Helpers
 {
     public class DelimitedFileReadHelper
     {
-        public static async Task<MetadataReadResultDTO<DocumentMetadatadto>> ReadAsync(
+        public static async Task<MetadataReadResultDTO<T>> ReadAsync<T>(
             IFormFile file,
             char delimiter)
         {
-            var result = new MetadataReadResultDTO<DocumentMetadatadto>();
-
+            var result = new MetadataReadResultDTO<T>();
             var config = new CsvConfiguration(CultureInfo.InvariantCulture)
             {
                 Delimiter = delimiter.ToString(),
@@ -27,7 +26,9 @@ namespace EVWebApi.Helpers
 
             await csv.ReadAsync();
             csv.ReadHeader();
-
+            result.Headers = csv.HeaderRecord
+                ?.Select(x => x.Trim().ToLower())
+                .ToList() ?? new();
             int rowNumber = 2;
 
             while (await csv.ReadAsync())
@@ -36,7 +37,7 @@ namespace EVWebApi.Helpers
 
                 try
                 {
-                    var record = csv.GetRecord<DocumentMetadatadto>();
+                    var record = csv.GetRecord<T>();
                     result.Records.Add(record);
                 }
                 catch (CsvHelper.TypeConversion.TypeConverterException ex)

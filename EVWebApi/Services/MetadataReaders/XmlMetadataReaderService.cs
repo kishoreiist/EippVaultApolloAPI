@@ -5,14 +5,14 @@ using System.Xml.Serialization;
 
 namespace EVWebApi.Services.MetadataReaders
 {
-    public class XmlMetadataReaderService : IMetadataReaderService
+    public class XmlMetadataReaderService: IMetadataReaderService
     {
         public bool CanRead(string fileExtension)
             => fileExtension.Equals(".xml", StringComparison.OrdinalIgnoreCase);
 
-        public async Task<MetadataReadResultDTO<DocumentMetadatadto>> ReadAsync(IFormFile file)
+        public async Task<MetadataReadResultDTO<T>> ReadAsync<T>(IFormFile file)
         {
-            var result = new MetadataReadResultDTO<DocumentMetadatadto>();
+            var result = new MetadataReadResultDTO<T>();
 
             var settings = new XmlReaderSettings
             {
@@ -26,7 +26,7 @@ namespace EVWebApi.Services.MetadataReaders
             int rowNumber = 1;
 
             var serializer = new XmlSerializer(
-                    typeof(DocumentMetadatadto),
+                    typeof(T),
                     new XmlRootAttribute("Document")
                     {
                         Namespace = ""
@@ -45,7 +45,7 @@ namespace EVWebApi.Services.MetadataReaders
                     try
                     {
                         using var subReader = reader.ReadSubtree();
-                        var record = (DocumentMetadatadto)serializer.Deserialize(subReader)!;
+                        var record = (T)serializer.Deserialize(subReader)!;
                         result.Records.Add(record);
 
                     }

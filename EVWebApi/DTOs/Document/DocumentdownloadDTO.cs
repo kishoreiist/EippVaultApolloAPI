@@ -8,7 +8,8 @@
     public class DocDownloadGetDTO
     {
         public int DocumentLinkId { get; set; }
-        public int DocumentId { get; set; }
+        public int? DocumentId { get; set; }
+        public int? OnboardingDocId { get; set; }
         public DateTime ExpiresAt { get; set; }
         public int RemainingDownloads { get; set; }  
         public string FileName { get; set; } 

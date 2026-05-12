@@ -10,7 +10,8 @@ namespace EVWebApi.Models
         public string GroupingCol { get; set; }
         [Column("grouping_order")]
         public string GroupingOrder { get; set; }
-
+        [Column("is_required_upload")]
+        public string IsRequiredUpload { get; set; }
         // Navigation Property
         [ForeignKey("cabinet_id")]
         public virtual Cabinet Cabinet { get; set; }

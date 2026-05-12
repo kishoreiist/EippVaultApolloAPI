@@ -13,5 +13,11 @@ namespace EVWebApi.Interfaces.Repositories
         Task<List<ConfigRequest>> GetConfigRequestAsync(ConfigQueryDetailDto dto);
         Task<int?> GetUploadCount(int recipientId);
         Task<OnboardingDocument> GetOnboardingFilesAsync(int docid);
+        Task<ConfigRequestRecipient?> MatchOnboardingCandidateAsync(HrParsedRowDto row);
+        Task<HrConfirmationBatch> CreateOnboardingBatch(HrConfirmationBatch batch);
+        Task<HrConfirmationBatchRow> CreateOnboardingBatchRows(HrConfirmationBatchRow batchrows);
+        Task<string> GetOnboardingFileNameById(int id);
+        Task<List<int>> GetActiveOnboardDocIdsForUserAsync(int userId, IEnumerable<int> documentIds);
+       Task<OnboardingDocument> DeleteOnboardingDocument(int id);
     }
 }

@@ -313,8 +313,9 @@ namespace EVWebAPI.Controllers
                 }
                 if (!success)
                 {
-                    _logger.LogWarning("Failed MFA verification for {Email} using {Method}", request.Email, request.Method);
-                    return Unauthorized(new { message = "Invalid MFA code" });
+                    _logger.LogError("Failed MFA verification for {Email} using {Method}", request.Email, request.Method);
+                    throw new Exception();
+                    //return Unauthorized(new { message = "Invalid MFA code" });
                 }
 
                 var authResult = await _authService.GenerateJwtAfterMfaAsync(request.Email);

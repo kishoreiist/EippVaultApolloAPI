@@ -1,6 +1,7 @@
 ﻿using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
 using EVWebApi.Models;
+using EVWebApi.Models.HR;
 using System.Xml.Linq;
 
 namespace EVWebApi.Interfaces.Repositories
@@ -11,7 +12,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<Document> GetDocument(int id);
         Task<int> GetLatestVersion(int docId);
         Task UpdateStatus(int id);
-        Task DeleteDocument(int documentId);
+        Task<Document> DeleteDocument(int documentId);
         IQueryable<Document> Query();
         Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId);
 
@@ -20,6 +21,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<string> GetDocumentName(int id);
         void AddDocumentRange(Document doc);
         Task<List<string>> GetCabinetGroupingColumns(int cabinetId);
+        Task<List<string>> GetCabinetUploadColumns(int cabinetId);
         Task<List<Document>> GetDocumentsByIds(List<int> ids);
         Task<List<Document>> ExcelExportQuery(ExportExcelDocDto dto);
         Task<int> GetDocumentIdFromPathAsync(string filePath); //need to check
@@ -37,11 +39,11 @@ namespace EVWebApi.Interfaces.Repositories
         Task<DocDownloadLink>GetByIdDownloadLinkAsync(int docid,int userid);
         Task<List<int>> GetActiveDocumentIdsForUserAsync(int userId, IEnumerable<int> documentIds);
 
-        Task<int> CounterDocumentDownload(int docid, int? userid);
+        Task<int> CounterDocumentDownload(DocumentRequestDto dto, int? userid);
 
 
         ///--versioning
-      
+
         Task<Document?> FindDuplicateAsync(DocumentUploadDto dto, string? username, string? fullname);
         Task<List<Document>> GetDocumentsForDuplicateCheck(int cabinetId);
         bool IsDuplicate(Document dbDoc, DocumentMetadatadto record, string[] fields);
@@ -50,6 +52,7 @@ namespace EVWebApi.Interfaces.Repositories
 
 
         Task<List<ManfactureDto>> GetManufactureDetailsList();
+    
 
     }
 }

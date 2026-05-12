@@ -2,7 +2,8 @@
 {
     public class SplitAndExtractPdfDto
     {
-        public required int DocumentId { get; set; }
+        public int Id { get; set; }
+        public DocumentSourceType Source { get; set; }
         public int CabinetId { get; set; }
         public required int FromPage { get; set; }
         public required int ToPage { get; set; }

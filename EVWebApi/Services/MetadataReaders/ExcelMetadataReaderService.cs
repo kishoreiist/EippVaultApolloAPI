@@ -1,6 +1,7 @@
 ﻿using ClosedXML.Excel;
 using EVWebApi.DTOs.Document;
 using EVWebApi.Interfaces.Services.MetaDataReaders;
+using System.Globalization;
 
 
 namespace EVWebApi.Services.MetadataReaders
@@ -10,9 +11,9 @@ namespace EVWebApi.Services.MetadataReaders
         public bool CanRead(string fileExtension)
             => fileExtension is ".xlsx" or ".xls";
 
-        public async Task<MetadataReadResultDTO<DocumentMetadatadto>> ReadAsync(IFormFile file)
+        public async Task<MetadataReadResultDTO<T>> ReadAsync<T>(IFormFile file)
         {
-            var result = new MetadataReadResultDTO<DocumentMetadatadto>();
+            var result = new MetadataReadResultDTO<T>();
 
             using var stream = file.OpenReadStream();
             using var workbook = new XLWorkbook(stream);
@@ -20,23 +21,29 @@ namespace EVWebApi.Services.MetadataReaders
 
             var headerRow = sheet.Row(1);
             var headers = headerRow.Cells().Select(c => c.GetString().Trim().ToLower()).ToList();
-            int row = 2; // header in row 1
+            result.Headers = headers;
+            //int row = 2; // header in row 1
 
 
-            while (!sheet.Row(row).IsEmpty())
+            //while (!sheet.Row(row).IsEmpty())
+            var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+            for (int row = 2; row <= lastRow; row++)
             {
+                if (sheet.Row(row).IsEmpty())
+                    continue;
                 result.TotalRecords++;
 
                 try
                 {
-                    var record = new DocumentMetadatadto();
+                    var record = Activator.CreateInstance<T>();
                     bool hasRowError = false;
 
                     for (int col = 0; col < headers.Count; col++)
                     {
                         var header = headers[col];
 
-                        var prop = typeof(DocumentMetadatadto)
+                        var prop = typeof(T)
                             .GetProperties()
                             .FirstOrDefault(p =>
                                 p.Name.Equals(header, StringComparison.OrdinalIgnoreCase));
@@ -51,14 +58,48 @@ namespace EVWebApi.Services.MetadataReaders
                         try
                         {
                             var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-                            var convertedValue = Convert.ChangeType(cellValue, targetType);
+
+                            object? convertedValue;
+
+                            if (targetType == typeof(DateTime))
+                            {
+                                convertedValue = cell.GetDateTime();
+                            }
+                            else
+                            {
+                                //convertedValue =
+                                //    Convert.ChangeType(cellValue, targetType);
+                                if (targetType == typeof(int))
+                                {
+                                    convertedValue = int.Parse(cellValue);
+                                }
+                                else if (targetType == typeof(decimal))
+                                {
+                                    convertedValue = decimal.Parse(
+                                        cellValue,
+                                        CultureInfo.InvariantCulture);
+                                }
+                                else if (targetType == typeof(DateTime))
+                                {
+                                    convertedValue = DateTime.Parse(
+                                        cellValue,
+                                        CultureInfo.InvariantCulture);
+                                }
+                                else
+                                {
+                                    convertedValue = cellValue;
+                                }
+                            }
+
+
+                            //var convertedValue = Convert.ChangeType(cellValue, targetType);
                             prop.SetValue(record, convertedValue);
                         }
-                        catch
+                        catch (Exception ex)
                         {
                             hasRowError = true;
                             result.Errors.Add(
-                                $"Row {row-1}: Invalid value '{cellValue}' for field '{prop.Name}'"
+                                $"Row {row-1}: Invalid value '{cellValue}' for field '{prop.Name}'.Error:{ex.Message}"
                             );
                         }
                     }
@@ -74,7 +115,7 @@ namespace EVWebApi.Services.MetadataReaders
                     result.Errors.Add($"Row {row}: {ex.Message}");
                 }
 
-                row++;
+               
             }
 
             return result;

@@ -128,6 +128,7 @@ namespace EVWebApi.DTOs.HR
         public string PAN { get; set; }
         public DateTime? Dob { get; set; }
         public string Status { get; set; }
+        public bool IsHired { get; set; }
         public DateTime? CompletedAt { get; set; }
         public SubmittedDocDto Submitted { get; set; }
         public PendingDocDto Pending { get; set; }

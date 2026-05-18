@@ -334,8 +334,6 @@ namespace EVWebApi.Repositories
         {
             var docLink = await _context.DocumentLink
                 .Where(d => d.AssignedTo == userid)
-                //.Where(d => d.ExpiryDate > DateTime.UtcNow)
-                //.Where(d=>d.CurrentDownloads<d.MaxDownloads)
                 .OrderByDescending(d => d.ExpiryDate)
                 .Select(d => new DocDownloadGetDTO
                 {
@@ -344,11 +342,13 @@ namespace EVWebApi.Repositories
                     OnboardingDocId = d.OnboardingDocId,
                     ExpiresAt = d.ExpiryDate,
                     RemainingDownloads = d.MaxDownloads - d.CurrentDownloads,
-                    FileName = d.Document.FileName
+                    // FileName = d.Document.FileName?
+                    FileName = d.OnboardingDocId != null
+                    ? d.OnboardingDocument!.FileName
+                    : d.Document!.FileName
                 })
                  .ToListAsync();
-            //if (docLink == null || !docLink.Any())
-            //    throw new NotFoundException("No download link found for the user.");
+
             return docLink;
         }
 

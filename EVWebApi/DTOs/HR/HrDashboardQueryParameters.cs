@@ -15,6 +15,8 @@ namespace EVWebApi.DTOs.HR
         public DateTime? ToDate { get; set; }
         [FromQuery(Name = "filter_type")]
         public string? FilterType { get; set; }
+        [FromQuery(Name = "onboarding_type")]
+        public string? OnboardingType { get; set; }
     }
 
     public class PoDashboardQueryParameters

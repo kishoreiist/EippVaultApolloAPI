@@ -145,11 +145,12 @@ namespace EVWebApi.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new
-                {
-                    message = "Failed to send configuration",
-                    error = ex.InnerException.Message
-                });
+                //return StatusCode(500, new
+                //{
+                //    message = "Failed to send configuration",
+                //    error = ex.InnerException.Message
+                //});
+                throw;
             }
         }
 

@@ -227,9 +227,33 @@ namespace EVWebApi.Services
                 docQuery = docQuery.Where(d => d.Region == query.Region);
 
             //Document Type
+            //if (docTypeId.HasValue)
+            //{
+
+            //    docQuery = docQuery.Where(d => d.DocumentTypeId == docTypeId.Value);
+
+            //}
+
+     
             if (docTypeId.HasValue)
             {
-                docQuery = docQuery.Where(d => d.DocumentTypeId == docTypeId.Value);
+                docQuery = docQuery.Where(d =>
+
+                    // OLD DOCUMENTS
+                    (d.CandidateId == null &&
+                     d.DocumentTypeId == docTypeId.Value)
+
+                    ||
+
+                    // NEW ONBOARDING DOCUMENTS
+                    (d.CandidateId != null &&
+                     _context.OnboardingHRDocument.Any(o =>
+                         o.CandidateId == d.CandidateId &&
+                         o.DocumentTypeId == docTypeId.Value))
+                )
+                    .GroupBy(d => d.CandidateId ?? d.DocumentId)
+                    .Select(g => g.First());
+                
             }
             // name
             if (!string.IsNullOrWhiteSpace(query.Name))
@@ -600,7 +624,9 @@ namespace EVWebApi.Services
                                    d.CandidateId.Value,
                                    out var uploads))
                            {
-                               return uploads.Select(u => new DocumentChildDDTO
+                               return uploads
+                                .Where(x => !docTypeId.HasValue || x.DocumentTypeId == docTypeId.Value)
+                                .Select(u => new DocumentChildDDTO
                                {
                                    //DocumentId = u.Id,
                                    DocumentId = d.DocumentId,
@@ -609,7 +635,9 @@ namespace EVWebApi.Services
                                    NotesCount = d.Notes?.Count ?? 0,
                                    FileName = u.FileName,
                                    FilePath = u.FilePath
-                               }).ToList();
+                               })
+                               
+                               .ToList();
                            }
 
                            return Enumerable.Empty<DocumentChildDDTO>();

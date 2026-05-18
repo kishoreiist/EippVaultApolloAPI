@@ -337,110 +337,139 @@ namespace EVWebApi.Services
         //------------------------------------send url---------------------------------------------
         public async Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId)
         {
-            var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
 
-            if (collection == null)
-                throw new NotFoundException("Collection not found");
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            var user = await _context.Users
-                .Where(u => u.UserId == userId)
-                .Select(u => new
-                {
-                    u.Email,
-                    u.Username
-                })
-                .FirstOrDefaultAsync();
-
-            // Create Request
-            var request = new ConfigRequest
+            try
             {
-                ConfigName = dto.Name,
-                CollectionId = dto.CollectionId,
-                ExpiryDate = dto.ExpiryDate!.Value,
-                Description = dto.Description,
-                CreatedBy = userId,
-                CreatedAt = DateTime.UtcNow
-            };
+                var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
 
-            // Normalize emails
-            var normalizedEmails = dto.Emails
-                .Where(e => !string.IsNullOrWhiteSpace(e))
-                .Select(e => e.Trim().ToLower())
-                .Distinct()
-                .ToList();
+                if (collection == null)
+                    throw new NotFoundException("Collection not found");
 
-            var candidates = new List<Candidate>();
-
-            // PRE ONBOARDING
-            if (collection.Type.ToLower() == "pre")
-            {
-                candidates = normalizedEmails
-                    .Select(email => new Candidate
+                var user = await _context.Users
+                    .Where(u => u.UserId == userId)
+                    .Select(u => new
                     {
-                        Email = email,
-                        Region = collection.Region
-                        //CreatedAt = DateTime.UtcNow
+                        u.Email,
+                        u.Username
                     })
+                    .FirstOrDefaultAsync();
+
+                // Create Request
+                var request = new ConfigRequest
+                {
+                    ConfigName = dto.Name,
+                    CollectionId = dto.CollectionId,
+                    ExpiryDate = dto.ExpiryDate!.Value,
+                    Description = dto.Description,
+                    CreatedBy = userId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                // Normalize emails
+                var normalizedEmails = dto.Emails
+                    .Where(e => !string.IsNullOrWhiteSpace(e))
+                    .Select(e => e.Trim().ToLower())
+                    .Distinct()
                     .ToList();
 
-                _context.Candidates.AddRange(candidates);
-
-                await _context.SaveChangesAsync();
-            }
-
-            // POST ONBOARDING
-            else
-            {
-                candidates = await _context.Candidates
+                var candidates = new List<Candidate>();
+                var existingCandidates = await _context.Candidates
                     .Where(c => normalizedEmails.Contains(c.Email.ToLower()))
                     .ToListAsync();
 
-                var foundEmails = candidates
-                    .Select(c => c.Email.ToLower())
-                    .ToList();
-
-                var missingEmails = normalizedEmails
-                    .Except(foundEmails)
-                    .ToList();
-
-                if (missingEmails.Any())
+                // PRE ONBOARDING
+                if (collection.Type.ToLower() == "pre")
                 {
-                    throw new BadRequestException(
-                        $"Candidates not found for post onboarding: {string.Join(", ", missingEmails)}");
+                    var existingEmails = existingCandidates
+                        .Select(c => c.Email.ToLower())
+                        .ToList();
+                    if (existingEmails.Any())
+                    {
+                        throw new BadRequestException(
+                            $"Candidates already exist: {string.Join(", ", existingEmails)}");
+                    }
+
+                    candidates = normalizedEmails
+                        .Select(email => new Candidate
+                        {
+                            Email = email,
+                            Region = collection.Region
+                            //CreatedAt = DateTime.UtcNow
+                        })
+                        .ToList();
+
+                    _context.Candidates.AddRange(candidates);
+
+                    await _context.SaveChangesAsync();
                 }
-            }
 
-            // Create recipients
-            var recipients = candidates
-                .Select(candidate => new ConfigRequestRecipient
+                // POST ONBOARDING
+                else
                 {
-                    Token = Guid.NewGuid().ToString(),
-                    CandidateId = candidate.Id,
-                    Status = "pending"
-
-                })
-                .ToList();
-
-            request.Recipients = recipients;
-
-            _context.ConfigurationRequests.Add(request);
-
-            await _context.SaveChangesAsync();
+                    candidates = existingCandidates;
 
 
-            //Generate email tasks (parallel)
+                    var foundEmails = candidates
+                        .Select(c => c.Email.ToLower())
+                        .ToList();
 
-            int success = 0;
-            int failed = 0;
-            var failedDetails = new List<string>();
-            var lockObj = new object();
+                    var missingEmails = normalizedEmails
+                        .Except(foundEmails)
+                        .ToList();
 
-            var semaphore = new SemaphoreSlim(5); // max 5 parallel
-            var emailTasks = recipients.Select(async r =>
-            {
-                var link = $"{_externalUploadUrl}/{r.Token}";
+                    if (missingEmails.Any())
+                    {
+                        throw new BadRequestException(
+                            $"Candidates not found for post onboarding: {string.Join(", ", missingEmails)}");//For post onboarding, all provided email IDs must already exist in Candidates table.
+                    }
 
-                var body = $@"
+                    var notHiredCandidates = candidates
+                        .Where(c => !c.IsHired)
+                        .Select(c => c.Email)
+                        .ToList();
+
+                    if (notHiredCandidates.Any())
+                    {
+                        throw new BadRequestException(
+                            $"Post onboarding documents can only be assigned to hired candidates. Not hired: {string.Join(", ", notHiredCandidates)}");
+                    }
+                }
+
+                // Create recipients
+
+
+                var recipients = candidates
+                    .Select(candidate => new ConfigRequestRecipient
+                    {
+                        Token = Guid.NewGuid().ToString(),
+                        CandidateId = candidate.Id,
+                        Status = "pending"
+
+                    })
+                    .ToList();
+
+                request.Recipients = recipients;
+                _context.ConfigurationRequests.Add(request);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+
+                //Generate email tasks (parallel)
+
+                int success = 0;
+                int failed = 0;
+                var failedDetails = new List<string>();
+                var lockObj = new object();
+
+                var semaphore = new SemaphoreSlim(5); // max 5 parallel
+                var emailTasks = recipients.Select(async r =>
+                {
+                    var link = $"{_externalUploadUrl}/{r.Token}";
+
+                    var body = $@"
                     <p>Greetings,</p>
                     <p>Please upload the required documents using the link below:</p>
                     <p><a href='{link}'><b>Upload Your Documents</b></a></p>
@@ -450,151 +479,157 @@ namespace EVWebApi.Services
                     <p>Regards,</p>
                     <p>Apollo EIPP Vault Team</p>
                 ";
-                var subject = "Action Required: Upload Your Documents";
-                await semaphore.WaitAsync();
-                try
-                {
-                    var sent = await _emailSender.SendAsync(r.Candidate.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
-
-                    lock (lockObj)
+                    var subject = "Action Required: Upload Your Documents";
+                    await semaphore.WaitAsync();
+                    try
                     {
-                        if (sent)
-                            success++;
-                        else
+                        var sent = await _emailSender.SendAsync(r.Candidate.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
+
+                        lock (lockObj)
+                        {
+                            if (sent)
+                                success++;
+                            else
+                                failed++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (lockObj)
+                        {
                             failed++;
+                            failedDetails.Add($"Email failed for {r.Candidate.Email}: {ex.Message}");
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    lock (lockObj)
+                    finally
                     {
-                        failed++;
-                        failedDetails.Add($"Email failed for {r.Candidate.Email}: {ex.Message}");
+                        semaphore.Release();
                     }
-                }
-                finally
+                });
+
+                // Send all emails in parallel
+                await Task.WhenAll(emailTasks);
+
+
+                return new ConfigurationResponseDto
                 {
-                    semaphore.Release();
-                }
-            });
+                    RequestId = request.Id,
+                    TotalEmails = recipients.Count,
+                    Success = success,
+                    Failed = failed,
+                    FailedEmailDetails = failedDetails
 
-            // Send all emails in parallel
-            await Task.WhenAll(emailTasks);
-
-
-            return new ConfigurationResponseDto
+                };
+            }
+            catch (Exception ex)
             {
-                RequestId = request.Id,
-                TotalEmails = recipients.Count,
-                Success = success,
-                Failed = failed,
-                FailedEmailDetails = failedDetails
-
-            };
+                await transaction.RollbackAsync();
+                throw new ServerException(ex.InnerException.Message);
+            }
         }
 
         //public async Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId)
         //{
 
-        //    var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
-        //    if (collection == null)
-        //        throw new NotFoundException("Collection not found");
+            //    var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
+            //    if (collection == null)
+            //        throw new NotFoundException("Collection not found");
 
-        //    var user = await _context.Users
-        //        .Where(u => u.UserId == userId)
-        //        .Select(u => new { u.Email, u.Username })
-        //        .FirstOrDefaultAsync();
+            //    var user = await _context.Users
+            //        .Where(u => u.UserId == userId)
+            //        .Select(u => new { u.Email, u.Username })
+            //        .FirstOrDefaultAsync();
 
-        //    var request = new ConfigRequest
-        //    {
-        //        ConfigName=dto.Name,
-        //        CollectionId = dto.CollectionId,
-        //        ExpiryDate = dto.ExpiryDate.Value,
-        //        Description = dto.Description,
-        //        CreatedBy = userId,
-        //        CreatedAt = DateTime.UtcNow
-        //    };
-
-
-        //    var recipients = dto.Emails
-        //        .Where(e => !string.IsNullOrWhiteSpace(e))
-        //        .Select(email => new ConfigRequestRecipient
-        //        {
-        //            Email = email.Trim(),
-        //            Token = Guid.NewGuid().ToString(),
-        //            Status = "pending"
-        //        })
-        //        .ToList();
-
-        //    request.Recipients = recipients;
-
-        //    _context.ConfigurationRequests.Add(request);
-        //    await _context.SaveChangesAsync();
-
-        //    //Generate email tasks (parallel)
-
-        //    int success = 0;
-        //    int failed = 0;
-        //    var failedDetails = new List<string>();
-        //    var lockObj = new object();
-
-        //    var semaphore = new SemaphoreSlim(5); // max 5 parallel
-        //    var emailTasks = recipients.Select(async r =>
-        //    {
-        //        var link = $"{_externalUploadUrl}/{r.Token}";
-
-        //        var body = $@"
-        //        <p>Greetings,</p>
-        //        <p>Please upload the required documents using the link below:</p>
-        //        <p><a href='{link}'><b>Upload Your Documents</b></a></p>
-        //        <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
-        //        <br><p>If you need any assistance, feel free to contact us.</p></br>
-
-        //        <p>Regards,</p>
-        //        <p>Apollo EIPP Vault Team</p>
-        //    ";
-        //        var subject = "Action Required: Upload Your Documents";
-        //        await semaphore.WaitAsync();
-        //        try
-        //        {
-        //            var sent = await _emailSender.SendAsync(r.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
-
-        //            lock (lockObj)
-        //            {
-        //                if (sent)
-        //                    success++;
-        //                else
-        //                    failed++;
-        //            }
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            lock (lockObj)
-        //            {
-        //                failed++;
-        //                failedDetails.Add($"Email failed for {r.Email}: {ex.Message}");
-        //            }
-        //        }
-        //        finally
-        //        {
-        //            semaphore.Release();
-        //        }
-        //    });
-
-        //    // Send all emails in parallel
-        //    await Task.WhenAll(emailTasks);
+            //    var request = new ConfigRequest
+            //    {
+            //        ConfigName=dto.Name,
+            //        CollectionId = dto.CollectionId,
+            //        ExpiryDate = dto.ExpiryDate.Value,
+            //        Description = dto.Description,
+            //        CreatedBy = userId,
+            //        CreatedAt = DateTime.UtcNow
+            //    };
 
 
-        //    return new ConfigurationResponseDto
-        //    {
-        //        RequestId = request.Id,
-        //        TotalEmails = recipients.Count,
-        //        Success = success,
-        //        Failed = failed,
-        //        FailedEmailDetails = failedDetails
+            //    var recipients = dto.Emails
+            //        .Where(e => !string.IsNullOrWhiteSpace(e))
+            //        .Select(email => new ConfigRequestRecipient
+            //        {
+            //            Email = email.Trim(),
+            //            Token = Guid.NewGuid().ToString(),
+            //            Status = "pending"
+            //        })
+            //        .ToList();
 
-        //    };
-        //}
+            //    request.Recipients = recipients;
+
+            //    _context.ConfigurationRequests.Add(request);
+            //    await _context.SaveChangesAsync();
+
+            //    //Generate email tasks (parallel)
+
+            //    int success = 0;
+            //    int failed = 0;
+            //    var failedDetails = new List<string>();
+            //    var lockObj = new object();
+
+            //    var semaphore = new SemaphoreSlim(5); // max 5 parallel
+            //    var emailTasks = recipients.Select(async r =>
+            //    {
+            //        var link = $"{_externalUploadUrl}/{r.Token}";
+
+            //        var body = $@"
+            //        <p>Greetings,</p>
+            //        <p>Please upload the required documents using the link below:</p>
+            //        <p><a href='{link}'><b>Upload Your Documents</b></a></p>
+            //        <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
+            //        <br><p>If you need any assistance, feel free to contact us.</p></br>
+
+            //        <p>Regards,</p>
+            //        <p>Apollo EIPP Vault Team</p>
+            //    ";
+            //        var subject = "Action Required: Upload Your Documents";
+            //        await semaphore.WaitAsync();
+            //        try
+            //        {
+            //            var sent = await _emailSender.SendAsync(r.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
+
+            //            lock (lockObj)
+            //            {
+            //                if (sent)
+            //                    success++;
+            //                else
+            //                    failed++;
+            //            }
+            //        }
+            //        catch (Exception ex)
+            //        {
+            //            lock (lockObj)
+            //            {
+            //                failed++;
+            //                failedDetails.Add($"Email failed for {r.Email}: {ex.Message}");
+            //            }
+            //        }
+            //        finally
+            //        {
+            //            semaphore.Release();
+            //        }
+            //    });
+
+            //    // Send all emails in parallel
+            //    await Task.WhenAll(emailTasks);
+
+
+            //    return new ConfigurationResponseDto
+            //    {
+            //        RequestId = request.Id,
+            //        TotalEmails = recipients.Count,
+            //        Success = success,
+            //        Failed = failed,
+            //        FailedEmailDetails = failedDetails
+
+            //    };
+            //}
 
 
         public async Task<UploadPageResponseDto> GetUploadDocsAsync(string token)
@@ -1162,7 +1197,12 @@ namespace EVWebApi.Services
                 await reader.ReadAsync<HrParsedRowDto>(dto.File);
 
             if (!parseResult.Records.Any())
-                throw new ValidationException("No records found");
+            {
+                var errorMessage = string.Join(Environment.NewLine, parseResult.Errors);
+
+                throw new ValidationException(
+                    $"No records found/Invalid Input format. Errors:{Environment.NewLine}{errorMessage}");
+            }
 
 
             // validate headers
@@ -1617,6 +1657,7 @@ namespace EVWebApi.Services
                 "@p_report_type," +
                 "@p_region," +
                 "@p_status," +
+                "@p_onboarding_type," +
                 "@p_config_id," +
                 "@p_from_date," +
                 "@p_to_date)",
@@ -1630,6 +1671,10 @@ namespace EVWebApi.Services
             cmd.Parameters.AddWithValue(
                 "p_region",
                 (object?)query.Region ?? DBNull.Value);
+
+            cmd.Parameters.AddWithValue(
+                "p_onboarding_type",
+                (object?)query.OnboardingType ?? DBNull.Value);
 
             cmd.Parameters.AddWithValue(
                 "p_status",
@@ -1655,10 +1700,11 @@ namespace EVWebApi.Services
             {
                 rows.Add(new OnboardingReportRowDto
                 {
-                    RecipientId = Convert.ToInt64(reader["recipient_id"]),
+                    RequestId = Convert.ToInt64(reader["request_id"]),
                     CandidateName = reader["candidate_name"]?.ToString(),
                     Email = reader["email"]?.ToString(),
                     Region = reader["region"]?.ToString(),
+                    OnboardingType = reader["onboarding_type"]?.ToString(),
                     OverAllStatus = reader["overall_status"]?.ToString(),
                     CompletionPercent = Convert.ToDecimal(reader["completion_percent"]),
                     DocumentName = reader["document_name"]?.ToString(),
@@ -1675,7 +1721,7 @@ namespace EVWebApi.Services
                 .ToList();
 
             var exportData = rows
-                .GroupBy(x => x.RecipientId)
+                .GroupBy(x => x.RequestId)
                 .Select(g =>
                 {
                     var first = g.First();
@@ -1685,6 +1731,7 @@ namespace EVWebApi.Services
                         CandidateName = first.CandidateName,
                         Email = first.Email,
                         Region = first.Region,
+                        OnboardingType = first.OnboardingType,
                         OverAllStatus = first.OverAllStatus,
                         CompletionPercent = first.CompletionPercent,
                         IsHired = first.IsHired
@@ -1710,8 +1757,11 @@ namespace EVWebApi.Services
                 "Email",
                 "Region",
                 "OverAllStatus",
+                "OnboardingType",
                 "IsHired",
-                "CompletionPercent"
+                "CompletionPercent",
+                
+            
             };
 
             columns.AddRange(documentColumns);
@@ -1727,6 +1777,7 @@ namespace EVWebApi.Services
                         "Email" => item.Email,
                         "Region" => item.Region,
                         "OverAllStatus" => item.OverAllStatus,
+                        "OnboardingType" => item.OnboardingType,
                         "IsHired" => item.IsHired ? "Yes" : "No",
                         "CompletionPercent" => item.CompletionPercent,
                         _ => item.Documents.ContainsKey(col)
@@ -1747,8 +1798,14 @@ namespace EVWebApi.Services
             var query = _context.ConfigurationRequestRecipient
                 .AsNoTracking()
                 .Where(r =>
-                    dto.Region == null ||
-                        r.Request.Collection.Region == dto.Region);
+                   ( dto.Region == null ||
+                        r.Request.Collection.Region == dto.Region)
+                &&
+
+                (dto.OnboardingType == null ||
+                    r.Request.Collection.Type.ToLower() ==
+                    dto.OnboardingType.ToLower()));
+
             if (dto.FromDate.HasValue)
             {
                 query = query.Where(r => r.Request.CreatedAt >= dto.FromDate.Value);
@@ -1776,14 +1833,7 @@ namespace EVWebApi.Services
                         x.Status == "expired")
                 })
                 .FirstOrDefaultAsync();
-            //return new StatusCountResponseDto
-            //{
-            //    Total = stats.Total,
-            //    Pending = stats.Pending,
-            //    Completed = stats.Completed,
-            //    InProgress = stats.InProgress,
-            //    Expired= stats.Expired
-            //};
+
             return stats ?? new StatusCountResponseDto();
         }
 

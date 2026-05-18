@@ -38,5 +38,7 @@ namespace EVWebApi.DTOs.HR
 
         [FromQuery(Name = "region")]
         public string? Region { get; set; }
+        [FromQuery(Name = "onboarding_type")]
+        public string? OnboardingType { get; set; }
     }
 }

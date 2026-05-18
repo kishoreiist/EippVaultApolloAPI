@@ -19,7 +19,9 @@ namespace EVWebApi.DTOs.HR
         public string? Region { get; set; }
         [FromQuery(Name = "status")]
         public string? Status { get; set; }
-        
+        [FromQuery(Name = "onboarding_type")]
+        public string? OnboardingType { get; set; }
+
         [FromQuery(Name = "config_id")]
         public long? ConfigId { get; set; }
         [FromQuery(Name = "from_date")]
@@ -30,9 +32,10 @@ namespace EVWebApi.DTOs.HR
     }
     public class OnboardingReportRowDto
     {
-        public long RecipientId { get; set; }
+        public long RequestId { get; set; }
 
         public string? CandidateName { get; set; }
+        public string? OnboardingType { get; set; }
 
         public string? Email { get; set; }
 
@@ -56,6 +59,7 @@ namespace EVWebApi.DTOs.HR
         public string? Region { get; set; }
 
         public string? OverAllStatus { get; set; }
+        public string? OnboardingType { get; set; }
         public bool IsHired{ get; set; }
 
         public decimal CompletionPercent { get; set; }

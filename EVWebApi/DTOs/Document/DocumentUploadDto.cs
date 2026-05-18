@@ -46,5 +46,9 @@ namespace EVWebApi.DTOs.Document
 
         public string? Action { get; set; }
     }
-
+    public class DocTypeCreateDto
+    {
+        public string Label { get; set; } = default!;
+        public string Type { get; set; } = default!;
+    }
 }

@@ -20,6 +20,8 @@ namespace EVWebApi.Models.HR
         public string Region { get; set; }
         [Column("status")]
         public string Status { get; set; }
+        [Column("type")]
+        public string Type { get; set; }
 
         // Navigation
         public ICollection<CollectionDocumentType> CollectionDocumentTypes { get; set; }

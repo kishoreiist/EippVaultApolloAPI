@@ -29,6 +29,8 @@ namespace EVWebApi.DTOs.HR
         public string? Status { get; set; }
         [FromQuery(Name = "region")]
         public string? Region { get; set; }
+        [FromQuery(Name = "type")]
+        public string? Type { get; set; }
     }
     public class ConfigurationResponseDto
     {
@@ -44,10 +46,17 @@ namespace EVWebApi.DTOs.HR
 
     public class UploadPageResponseDto
     {
-        public int RecipientId { get; set; }
+        public int RequestId { get; set; }
+        public int CandidateId { get; set; }
         public string Email { get; set; }
+        public string? Name { get; set; }
+        public string? DOB { get; set; }
+        public string? Phone { get; set; }
+        public string? Adhaar { get; set; }
+        public string? PAN { get; set; }
         public string Designation { get; set; }
         public string CollectionName { get; set; }
+        public string CollectionType { get; set; }
         public bool IsExternal { get; set; }
         public UploadStatusDto Status { get; set; }
         public List<DocumentTypeDto> Documents { get; set; }
@@ -70,12 +79,12 @@ namespace EVWebApi.DTOs.HR
     public class OnboardingDocsDto
     {
         public required string Token { get; set; }
+        public required string Email { get; set; }
+        public string? Name { get; set; }
 
-        public required string Name { get; set; }
-        public string? Email { get; set; }
         public string? AdhaarNo { get; set; }
         public string? PAN { get; set; }
-        public required string Phone { get; set; }
+        public string? Phone { get; set; }
         public string? EmployeeId { get; set; }
         public DateTime? Dob { get; set; }
         public List<UploadItemDto> Files { get; set; }
@@ -113,6 +122,7 @@ namespace EVWebApi.DTOs.HR
         public string ConfigName { get; set; }
         public string? Description { get; set; }
         public string CollectionName { get; set; }
+        public string CollectionType { get; set; }
         public string Region { get; set; }
         public DateTime CreatedAt { get; set; }
         public int TotalDocs { get; set; }
@@ -129,6 +139,7 @@ namespace EVWebApi.DTOs.HR
         public DateTime? Dob { get; set; }
         public string Status { get; set; }
         public bool IsHired { get; set; }
+        public bool IsLaptopRequestSent { get; set; }
         public DateTime? CompletedAt { get; set; }
         public SubmittedDocDto Submitted { get; set; }
         public PendingDocDto Pending { get; set; }
@@ -157,5 +168,13 @@ namespace EVWebApi.DTOs.HR
         public int TotalPendingCount { get; set; }
         public List<DocumentTypeListDto> Documents { get; set; }
 
+    }
+
+
+    public class UploadFolderDto
+    {
+        public string SafeCandidateName { get; set; } = string.Empty;
+        public string FinalFolderPath { get; set; } = string.Empty;
+        public string OriginalFolderName { get; set; } = string.Empty;
     }
 }

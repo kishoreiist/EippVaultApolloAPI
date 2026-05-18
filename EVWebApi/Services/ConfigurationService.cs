@@ -1,6 +1,7 @@
 ﻿using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Office2010.Excel;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Wordprocessing;
 using EVWebApi.Data;
 using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
@@ -13,16 +14,20 @@ using EVWebApi.Interfaces.Services;
 using EVWebApi.Interfaces.Services.MetaDataReaders;
 using EVWebApi.Models;
 using EVWebApi.Models.HR;
+using EVWebApi.Services;
 using Humanizer;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Org.BouncyCastle.Cms;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
 using Syncfusion.EJ2.Grids;
 using System.Data.Common;
 using System.Security;
+using System.Text;
 using System.Text.RegularExpressions;
+using static QRCoder.PayloadGenerator;
 
 namespace EVWebApi.Services
 {
@@ -48,7 +53,7 @@ namespace EVWebApi.Services
             _repo = repo;
             _emailSender = emailSender;
             _notificationService = notificationService;
-            _metadataReaderFactory= metadataReaderFactory;
+            _metadataReaderFactory = metadataReaderFactory;
             _baseUrl = config["Frontend:BaseUrl"];
             _externalUploadUrl = config["DocumentSettings:ExternalUploadURL"];
             _uploadRoot = config["DocumentSettings:OnboardingFilePath"];
@@ -75,20 +80,25 @@ namespace EVWebApi.Services
             {
                 if (string.IsNullOrWhiteSpace(type))
                     continue;
-
-                var docType = await _docrepo.GetOrCreateDocLabelAsync(type.Trim());
+                var docTypeDto = new DocTypeCreateDto
+                {
+                    Label = type.Trim(),
+                    Type = dto.Type
+                };
+                var docType = await _docrepo.GetOrCreateDocLabelAsync(docTypeDto);
                 docTypeEntities.Add(docType);
             }
 
             var collection = new DocumentCollection
             {
                 Name = dto.Name,
-                Designation=dto.Designation,
-                Region=dto.Region,
-                Status="active",
-                IsExternal=dto.IsExternal,
+                Designation = dto.Designation,
+                Region = dto.Region,
+                Status = "active",
+                IsExternal = dto.IsExternal,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = userId.Value,
+                Type = dto.Type,
                 CollectionDocumentTypes = docTypeEntities.Select(dt => new CollectionDocumentType
                 {
                     DocumentTypeId = dt.Id
@@ -104,10 +114,12 @@ namespace EVWebApi.Services
             {
                 Id = collection.Id,
                 Name = collection.Name,
-                Region=collection.Region,
-                Designation=collection.Designation,
+                Region = collection.Region,
+                Designation = collection.Designation,
                 CreatedAt = collection.CreatedAt,
                 CreatedBy = collection.CreatedBy,
+                Type = collection.Type,
+                Status= collection.Status,
                 DocumentTypes = docTypeEntities.Select(x => x.Label).ToList()
             };
         }
@@ -124,17 +136,28 @@ namespace EVWebApi.Services
             var collName = await _repo.GetCollectionByNameAsync(dto.Name);
             if (collName != null && collName.Id != id)
                 throw new ConflictException("Another collection with same name already exists");
+
+            if (dto.Type != collection.Type)
+                throw new BadRequestException("Collection Type can't be changed as it have associated documents");
+
+
             var docTypeEntities = new List<DocumentTypes>();
             foreach (var type in dto.DocumentTypes)
             {
                 if (string.IsNullOrWhiteSpace(type))
                     continue;
-                var docType = await _docrepo.GetOrCreateDocLabelAsync(type.Trim());
+                var docTypeDto = new DocTypeCreateDto
+                {
+                    Label = type.Trim(),
+                    Type = dto.Type
+                };
+                var docType = await _docrepo.GetOrCreateDocLabelAsync(docTypeDto);
                 docTypeEntities.Add(docType);
             }
             collection.Name = dto.Name;
             collection.Designation = dto.Designation;
             collection.Region = dto.Region;
+            //collection.Type = dto.Type;
             collection.Status = dto.Status;
             collection.IsExternal = dto.IsExternal;
             //collection.UpdatedAt = DateTime.UtcNow;
@@ -169,10 +192,10 @@ namespace EVWebApi.Services
             {
                 Id = collection.Id,
                 Name = collection.Name,
-                IsExternal=collection.IsExternal,
-                Status=collection.Status,
-                Designation=collection.Designation,
-                Region=collection.Region,
+                IsExternal = collection.IsExternal,
+                Status = collection.Status,
+                Designation = collection.Designation,
+                Region = collection.Region,
                 CreatedAt = collection.CreatedAt,
                 CreatedBy = collection.CreatedBy,
                 DocumentTypes = docTypeEntities.Select(x => x.Label).ToList()
@@ -183,6 +206,13 @@ namespace EVWebApi.Services
         public async Task<PagedResponse<CollectionListResponseDto>> GetCollectionListAsync(CollectionQueryDto dto)
         {
             var query = _repo.Query();
+            if (!string.IsNullOrWhiteSpace(dto.Type))
+            {
+                query = query.Where(c => c.Type.ToLower() == dto.Type.ToLower());
+            }
+            //else query = query.Where(c => c.Type.ToLower() == "pre");
+
+
 
             if (!string.IsNullOrWhiteSpace(dto.Name))
             {
@@ -201,12 +231,12 @@ namespace EVWebApi.Services
             }
             else
                 query = query.Where(c => c.Status.ToLower() == "active");
-            if (dto.IsExternal==true)
-                query=query.Where(c=>c.IsExternal==true);
-            else if(dto.IsExternal==false)
-                query=query.Where(c=>c.IsExternal==false);
+            if (dto.IsExternal == true)
+                query = query.Where(c => c.IsExternal == true);
+            else if (dto.IsExternal == false)
+                query = query.Where(c => c.IsExternal == false);
             else
-                query=query.Where(c=>c.IsExternal==false || c.IsExternal==true);
+                query = query.Where(c => c.IsExternal == false || c.IsExternal == true);
 
 
             var totalItems = await query.CountAsync();
@@ -229,10 +259,11 @@ namespace EVWebApi.Services
             {
                 Id = c.Id,
                 Name = c.Name,
-                Region=c.Region,
-                Designation=c.Designation,
-                Status=c.Status,
-                IsExternal=c.IsExternal,
+                Region = c.Region,
+                Designation = c.Designation,
+                Status = c.Status,
+                Type = c.Type,
+                IsExternal = c.IsExternal,
                 CreatedAt = c.CreatedAt,
                 CreatedBy = c.CreatedBy,
                 DocumentTypes = c.CollectionDocumentTypes.Select(cd => cd.DocumentType.Label).ToList(),
@@ -250,16 +281,17 @@ namespace EVWebApi.Services
         public async Task<List<CollectionDropDownDto>> GetCollectionDropDownListAsync(CollectionDropDownQueryDto dto)
         {
             var query = _context.DocumentCollections
-                .Where(d=>d.Status.ToLower() == "active")
+                .Where(d => d.Status.ToLower() == "active")
                 .AsQueryable();
 
-            
+
             if (dto.IsExternal.HasValue)
             {
                 query = query.Where(d => d.IsExternal == dto.IsExternal.Value);
             }
 
-            if(!string.IsNullOrWhiteSpace(dto.Region)) {
+            if (!string.IsNullOrWhiteSpace(dto.Region))
+            {
                 query = query.Where(d => d.Region == dto.Region);
             }
 
@@ -268,7 +300,8 @@ namespace EVWebApi.Services
                 {
                     Id = d.Id,
                     Name = d.Name,
-                    Region=d.Region
+                    Region = d.Region,
+                    Type = d.Type
                 })
                 .ToListAsync();
 
@@ -285,7 +318,8 @@ namespace EVWebApi.Services
                 Region = collection.Region,
                 Designation = collection.Designation,
                 IsExternal = collection.IsExternal,
-                Status=collection.Status,
+                Status = collection.Status,
+                Type = collection.Type,
                 CreatedAt = collection.CreatedAt,
                 CreatedBy = collection.CreatedBy,
                 DocumentTypes = collection.CollectionDocumentTypes.Select(cd => cd.DocumentType.Label).ToList()
@@ -300,46 +334,99 @@ namespace EVWebApi.Services
             //_context.DocumentCollections.Remove(collection);
             await _context.SaveChangesAsync();
         }
-
-
+        //------------------------------------send url---------------------------------------------
         public async Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId)
         {
-            
             var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
+
             if (collection == null)
                 throw new NotFoundException("Collection not found");
 
             var user = await _context.Users
                 .Where(u => u.UserId == userId)
-                .Select(u => new { u.Email, u.Username })
+                .Select(u => new
+                {
+                    u.Email,
+                    u.Username
+                })
                 .FirstOrDefaultAsync();
 
+            // Create Request
             var request = new ConfigRequest
             {
-                ConfigName=dto.Name,
+                ConfigName = dto.Name,
                 CollectionId = dto.CollectionId,
-                ExpiryDate = dto.ExpiryDate.Value,
+                ExpiryDate = dto.ExpiryDate!.Value,
                 Description = dto.Description,
                 CreatedBy = userId,
                 CreatedAt = DateTime.UtcNow
             };
 
-            
-            var recipients = dto.Emails
+            // Normalize emails
+            var normalizedEmails = dto.Emails
                 .Where(e => !string.IsNullOrWhiteSpace(e))
-                .Select(email => new ConfigRequestRecipient
+                .Select(e => e.Trim().ToLower())
+                .Distinct()
+                .ToList();
+
+            var candidates = new List<Candidate>();
+
+            // PRE ONBOARDING
+            if (collection.Type.ToLower() == "pre")
+            {
+                candidates = normalizedEmails
+                    .Select(email => new Candidate
+                    {
+                        Email = email,
+                        Region = collection.Region
+                        //CreatedAt = DateTime.UtcNow
+                    })
+                    .ToList();
+
+                _context.Candidates.AddRange(candidates);
+
+                await _context.SaveChangesAsync();
+            }
+
+            // POST ONBOARDING
+            else
+            {
+                candidates = await _context.Candidates
+                    .Where(c => normalizedEmails.Contains(c.Email.ToLower()))
+                    .ToListAsync();
+
+                var foundEmails = candidates
+                    .Select(c => c.Email.ToLower())
+                    .ToList();
+
+                var missingEmails = normalizedEmails
+                    .Except(foundEmails)
+                    .ToList();
+
+                if (missingEmails.Any())
                 {
-                    Email = email.Trim(),
+                    throw new BadRequestException(
+                        $"Candidates not found for post onboarding: {string.Join(", ", missingEmails)}");
+                }
+            }
+
+            // Create recipients
+            var recipients = candidates
+                .Select(candidate => new ConfigRequestRecipient
+                {
                     Token = Guid.NewGuid().ToString(),
+                    CandidateId = candidate.Id,
                     Status = "pending"
+
                 })
                 .ToList();
 
             request.Recipients = recipients;
 
-      
             _context.ConfigurationRequests.Add(request);
+
             await _context.SaveChangesAsync();
+
 
             //Generate email tasks (parallel)
 
@@ -354,20 +441,20 @@ namespace EVWebApi.Services
                 var link = $"{_externalUploadUrl}/{r.Token}";
 
                 var body = $@"
-                <p>Greetings,</p>
-                <p>Please upload the required documents using the link below:</p>
-                <p><a href='{link}'><b>Upload Your Documents</b></a></p>
-                <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
-                <br><p>If you need any assistance, feel free to contact us.</p></br>
+                    <p>Greetings,</p>
+                    <p>Please upload the required documents using the link below:</p>
+                    <p><a href='{link}'><b>Upload Your Documents</b></a></p>
+                    <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
+                    <br><p>If you need any assistance, feel free to contact us.</p></br>
 
-                <p>Regards,</p>
-                <p>Apollo EIPP Vault Team</p>
-            ";
+                    <p>Regards,</p>
+                    <p>Apollo EIPP Vault Team</p>
+                ";
                 var subject = "Action Required: Upload Your Documents";
                 await semaphore.WaitAsync();
                 try
                 {
-                    var sent = await _emailSender.SendAsync(r.Email, ReplyTo: user.Email, UserName:"Apollo OnBoarding", subject, body);
+                    var sent = await _emailSender.SendAsync(r.Candidate.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
 
                     lock (lockObj)
                     {
@@ -382,7 +469,7 @@ namespace EVWebApi.Services
                     lock (lockObj)
                     {
                         failed++;
-                        failedDetails.Add($"Email failed for {r.Email}: {ex.Message}");
+                        failedDetails.Add($"Email failed for {r.Candidate.Email}: {ex.Message}");
                     }
                 }
                 finally
@@ -399,12 +486,115 @@ namespace EVWebApi.Services
             {
                 RequestId = request.Id,
                 TotalEmails = recipients.Count,
-                Success= success,
-                Failed=failed,
-                FailedEmailDetails= failedDetails
+                Success = success,
+                Failed = failed,
+                FailedEmailDetails = failedDetails
 
             };
         }
+
+        //public async Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId)
+        //{
+
+        //    var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
+        //    if (collection == null)
+        //        throw new NotFoundException("Collection not found");
+
+        //    var user = await _context.Users
+        //        .Where(u => u.UserId == userId)
+        //        .Select(u => new { u.Email, u.Username })
+        //        .FirstOrDefaultAsync();
+
+        //    var request = new ConfigRequest
+        //    {
+        //        ConfigName=dto.Name,
+        //        CollectionId = dto.CollectionId,
+        //        ExpiryDate = dto.ExpiryDate.Value,
+        //        Description = dto.Description,
+        //        CreatedBy = userId,
+        //        CreatedAt = DateTime.UtcNow
+        //    };
+
+
+        //    var recipients = dto.Emails
+        //        .Where(e => !string.IsNullOrWhiteSpace(e))
+        //        .Select(email => new ConfigRequestRecipient
+        //        {
+        //            Email = email.Trim(),
+        //            Token = Guid.NewGuid().ToString(),
+        //            Status = "pending"
+        //        })
+        //        .ToList();
+
+        //    request.Recipients = recipients;
+
+        //    _context.ConfigurationRequests.Add(request);
+        //    await _context.SaveChangesAsync();
+
+        //    //Generate email tasks (parallel)
+
+        //    int success = 0;
+        //    int failed = 0;
+        //    var failedDetails = new List<string>();
+        //    var lockObj = new object();
+
+        //    var semaphore = new SemaphoreSlim(5); // max 5 parallel
+        //    var emailTasks = recipients.Select(async r =>
+        //    {
+        //        var link = $"{_externalUploadUrl}/{r.Token}";
+
+        //        var body = $@"
+        //        <p>Greetings,</p>
+        //        <p>Please upload the required documents using the link below:</p>
+        //        <p><a href='{link}'><b>Upload Your Documents</b></a></p>
+        //        <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
+        //        <br><p>If you need any assistance, feel free to contact us.</p></br>
+
+        //        <p>Regards,</p>
+        //        <p>Apollo EIPP Vault Team</p>
+        //    ";
+        //        var subject = "Action Required: Upload Your Documents";
+        //        await semaphore.WaitAsync();
+        //        try
+        //        {
+        //            var sent = await _emailSender.SendAsync(r.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
+
+        //            lock (lockObj)
+        //            {
+        //                if (sent)
+        //                    success++;
+        //                else
+        //                    failed++;
+        //            }
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            lock (lockObj)
+        //            {
+        //                failed++;
+        //                failedDetails.Add($"Email failed for {r.Email}: {ex.Message}");
+        //            }
+        //        }
+        //        finally
+        //        {
+        //            semaphore.Release();
+        //        }
+        //    });
+
+        //    // Send all emails in parallel
+        //    await Task.WhenAll(emailTasks);
+
+
+        //    return new ConfigurationResponseDto
+        //    {
+        //        RequestId = request.Id,
+        //        TotalEmails = recipients.Count,
+        //        Success = success,
+        //        Failed = failed,
+        //        FailedEmailDetails = failedDetails
+
+        //    };
+        //}
 
 
         public async Task<UploadPageResponseDto> GetUploadDocsAsync(string token)
@@ -414,7 +604,7 @@ namespace EVWebApi.Services
             if (recipient == null)
                 throw new Exception("Invalid link");
 
-           
+
             if (recipient.Request.ExpiryDate < DateTime.UtcNow)
             {
                 recipient.Status = "expired";
@@ -448,194 +638,225 @@ namespace EVWebApi.Services
 
             return new UploadPageResponseDto
             {
-                RecipientId = recipient.Id,
-                Email = recipient.Email,
+                RequestId = recipient.Id,
+                CandidateId= recipient.CandidateId,
+                Email = recipient.Candidate.Email,
+                Name = recipient.Candidate.Name,
+                DOB = recipient.Candidate.DateOfBirth?.ToString("yyyy-MM-dd"),
+                Phone = recipient.Candidate.Phone,
+                PAN= recipient.Candidate.PAN,
+                Adhaar= recipient.Candidate.Adhaar,
                 Designation = recipient.Request.Collection.Designation,
                 IsExternal = recipient.Request.Collection.IsExternal,
                 CollectionName = recipient.Request.Collection.Name,
+                CollectionType = recipient.Request.Collection.Type,
                 Status = statusDto,
                 Documents = documents
             };
         }
+        //upload docs ------------------------------------------------------------------------------------------------------
 
-        public async Task<UploadResultDto> UploadDocumentsAsync(OnboardingDocsDto dto)
+        public async Task<UploadResultDto> MainUploadDocumentsAsync(OnboardingDocsDto dto)
         {
             var recipient = await _repo.GetConfigRequestByToken(dto.Token);
 
-            if (recipient == null)
-                throw new Exception("Invalid token");
 
-            if (!string.IsNullOrWhiteSpace(dto.Email))
-                if (dto.Email != recipient.Email) throw new BadRequestException("Provided email doesn't match with the one given while applying for the job.");
+            await ValidateRecipientAsync(recipient, dto);
 
-            var assignedDocsId = recipient.Request.Collection.CollectionDocumentTypes.Select(i => i.DocumentTypeId);
-            if (recipient.Request.ExpiryDate < DateTime.UtcNow)
+            var requestType = recipient.Request.Collection.Type?.ToLower();
+
+            if (requestType == "pre")
             {
-                recipient.Status = "expired";
-                await _context.SaveChangesAsync();
-                throw new BadRequestException("Link expired");
+                await HandlePreOnboardingUploadAsync(recipient, dto);
             }
-
-            recipient.Name = dto.Name;
-            recipient.Phone = dto.Phone;
-            recipient.DateOfBirth = dto.Dob;
-            recipient.Adhaar = dto.AdhaarNo;
-            recipient.PAN = dto.PAN;
-            foreach (var doc in dto.Files)
-            {
-                if (doc.File == null || doc.File.Length == 0)
-                    continue;
-                if (assignedDocsId.Contains(doc.DocumentTypeId))
-                {
-
-                    //var fileName = $"{Guid.NewGuid()}_{doc.File.FileName}";
-                    var folderPath = _uploadRoot
-                        .Replace("{StorageRoot}", _storageRoot)
-                        .Replace("{ClientName}", _clientName);
-
-                    var folderName = $"{dto.Name}_{dto.Token}";
-                    var safecandidateName = dto.Name.Trim().Replace(" ", "_");
-                    var orgfolderName = $"{safecandidateName}_{dto.Token}";
-
-                    var finalPath = Path.Combine(folderPath, orgfolderName);
-
-                    if (!Directory.Exists(finalPath))
-                        Directory.CreateDirectory(finalPath);
-
-                    var originalExtension = Path.GetExtension(doc.File.FileName);
-
-                    // safer doc type label
-                    var docTypeLabel = recipient.Request.Collection.CollectionDocumentTypes
-                        .First(x => x.DocumentTypeId == doc.DocumentTypeId)
-                        .DocumentType.Label
-                        .Trim()
-                        .Replace(" ", "_");
-
-                    // display filename
-                    var displayFileName = $"{safecandidateName}_{docTypeLabel}{originalExtension}";
-
-
-                    var filePath = Path.Combine(finalPath, displayFileName);
-                    var dbPath = Path.Combine(orgfolderName, displayFileName);
-                    using (var stream = new FileStream(filePath, FileMode.Create))
-                    {
-                        await doc.File.CopyToAsync(stream);
-                    }
-
-                    //Replace if already exists
-                    var existing = recipient.UploadedDocuments
-                        .FirstOrDefault(x => x.DocumentTypeId == doc.DocumentTypeId);
-
-                    if (existing != null)
-                    {
-                        existing.FilePath = dbPath;
-                        existing.UploadedAt = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        _context.OnboardingHRDocument.Add(new OnboardingDocument
-                        {
-                            RecipientId = recipient.Id,
-                            DocumentTypeId = doc.DocumentTypeId,
-                            FilePath = dbPath,
-                            FileName = displayFileName,
-                            UploadedAt = DateTime.UtcNow,
-                            Status = "active",
-                            Source = "candidate_upload"
-                        });
-                    }
-                }
-                else
-                {
-                    throw new NotFoundException("Uploaded files includes documents which is not assigned to the recipient");
-                }
-            }
-            await _context.SaveChangesAsync();
-
-            var totalDocs = recipient.Request.Collection.CollectionDocumentTypes.Count;
-
-            var uploadedCount = await _repo.GetUploadCount(recipient.Id);
-
-            if (uploadedCount == 0)
-                recipient.Status = "pending";
-            else if (uploadedCount < totalDocs)
-                recipient.Status = "inProgress";
             else
             {
-                recipient.Status = "completed";
-                recipient.CompletedAt = DateTime.UtcNow;
+                await HandlePostOnboardingUploadAsync(recipient, dto);
             }
-            recipient.AccessedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
 
-            // Notify HR after successful upload
+            await UpdateRecipientStatusAsync(recipient);
 
-            if (recipient.Status == "completed")
-            {
-                await _notificationService.CreateAsync(
-                    recipient.Request.CreatedBy,
-                    $"Candidate {recipient.Name} completed all document uploads"
-                );
+            await SendNotificationsAsync(recipient);
 
-                
-                var hrUser = await _context.Users
-                    .FirstOrDefaultAsync(u => u.UserId == recipient.Request.CreatedBy);
+            return BuildUploadResult(recipient);
+        }
+        //public async Task<UploadResultDto> UploadDocumentsAsync(OnboardingDocsDto dto)
+        //{
+        //    var recipient = await _repo.GetConfigRequestByToken(dto.Token);
 
-                if (hrUser != null && !string.IsNullOrEmpty(hrUser.Email))
-                {
-                    var subject = "Candidate Document Submission Completed";
-                    var link = $"{_baseUrl}";
-                    var body = $@"
-                        Hello {hrUser.FirstName},
+        //    if (recipient == null)
+        //        throw new Exception("Invalid token");
 
-                        The candidate <b>{recipient.Name}</b> has successfully uploaded all required documents.
+        //    if (!string.IsNullOrWhiteSpace(dto.Email))
+        //        if (dto.Email != recipient.Email) throw new BadRequestException("Provided email doesn't match with the one given while applying for the job.");
+        //    var assignedDocsId = recipient.Request.Collection.CollectionDocumentTypes.Select(i => i.DocumentTypeId);
+        //    if (recipient.Request.ExpiryDate < DateTime.UtcNow)
+        //    {
+        //        recipient.Status = "expired";
+        //        await _context.SaveChangesAsync();
+        //        throw new BadRequestException("Link expired");
+        //    }
 
-                        <p><b>Candidate Email:</b> {recipient.Email}</p>
-                        <b>Completion Time:</b> {DateTime.UtcNow}
+        //    recipient.Name = dto.Name;
+        //    recipient.Phone = dto.Phone;
+        //    recipient.DateOfBirth = dto.Dob;
+        //    recipient.Adhaar = dto.AdhaarNo;
+        //    recipient.PAN = dto.PAN;
+        //    foreach (var doc in dto.Files)
+        //    {
+        //        if (doc.File == null || doc.File.Length == 0)
+        //            continue;
+        //        if (assignedDocsId.Contains(doc.DocumentTypeId))
+        //        {
+
+        //            //var fileName = $"{Guid.NewGuid()}_{doc.File.FileName}";
+        //            var folderPath = _uploadRoot
+        //                .Replace("{StorageRoot}", _storageRoot)
+        //                .Replace("{ClientName}", _clientName);
+
+        //            //var folderName = $"{dto.Name}_{dto.Token}";
+        //            var safecandidateName = dto.Name.Trim().Replace(" ", "_");
+        //            var orgfolderName = $"{safecandidateName}_{dto.Token}";
+
+        //            var finalfolderPath = Path.Combine(folderPath, orgfolderName);
+
+        //            if (!Directory.Exists(finalfolderPath))
+        //                Directory.CreateDirectory(finalfolderPath);
+
+        //            var originalExtension = Path.GetExtension(doc.File.FileName);
+
+        //            // safer doc type label
+        //            var docTypeLabel = recipient.Request.Collection.CollectionDocumentTypes
+        //                .First(x => x.DocumentTypeId == doc.DocumentTypeId)
+        //                .DocumentType.Label
+        //                .Trim()
+        //                .Replace(" ", "_");
+
+        //            // display filename
+        //            var displayFileName = $"{safecandidateName}_{docTypeLabel}{originalExtension}";
+
+
+        //            var filePath = Path.Combine(finalfolderPath, displayFileName);
+        //            var dbPath = Path.Combine(orgfolderName, displayFileName);
+        //            using (var stream = new FileStream(filePath, FileMode.Create))
+        //            {
+        //                await doc.File.CopyToAsync(stream);
+        //            }
+
+        //            //Replace if already exists
+        //            var existing = recipient.UploadedDocuments
+        //                .FirstOrDefault(x => x.DocumentTypeId == doc.DocumentTypeId);
+
+        //            if (existing != null)
+        //            {
+        //                existing.FilePath = dbPath;
+        //                existing.UploadedAt = DateTime.UtcNow;
+        //            }
+        //            else
+        //            {
+        //                _context.OnboardingHRDocument.Add(new OnboardingDocument
+        //                {
+        //                    RecipientId = recipient.Id,
+        //                    DocumentTypeId = doc.DocumentTypeId,
+        //                    FilePath = dbPath,
+        //                    FileName = displayFileName,
+        //                    UploadedAt = DateTime.UtcNow,
+        //                    Status = "active",
+        //                    Source = "candidate_upload"
+        //                });
+        //            }
+        //        }
+        //        else
+        //        {
+        //            throw new NotFoundException("Uploaded files includes documents which is not assigned to the recipient");
+        //        }
+        //    }
+        //    await _context.SaveChangesAsync();
+
+        //    var totalDocs = recipient.Request.Collection.CollectionDocumentTypes.Count;
+
+        //    var uploadedCount = await _repo.GetUploadCount(recipient.Id);
+
+        //    if (uploadedCount == 0)
+        //        recipient.Status = "pending";
+        //    else if (uploadedCount < totalDocs)
+        //        recipient.Status = "inProgress";
+        //    else
+        //    {
+        //        recipient.Status = "completed";
+        //        recipient.CompletedAt = DateTime.UtcNow;
+        //    }
+        //    recipient.AccessedAt = DateTime.UtcNow;
+        //    await _context.SaveChangesAsync();
+
+        //    // Notify HR after successful upload
+
+        //    if (recipient.Status == "completed")
+        //    {
+        //        await _notificationService.CreateAsync(
+        //            recipient.Request.CreatedBy,
+        //            $"Candidate {recipient.Name} completed all document uploads"
+        //        );
+
+
+        //        var hrUser = await _context.Users
+        //            .FirstOrDefaultAsync(u => u.UserId == recipient.Request.CreatedBy);
+
+        //        if (hrUser != null && !string.IsNullOrEmpty(hrUser.Email))
+        //        {
+        //            var subject = "Candidate Document Submission Completed";
+        //            var link = $"{_baseUrl}";
+        //            var body = $@"
+        //                Hello {hrUser.FirstName},
+
+        //                The candidate <b>{recipient.Name}</b> has successfully uploaded all required documents.
+
+        //                <p><b>Candidate Email:</b> {recipient.Email}</p>
+        //                <b>Completion Time:</b> {DateTime.UtcNow}
 
                         
-                        <p><a href='{link}'>Please log in to review the documents.</a></p>
+        //                <p><a href='{link}'>Please log in to review the documents.</a></p>
 
 
-                        <br><p><i>This is a system-generated email. Please do not reply.</i></p></br>
-                        Regards,<br/>
-                        Apollo EIPP Vault Team
-                     ";
+        //                <br><p><i>This is a system-generated email. Please do not reply.</i></p></br>
+        //                Regards,<br/>
+        //                Apollo EIPP Vault Team
+        //             ";
 
-                    await _emailSender.SendAsync(hrUser.Email, null,null, subject, body);
-                }
-            }
-            else
-            {
-                await _notificationService.CreateAsync(
-                    recipient.Request.CreatedBy,
-                    $"Candidate {recipient.Name} uploaded documents, Status - In Progress"
-                );
-            }
+        //            await _emailSender.SendAsync(hrUser.Email, null, null, subject, body);
+        //        }
+        //    }
+        //    else
+        //    {
+        //        await _notificationService.CreateAsync(
+        //            recipient.Request.CreatedBy,
+        //            $"Candidate {recipient.Name} uploaded documents, Status - In Progress"
+        //        );
+        //    }
 
-            var documents = recipient.Request.Collection.CollectionDocumentTypes
-                .Select(cd => new DocumentTypeDto
-                {
-                    DocumentTypeId = cd.DocumentTypeId,
-                    DocType = cd.DocumentType.Label,
-                    Uploaded = recipient.UploadedDocuments
-                        .Any(u => u.DocumentTypeId == cd.DocumentTypeId)
-                })
-                .ToList();
+        //    var documents = recipient.Request.Collection.CollectionDocumentTypes
+        //        .Select(cd => new DocumentTypeDto
+        //        {
+        //            DocumentTypeId = cd.DocumentTypeId,
+        //            DocType = cd.DocumentType.Label,
+        //            Uploaded = recipient.UploadedDocuments
+        //                .Any(u => u.DocumentTypeId == cd.DocumentTypeId)
+        //        })
+        //        .ToList();
 
-            return new UploadResultDto
-            {
-                Status = recipient.Status,
-                Documents = documents
-            };
+        //    return new UploadResultDto
+        //    {
+        //        Status = recipient.Status,
+        //        Documents = documents
+        //    };
 
 
-        }
+        //}
 
-        public async Task<List<ConfigListDto>> GetAllConfigsAsync(int userId,string userType, ConfigQueryParamsDto dto)
+        public async Task<List<ConfigListDto>> GetAllConfigsAsync(int userId, string userType, ConfigQueryParamsDto dto)
         {
             var query = _repo.GetConfigListAsync();
-            if (!string.IsNullOrEmpty(userType) && userType!="super_admin")
+            if (!string.IsNullOrEmpty(userType) && userType != "super_admin")
             {
                 query = query.Where(r => r.CreatedBy == userId);
             }
@@ -649,9 +870,9 @@ namespace EVWebApi.Services
                 {
                     ConfigId = r.Id,
                     CollectionName = r.Collection.Name,
-                    Region=r.Collection.Region,
+                    Region = r.Collection.Region,
                     CreatedAt = r.CreatedAt,
-                    Description=r.Description,
+                    Description = r.Description,
                     TotalRecipients = r.Recipients.Count,
                     Pending = r.Recipients.Count(x => x.Status == "pending"),
                     InProgress = r.Recipients.Count(x => x.Status == "inProgress"),
@@ -659,7 +880,7 @@ namespace EVWebApi.Services
                 })
                 .ToListAsync();
 
-           
+
         }
 
 
@@ -785,9 +1006,10 @@ namespace EVWebApi.Services
                 .ToList();
 
             var allUploadedDocs = await _context.OnboardingHRDocument
-                .Where(x => allRecipientIds.Contains(x.RecipientId))
+                .Where(x => allRecipientIds.Contains(x.RecipientId.Value))
                 .Select(x => new
                 {
+                    x.CandidateId,
                     x.RecipientId,
                     x.DocumentTypeId,
                     x.Id,
@@ -806,24 +1028,25 @@ namespace EVWebApi.Services
                     })
                     .ToList() ?? new List<DocumentTypeListDto>();
 
-                var recipientIds = request.Recipients.Select(r => r.Id).ToList();
+                //var recipientIds = request.Recipients.Select(r => r.CandidateId).ToList();
 
-                var uploadedDocs = allUploadedDocs
-                    .Where(x => recipientIds.Contains(x.RecipientId))
-                    .ToList();
+                //var uploadedDocs = allUploadedDocs
+                //    .Where(x => recipientIds.Contains(x.CandidateId) && x.RecipientId == request.Id)
+                //    .ToList();
 
                 var recipients = request.Recipients.Select(r =>
                 {
-                    var userDocs = uploadedDocs
-                        .Where(x => x.RecipientId == r.Id)
-                        .ToList();
+                    var userDocs = allUploadedDocs
+                    .Where(x =>
+                        //x.CandidateId == r.CandidateId &&
+                        x.RecipientId == r.Id);
 
                     var submittedDocuments = userDocs
                         .Select(x => new DocumentTypeDetailDto
                         {
                             DocumentTypeId = x.DocumentTypeId,
                             DocType = x.DocType,
-                            FileId=x.Id,
+                            FileId = x.Id,
                             FilePath = x.FilePath
                         })
                         .ToList();
@@ -843,15 +1066,16 @@ namespace EVWebApi.Services
 
                     return new RecipientDto
                     {
-                        RecipientId = r.Id,
-                        Email = r.Email,
-                        Name = r.Name,
-                        PAN = r.PAN,
-                        Adhaar = r.Adhaar,
-                        Dob = r.DateOfBirth,
+                        RecipientId = r.CandidateId,
+                        Email = r.Candidate.Email,
+                        Name = r.Candidate.Name,
+                        PAN = r.Candidate.PAN,
+                        Adhaar = r.Candidate.Adhaar,
+                        Dob = r.Candidate.DateOfBirth,
                         Status = r.Status,
                         CompletedAt = r.CompletedAt,
-                        IsHired = r.IsHired,
+                        IsHired = r.Candidate.IsHired,
+                        IsLaptopRequestSent = r.Candidate.IsLaptopRequestSent,
                         Submitted = new SubmittedDocDto
                         {
                             TotalSubmittedCount = submittedDocuments.Count,
@@ -869,9 +1093,10 @@ namespace EVWebApi.Services
                 result.Add(new ConfigRequestDetailsDto
                 {
                     ConfigId = request.Id,
-                    ConfigName= request.ConfigName,
+                    ConfigName = request.ConfigName,
                     CollectionName = request.Collection?.Name,
-                    Region= request.Collection?.Region,
+                    CollectionType = request.Collection?.Type,
+                    Region = request.Collection?.Region,
                     Description = request.Description,
                     CreatedAt = request.CreatedAt,
                     TotalDocs = docTypes.Count,
@@ -990,20 +1215,20 @@ namespace EVWebApi.Services
                         batchRow.ErrorMessage =
                             "No matching candidate found";
                     }
-                   
+
                     else
                     {
-                        batchRow.CandidateId = candidate.Id;
+                        batchRow.CandidateId = candidate.CandidateId;
 
                         var alreadyConfirmed =
                         await _context.HrConfirmationBatchRows
                             .AnyAsync(x =>
-                            x.CandidateId == candidate.Id 
-                           && x.IsConfirmed 
+                            x.CandidateId == candidate.CandidateId
+                           && x.IsConfirmed
                             );
                         var existingPendingRows = await _context.HrConfirmationBatchRows
                             .Where(x =>
-                                x.CandidateId == candidate.Id &&
+                                x.CandidateId == candidate.CandidateId &&
                                 x.IsConfirmed != true &&
                                 x.Status == "matched")
                             .ToListAsync();
@@ -1033,7 +1258,7 @@ namespace EVWebApi.Services
                     batchRow.ErrorMessage = ex.Message;
                 }
 
-                
+
 
                 await _repo.CreateOnboardingBatchRows(batchRow);
 
@@ -1108,7 +1333,7 @@ namespace EVWebApi.Services
         }
 
         //----------------------------------insetion into doc table for confirmed candidates------------------------------
-     
+
 
         public async Task<ConfirmedCandidateDto> ConfirmOnboardingBatchAsync(int batchId, int userId)
         {
@@ -1124,8 +1349,8 @@ namespace EVWebApi.Services
 
             var matchedRows = await _context.HrConfirmationBatchRows
                 .Include(x => x.Candidate)
-                    .ThenInclude(c => c.Request)
-                        .ThenInclude(r => r.Collection)
+                    //.ThenInclude(c => c.Request)
+                    //    .ThenInclude(r => r.Collection)
                 .Where(x =>
                     x.BatchId == batchId &&
                     x.Status == "matched")
@@ -1150,19 +1375,19 @@ namespace EVWebApi.Services
                     continue;
                 }
 
-                var document = new Document
+                var document = new Models.Document
                 {
                     CandidateId = row.CandidateId,
-                    CabinetId=2,
-                    Region=row.Candidate.Request.Collection.Region,
+                    CabinetId = 2,
+                    Region = row.Candidate.Region,
                     // Basic onboarding details
                     Designation = row.Designation,
                     DOJ = row.DOJ,
                     EmployeeId = row.EmployeeId,
-                    DOB=row.DOB,
-                    ContactNumber=row.Phone,
+                    DOB = row.DOB,
+                    ContactNumber = row.Phone,
                     Name = row.CandidateName,
-                    
+
                     //FileName = string.Empty,
                     //FilePath = string.Empty,
 
@@ -1172,22 +1397,22 @@ namespace EVWebApi.Services
                 };
 
                 _context.Documents.Add(document);
-                row.IsConfirmed= true;
+                row.IsConfirmed = true;
                 row.Status = "converted";
                 row.ConfirmedAt = DateTime.UtcNow;
                 inserted++;
             }
 
             batch.Status = "processed";
-            
-            var reciepint= await _context.ConfigurationRequestRecipient
+
+            var candidate = await _context.Candidates
                 .FirstOrDefaultAsync(x => x.Id == matchedRows.First().Candidate.Id);
-            reciepint.IsHired = true;
+            candidate.IsHired = true;
             //batch.proccessedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
-            if(inserted>0 && skipped > 0)
+            if (inserted > 0 && skipped > 0)
             {
                 return new ConfirmedCandidateDto
                 {
@@ -1198,7 +1423,7 @@ namespace EVWebApi.Services
                 };
 
             }
-            else if(inserted > 0)
+            else if (inserted > 0)
             {
                 return new ConfirmedCandidateDto
                 {
@@ -1225,21 +1450,21 @@ namespace EVWebApi.Services
 
         public async Task<OnboardingDocument> InternalDocumentUploadAsync(InternalUploaddto dto)
         {
-            var recipient = await _context.ConfigurationRequestRecipient
-                .FirstOrDefaultAsync(x => x.Id == dto.RecipientId);
+            var candidate = await _context.ConfigurationRequestRecipient
+                .FirstOrDefaultAsync(x => x.Id == dto.CandidateId && x.RequestId == dto.RecipientId);
 
-            if (recipient == null)
-                throw new NotFoundException("Recipient not found");
+            if (candidate == null)
+                throw new NotFoundException("Candidate not found");
 
             var folderPath = _uploadRoot
                 .Replace("{StorageRoot}", _storageRoot)
                 .Replace("{ClientName}", _clientName);
 
-            var safeCandidateName = recipient.Name
+            var safeCandidateName = candidate.Candidate.Name
                 .Trim()
                 .Replace(" ", "_");
 
-            var orgFolderName = $"{safeCandidateName}_{recipient.Token}";
+            var orgFolderName = $"{safeCandidateName}_{candidate.Token}";
 
             var finalPath = Path.Combine(folderPath, orgFolderName);
 
@@ -1255,6 +1480,7 @@ namespace EVWebApi.Services
             var entity = new OnboardingDocument
             {
                 RecipientId = dto.RecipientId,
+                CandidateId = candidate.Id,
                 DocumentTypeId = dto.DocumentTypeId,
                 FilePath = dbPath,
                 FileName = dto.FileName,
@@ -1276,7 +1502,7 @@ namespace EVWebApi.Services
             if (dto.Source != DocumentSourceType.Onboarding)
                 throw new BadRequestException("Invalid method");
 
-            var originalDoc= await _repo.GetOnboardingFilesAsync(dto.Id);
+            var originalDoc = await _repo.GetOnboardingFilesAsync(dto.Id);
             if (originalDoc == null)
                 throw new NotFoundException("Document not found");
 
@@ -1345,10 +1571,13 @@ namespace EVWebApi.Services
 
                 var newFileName =
                     $"{dto.DocumentType}_{originalName}_{Guid.NewGuid():N}{extension}";
-                var docType =await _docrepo.GetOrCreateDocLabelAsync(dto.DocumentType);
+
+                var docType = await _docrepo.GetDocTypeDetailsByNameAsync(dto.DocumentType);
+
                 var uploadDto = new InternalUploaddto
                 {
                     RecipientId = originalDoc.RecipientId,
+                    CandidateId = originalDoc.CandidateId,
                     DocumentTypeId = docType.Id,
                     FileName = newFileName,
                     TempFilePath = tempExtractedPath,
@@ -1535,15 +1764,15 @@ namespace EVWebApi.Services
                     Total = g.Count(),
 
                     Pending = g.Count(x =>
-                        x.Status== "pending"),
+                        x.Status == "pending"),
 
                     Completed = g.Count(x =>
-                        x.Status== "completed"),
+                        x.Status == "completed"),
 
                     InProgress = g.Count(x =>
                         x.Status == "inProgress"),
-                    
-                    Expired= g.Count(x =>
+
+                    Expired = g.Count(x =>
                         x.Status == "expired")
                 })
                 .FirstOrDefaultAsync();
@@ -1558,7 +1787,112 @@ namespace EVWebApi.Services
             return stats ?? new StatusCountResponseDto();
         }
 
+        public async Task<bool> SendLaptopRequestMailAsync(RequestLaptopDto dto, CancellationToken ct = default)
+        {
+
+            var candidates = await _context.Candidates
+                                  .Where(x =>
+                                      dto.CandidateIds.Contains(x.Id) &&
+                                      !x.IsLaptopRequestSent)
+                                  .ToListAsync(ct);
+
+            if (!candidates.Any())
+                throw new BadRequestException("Laptop request already sent.");
+
+
+            var body = await BuildLaptopRequestBodyAsync(candidates, dto.Message);
+
+            var mailSent = await _emailSender.SendAsync(
+                toEmail: dto.To,
+                ccEmails: dto.Cc,
+                ReplyTo: null,
+                UserName: null,
+                subject: dto.Subject,
+                htmlBody: body,
+                ct: ct);
+
+            if (!mailSent)
+                return false;
+            foreach (var candidate in candidates)
+            {
+                candidate.IsLaptopRequestSent = true;
+                //candidate.LaptopRequestSentAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync(ct);
+
+            return true;
+        }
+
         //-------------------------helpers---------------------------------------
+
+        private async Task<string> BuildLaptopRequestBodyAsync(List<Candidate> candidates, string message)
+        {
+
+            var rows = new StringBuilder();
+
+            foreach (var c in candidates)
+            {
+                rows.Append($@"
+            <tr>
+                <td style='padding:12px;border:1px solid #ddd;'>{c.Name}</td>
+                <td style='padding:12px;border:1px solid #ddd;'>{c.Email}</td>
+            </tr>");
+            }
+
+            return $@"
+            <div style='font-family:Arial, sans-serif; background-color:#f4f6f8; padding:30px;'>
+        
+        <div style='max-width:700px; background:#ffffff; margin:auto; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.1);'>
+            
+            <div style='background:#00a5b1; color:white; padding:20px;'>
+                <h2 style='margin:0;'>Laptop Request</h2>
+            </div>
+
+            <div style='padding:30px;'>
+
+                <p>Hello Team,</p>
+                 <p>
+                    {message}
+                </p>
+                <p>
+                    Kindly arrange laptops for the following candidates.
+                </p>
+               
+
+                <table style='width:100%; border-collapse:collapse; margin-top:20px;'>
+
+                    <thead>
+                        <tr style='background-color:#00a5b1; color:white;'>
+                            <th style='padding:12px; text-align:left;'>Candidate Name</th>
+                            <th style='padding:12px; text-align:left;'>Email Address</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {rows}
+                    </tbody>
+
+                </table>
+
+                <p style='margin-top:30px;'>
+                    Please process this request at the earliest.
+                </p>
+
+                <p>
+                    Regards,<br/>
+                    Apollo EIPP Vault
+                </p>
+
+            </div>
+
+            <div style='background:#f0f0f0; padding:15px; text-align:center; font-size:12px; color:#777;'>
+                This is an automated email. Please do not reply.
+            </div>
+
+        </div>
+    </div>";
+        }
         private static void ValidateHeaders(List<string> headers)
         {
             var requiredHeaders = new[]
@@ -1607,5 +1941,259 @@ namespace EVWebApi.Services
                 throw new ValidationException("PAN is required");
         }
 
+        private static void ValidatePreOnboardingDocument(OnboardingDocsDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Token))
+                throw new ValidationException("Token is required");
+            if (string.IsNullOrWhiteSpace(dto.Name))
+                throw new ValidationException("Name is required");
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                throw new ValidationException("Email is required");
+            if (string.IsNullOrWhiteSpace(dto.AdhaarNo))
+                throw new ValidationException("AdhaarNo is required");
+            if (string.IsNullOrWhiteSpace(dto.PAN))
+                throw new ValidationException("PAN is required");
+            if (string.IsNullOrWhiteSpace(dto.Phone))
+                throw new ValidationException("Phone is required");
+            if (dto.Dob == null)
+                throw new ValidationException("DOB is required");
+            if (dto.Dob > DateTime.UtcNow)
+            {
+                throw new ValidationException("DOB cannot be in the future");
+            }
+            if (dto.Dob.HasValue && (DateTime.UtcNow.Year - dto.Dob.Value.Year) < 18)
+            {
+                throw new ValidationException("DOB indicates age less than 18 years, please verify");
+            }
+        }
+
+        private async Task ValidateRecipientAsync(ConfigRequestRecipient? recipient, OnboardingDocsDto dto)
+        {
+            if (recipient == null)
+                throw new Exception("Invalid token");
+
+            if (!string.IsNullOrWhiteSpace(dto.Email) &&
+                dto.Email != recipient.Candidate.Email)
+            {
+                throw new BadRequestException(
+                    "Provided email doesn't match with the one given while applying for the job.");
+            }
+
+            if (recipient.Request.ExpiryDate < DateTime.UtcNow)
+            {
+                recipient.Status = "expired";
+
+                await _context.SaveChangesAsync();
+
+                throw new BadRequestException("Link expired");
+            }
+        }
+
+        private async Task HandlePreOnboardingUploadAsync(ConfigRequestRecipient recipient, OnboardingDocsDto dto)
+        {
+            ValidatePreOnboardingDocument(dto);
+
+            recipient.Candidate.Name = dto.Name;
+            recipient.Candidate.Phone = dto.Phone;
+            recipient.Candidate.DateOfBirth = dto.Dob;
+            recipient.Candidate.Adhaar = dto.AdhaarNo;
+            recipient.Candidate.PAN = dto.PAN;
+
+            await UploadFilesAsync(
+                recipient,
+                dto.Files,
+                dto.Name!,recipient.Request.Collection.Type);
+        }
+
+        private async Task HandlePostOnboardingUploadAsync(ConfigRequestRecipient recipient, OnboardingDocsDto dto)
+        {
+            var existingPreOboardingStatus = await _repo.GetRecipientReqByCandidateId(recipient.CandidateId);
+            if (existingPreOboardingStatus == null)
+            {
+                throw new BadRequestException(
+                    "Pre onboarding request not found");
+            }
+
+            if (existingPreOboardingStatus.Status != "completed")
+            {
+                throw new BadRequestException(
+                    "Cannot upload post onboarding documents before completing pre onboarding process");
+            }
+
+            await UploadFilesAsync(
+                recipient,
+                dto.Files,
+                recipient.Candidate.Name, recipient.Request.Collection.Type);
+
+
+        }
+        private async Task UploadFilesAsync(ConfigRequestRecipient recipient, List<UploadItemDto> files, string candidateName,string type)
+        {
+            var assignedDocsId = recipient.Request.Collection.CollectionDocumentTypes.Select(i => i.DocumentTypeId);
+
+            var uploadFolder = BuildFolder(candidateName, recipient.Token,type);
+
+            foreach (var doc in files)
+            {
+                if (doc.File == null || doc.File.Length == 0)
+                    continue;
+                if (assignedDocsId.Contains(doc.DocumentTypeId))
+                {
+                    var originalExtension = Path.GetExtension(doc.File.FileName);
+
+                    // safer doc type label
+                    var docTypeLabel = recipient.Request.Collection.CollectionDocumentTypes
+                        .First(x => x.DocumentTypeId == doc.DocumentTypeId)
+                        .DocumentType.Label
+                        .Trim()
+                        .Replace(" ", "_");
+
+                    // display filename
+                    var displayFileName = $"{uploadFolder.SafeCandidateName}_{docTypeLabel}{originalExtension}";
+
+
+                    var filePath = Path.Combine(uploadFolder.FinalFolderPath, displayFileName);
+                    var dbPath = Path.Combine(uploadFolder.OriginalFolderName, displayFileName);
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await doc.File.CopyToAsync(stream);
+                    }
+
+                    //Replace if already exists
+                    var existing = recipient.UploadedDocuments
+                        .FirstOrDefault(x => x.DocumentTypeId == doc.DocumentTypeId);
+
+                    if (existing != null)
+                    {
+                        existing.FilePath = dbPath;
+                        existing.UploadedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        _context.OnboardingHRDocument.Add(new OnboardingDocument
+                        {
+                            RecipientId = recipient.Id,
+                            CandidateId= recipient.Candidate.Id,
+                            DocumentTypeId = doc.DocumentTypeId,
+                            FilePath = dbPath,
+                            FileName = displayFileName,
+                            UploadedAt = DateTime.UtcNow,
+                            Status = "active",
+                            Source = "candidate_upload"
+                        });
+                    }
+                }
+                else
+                {
+                    throw new NotFoundException("Uploaded files includes documents which is not assigned to the recipient");
+                }
+            }
+            await _context.SaveChangesAsync();
+
+        }
+        private UploadFolderDto BuildFolder(string candidateName, string token,string type)
+        {
+            var folderPath = _uploadRoot
+                        .Replace("{StorageRoot}", _storageRoot)
+                        .Replace("{ClientName}", _clientName);
+
+        var safecandidateName = candidateName.Trim().Replace(" ", "_");
+        var orgfolderName = $"{safecandidateName}_{token}";
+        
+        var finalfolderPath = Path.Combine(folderPath,orgfolderName);
+
+            if (!Directory.Exists(finalfolderPath))
+                Directory.CreateDirectory(finalfolderPath);
+            return new UploadFolderDto
+            {
+                SafeCandidateName = safecandidateName,
+                FinalFolderPath = finalfolderPath,
+                OriginalFolderName = orgfolderName
+            };
+        }
+        private async Task UpdateRecipientStatusAsync(ConfigRequestRecipient recipient)
+        {
+            var totalDocs = recipient.Request.Collection.CollectionDocumentTypes.Count;
+
+            var uploadedCount = await _repo.GetUploadCount(recipient.Id, recipient.Candidate.Id);
+
+            if (uploadedCount == 0)
+                recipient.Status = "pending";
+            else if (uploadedCount < totalDocs)
+                recipient.Status = "inProgress";
+            else
+            {
+                recipient.Status = "completed";
+                recipient.CompletedAt = DateTime.UtcNow;
+            }
+            recipient.AccessedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+        public async Task SendNotificationsAsync(ConfigRequestRecipient recipient)
+        {
+
+            if (recipient.Status == "completed")
+            {
+                await _notificationService.CreateAsync(
+                    recipient.Request.CreatedBy,
+                    $"Candidate {recipient.Candidate.Name} completed all document uploads"
+                );
+
+
+            var hrUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.UserId == recipient.Request.CreatedBy);
+
+                if (hrUser != null && !string.IsNullOrEmpty(hrUser.Email))
+                {
+                    var subject = "Candidate Document Submission Completed";
+                    var link = $"{_baseUrl}";
+                    var body = $@"
+                        Hello {hrUser.FirstName},
+
+                        The candidate <b>{recipient.Candidate.Name}</b> has successfully uploaded all required documents.
+
+                        <p><b>Candidate Email:</b> {recipient.Candidate.Email}</p>
+                        <b>Completion Time:</b> {DateTime.UtcNow}
+
+                        
+                        <p><a href='{link}'>Please log in to review the documents.</a></p>
+
+
+                        <br><p><i>This is a system-generated email. Please do not reply.</i></p></br>
+                        Regards,<br/>
+                        Apollo EIPP Vault Team
+                     ";
+
+                    await _emailSender.SendAsync(hrUser.Email, null, null, subject, body);
+                }
+            }
+            else
+            {
+                await _notificationService.CreateAsync(
+                    recipient.Request.CreatedBy,
+                    $"Candidate {recipient.Candidate.Name} uploaded documents, Status - In Progress"
+                );
+            }
+
+        
+        }
+        private UploadResultDto BuildUploadResult(ConfigRequestRecipient recipient)
+        {
+
+            var documents = recipient.Request.Collection.CollectionDocumentTypes
+            .Select(cd => new DocumentTypeDto
+            {
+            DocumentTypeId = cd.DocumentTypeId,
+                DocType = cd.DocumentType.Label,
+                Uploaded = recipient.UploadedDocuments
+                    .Any(u => u.DocumentTypeId == cd.DocumentTypeId)
+            })
+            .ToList();
+            return new UploadResultDto
+            {
+                Status = recipient.Status,
+                Documents = documents
+            };
+        }
     }
 }

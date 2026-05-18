@@ -125,10 +125,14 @@ namespace EVWebApi.Repositories
         }
         //------------  GET DOC TYPES-------------
 
-        public async Task<List<string>> GetDocTypesAsync()
+        public async Task<List<DocTypeCreateDto>> GetDocTypesAsync()
         {
             var doctype = await _context.DocumentTypes
-                .Select(d => d.Label)
+                .Select(d => new DocTypeCreateDto
+                {
+                    Label = d.Label,
+                    Type = d.Type
+                })
                 .Distinct()
                 .ToListAsync();
             if (doctype == null)
@@ -139,9 +143,10 @@ namespace EVWebApi.Repositories
 
         //---------------GET DOC TYPE DETAILS BY doc_type name---------------
 
-        public async Task<DocumentTypes> GetOrCreateDocLabelAsync(string label)//can be used for filtering as it is dropdown
+        public async Task<DocumentTypes> GetOrCreateDocLabelAsync(DocTypeCreateDto dto)//can be used for filtering as it is dropdown
         {
-            label = label.Trim();
+            var label = dto.Label.Trim();
+            var type = dto.Type.Trim();
 
             var existing = await _context.DocumentTypes
                 .FirstOrDefaultAsync(x => x.Label == label);
@@ -153,11 +158,21 @@ namespace EVWebApi.Repositories
             {
                 Key = GenerateDocKeyHelper.GenerateDocKey(label),
                 Label = label,
-                Status = true
+                Status = true,
+                Type=type
             };
 
             _context.DocumentTypes.Add(docType);
             await _context.SaveChangesAsync();
+            return docType;
+        }
+
+        public async Task<DocumentTypes> GetDocTypeDetailsByNameAsync(string name)
+        {
+            var docType = await _context.DocumentTypes
+                .FirstOrDefaultAsync(d => d.Label == name);
+            if (docType == null)
+                throw new NotFoundException($"Document type not found: {name}");
             return docType;
         }
 

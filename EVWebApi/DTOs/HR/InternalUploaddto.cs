@@ -5,7 +5,8 @@ namespace EVWebApi.DTOs.HR
     public class InternalUploaddto
     {
 
-            public int RecipientId { get; set; }
+            public int? RecipientId { get; set; }
+            public int CandidateId { get; set; }
 
             public int DocumentTypeId { get; set; }
 

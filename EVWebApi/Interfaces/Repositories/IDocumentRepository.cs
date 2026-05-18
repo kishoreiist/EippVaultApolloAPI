@@ -1,5 +1,6 @@
 ﻿using EVWebApi.DTOs.Document;
 using EVWebApi.DTOs.Group;
+using EVWebApi.DTOs.HR;
 using EVWebApi.Models;
 using EVWebApi.Models.HR;
 using System.Xml.Linq;
@@ -16,8 +17,9 @@ namespace EVWebApi.Interfaces.Repositories
         IQueryable<Document> Query();
         Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId);
 
-        Task<List<string>> GetDocTypesAsync();
-        Task<DocumentTypes> GetOrCreateDocLabelAsync(string label);
+        Task<List<DocTypeCreateDto>> GetDocTypesAsync();
+        Task<DocumentTypes> GetOrCreateDocLabelAsync(DocTypeCreateDto dto);
+        Task<DocumentTypes> GetDocTypeDetailsByNameAsync(string name);
         Task<string> GetDocumentName(int id);
         void AddDocumentRange(Document doc);
         Task<List<string>> GetCabinetGroupingColumns(int cabinetId);

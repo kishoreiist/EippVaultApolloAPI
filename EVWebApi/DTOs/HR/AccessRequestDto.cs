@@ -17,4 +17,14 @@
 
         public string? Reason { get; set; }   // required for reject
     }
+    public class RequestLaptopDto
+    {
+        public required List<int> CandidateIds { get; set; }
+        public required string To { get; set; }
+        public List<string>? Cc { get; set; }
+        public string Message { get; set; }
+        public required string Subject { get; set; }
+
+    }
+
 }

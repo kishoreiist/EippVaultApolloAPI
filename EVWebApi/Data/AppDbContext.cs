@@ -57,6 +57,7 @@ namespace EVWebApi.Data
         public DbSet<ManufactureDetails> ManufactureDetails { get; set; }
         public DbSet<HrConfirmationBatch> HrConfirmationBatches { get; set; }
         public DbSet<HrConfirmationBatchRow> HrConfirmationBatchRows { get; set; }
+        public DbSet<Candidate> Candidates { get; set; }
 
 
 
@@ -109,12 +110,14 @@ namespace EVWebApi.Data
             modelBuilder.Entity<ManufactureDetails>().ToTable("manufacture_details");
             modelBuilder.Entity<HrConfirmationBatchRow>().ToTable("hr_confirmation_batch_rows");
             modelBuilder.Entity<HrConfirmationBatch>().ToTable("hr_confirmation_batches");
+            modelBuilder.Entity<Candidate>().ToTable("candidates");
 
 
             // -------------------
             // Primary Keys
             // -------------------
             modelBuilder.Entity<HrConfirmationBatchRow>().HasKey(u => u.RowId);
+            modelBuilder.Entity<Candidate>().HasKey(u => u.Id);
             modelBuilder.Entity<HrConfirmationBatch>().HasKey(u => u.BatchId);
             modelBuilder.Entity<Notification>().HasKey(u => u.NotificationId);
             modelBuilder.Entity<User>().HasKey(u => u.UserId);
@@ -258,6 +261,7 @@ namespace EVWebApi.Data
                 .HasOne(ud => ud.Recipient)
                 .WithMany(r => r.UploadedDocuments)
                 .HasForeignKey(ud => ud.RecipientId)
+                
                 .OnDelete(DeleteBehavior.Cascade);
 
             // UploadedDocument → DocumentType
@@ -265,6 +269,11 @@ namespace EVWebApi.Data
                 .HasOne(ud => ud.DocumentType)
                 .WithMany()
                 .HasForeignKey(ud => ud.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<OnboardingDocument>()
+                .HasOne(d => d.Candidate)
+                .WithMany()
+                .HasForeignKey(d => d.CandidateId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // UNIQUE: Token
@@ -276,6 +285,8 @@ namespace EVWebApi.Data
             modelBuilder.Entity<OnboardingDocument>()
                 .HasIndex(u => new { u.RecipientId, u.DocumentTypeId })
                 .IsUnique();
+            modelBuilder.Entity<OnboardingDocument>()
+                .HasIndex(u => new { u.CandidateId, u.DocumentTypeId });
 
 
             modelBuilder.Entity<HrConfirmationBatch>()

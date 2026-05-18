@@ -7,9 +7,12 @@ namespace EVWebApi.Models.HR
     {
         [Column("id")]
         public int Id { get; set; }
-        [Column("recipient_id")]
-        public int RecipientId { get; set; }
+        [Column("request_id")]
+        public int? RecipientId { get; set; }
         public ConfigRequestRecipient Recipient { get; set; }
+        [Column("candidate_id")]
+        public int CandidateId { get; set; }
+        public Candidate Candidate { get; set; }
         [Column("document_type_id")]
         public int DocumentTypeId { get; set; }
         public DocumentTypes DocumentType { get; set; }

@@ -15,7 +15,8 @@ namespace EVWebApi.Interfaces.Services
         Task DeleteCollectionAsync(int id);
         Task<UploadPageResponseDto> GetUploadDocsAsync(string token);
         Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId);
-        Task<UploadResultDto> UploadDocumentsAsync(OnboardingDocsDto dto);
+       // Task<UploadResultDto> UploadDocumentsAsync(OnboardingDocsDto dto);
+        Task<UploadResultDto> MainUploadDocumentsAsync(OnboardingDocsDto dto);
         Task<List<ConfigListDto>> GetAllConfigsAsync(int userId, string userType, ConfigQueryParamsDto dto);
         Task<List<ConfigRequestDetailsDto>> GetConfigRequestsAsync(ConfigQueryDetailDto dto);
         Task<DocumentStreamResultDTO?> GetOnboardingDocumentStream(int id);
@@ -28,6 +29,7 @@ namespace EVWebApi.Interfaces.Services
 
 
         Task<StatusCountResponseDto> GetCandidatesStatusCountAsync(StatusCountQueryParamDto dto);
+        Task<bool> SendLaptopRequestMailAsync(RequestLaptopDto dto, CancellationToken ct = default);
 
 
     }

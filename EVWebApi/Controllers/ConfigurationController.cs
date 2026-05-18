@@ -176,7 +176,7 @@ namespace EVWebApi.Controllers
                     return BadRequest("Token is required");
                 if (dto.Files == null || !dto.Files.Any())
                     return BadRequest("At least one file is required");
-                var result = await _service.UploadDocumentsAsync(dto);
+                var result = await _service.MainUploadDocumentsAsync(dto);
                 //await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Config_Upload", "Record Created", result.Name);
                 return Ok(result);
             }
@@ -229,7 +229,7 @@ namespace EVWebApi.Controllers
             return File(download.Stream, contentType, download.FileName, enableRangeProcessing: true);
         }
 
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPost("onboarding_excel_upload")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> Upload([FromForm] OnboardingUploadDto dto)
@@ -247,7 +247,7 @@ namespace EVWebApi.Controllers
                 throw;
             }
         }
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("onboarding_failed_report/{batchId}")]
         public async Task<IActionResult> ExportFailedRows(int batchId)
         {
@@ -259,7 +259,7 @@ namespace EVWebApi.Controllers
                 fileName);
 
         }
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpPost("batch/{batchId}/confirm")]
         public async Task<IActionResult> ConfirmOnboardingBatch(int batchId)
         {
@@ -269,7 +269,7 @@ namespace EVWebApi.Controllers
 
             return Ok(result);
         }
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("export_onboarding_report")]
         public async Task<IActionResult> ExportOnboardingReport([FromQuery] ExportOnboardingReportQuery query)
         {
@@ -280,12 +280,42 @@ namespace EVWebApi.Controllers
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 result.Item2);
         }
-
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("status_count")]
         public async Task<IActionResult> GetCandidatesStatusCount([FromQuery] StatusCountQueryParamDto dto)
         {
             var result = await _service.GetCandidatesStatusCountAsync(dto);
             return Ok(result);
+        }
+
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpPost("request_laptop")]
+        public async Task<IActionResult> RequestLaptop(RequestLaptopDto dto)
+        {
+            try
+            {
+
+                var result = await _service.SendLaptopRequestMailAsync(dto);
+                if (result)
+                { 
+                    await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Configuration", "LaptopRequest Send", dto.To);
+                    return Ok(new
+                    {
+                        message = "Laptop request sent successfully"
+                    });
+                }
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Configuration", "LaptopRequest Failed", dto.To);
+                return StatusCode(500, new
+                {
+                    message = "Failed to send laptop request"
+                });
+
+            }
+            catch (Exception ex) 
+            {
+                throw;
+            }
+
         }
     }
  }

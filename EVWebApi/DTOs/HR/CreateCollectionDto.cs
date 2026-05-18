@@ -10,6 +10,7 @@ namespace EVWebApi.DTOs.HR
         public string Designation { get; set; }
         public required string Region { get; set; }
         public string? Status { get; set; } = "active";
+        public string? Type { get; set; } = "pre";
         public bool IsExternal { get; set; } = true;
         public required List<string> DocumentTypes { get; set; }
     }
@@ -30,6 +31,7 @@ namespace EVWebApi.DTOs.HR
         public int CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public string? Status { get; set; }
+        public string? Type { get; set; }
         public required List<string> DocumentTypes { get; set; }
     }
 
@@ -49,6 +51,8 @@ namespace EVWebApi.DTOs.HR
         public bool? IsExternal { get; set; }
         [FromQuery(Name = "status")]
         public string? Status { get; set; }
+        [FromQuery(Name = "type")]
+        public string? Type { get; set; }
     }
 
     public class CollectionListResponseDto:CollectionResponseDto
@@ -67,5 +71,6 @@ namespace EVWebApi.DTOs.HR
     public class CollectionDropDownDto: ListDto
     {
         public string Region { get; set; }
+        public string Type { get; set; }
     }
 }

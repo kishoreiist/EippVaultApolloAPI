@@ -9,28 +9,21 @@ namespace EVWebApi.Models.HR
         [Column("config_id")]
         public int RequestId { get; set; }
         public ConfigRequest Request { get; set; }
-        [Column("email")]
-        public string Email { get; set; }
-        [Column("adhaar")]
-        public string? Adhaar { get; set; }
-        [Column("pan")]
-        public string? PAN { get; set; }
-        [Column("name")]
-        public string? Name { get; set; }
-        [Column("phone")]
-        public string? Phone { get; set; }
-        [Column("is_hired")]
-        public bool IsHired { get; set; } = false;
-        [Column("dob")]
-        public DateTime? DateOfBirth { get; set; }
+
+        [Column("candidate_id")]
+        public int CandidateId { get; set; }
+        public Candidate Candidate { get; set; }
+
         [Column("token")]
         public string Token { get; set; }
-        [Column("status")]
-        public string Status { get; set; } = "pending"; // Pending / InProgress / Completed / Expired
+        
         [Column("accessed_at")]
         public DateTime? AccessedAt { get; set; }
         [Column("completed_at")]
         public DateTime? CompletedAt { get; set; }
+        [Column("status")]
+        public string Status { get; set; } = "pending"; // Pending / InProgress / Completed / Expired
+
 
         // Navigation
         public ICollection<OnboardingDocument> UploadedDocuments { get; set; } = new List<OnboardingDocument>();

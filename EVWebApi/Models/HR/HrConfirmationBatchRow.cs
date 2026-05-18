@@ -46,6 +46,6 @@ namespace EVWebApi.Models.HR
         public DateTime? ConfirmedAt { get; set; }
 
         // Optional navigation
-        public ConfigRequestRecipient? Candidate { get; set; }
+        public Candidate? Candidate { get; set; }
     }
 }

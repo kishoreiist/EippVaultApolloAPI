@@ -100,7 +100,7 @@ namespace EVWebApi.Models
         public DocumentTypes? DocumentType { get; set; }//one to one
 
         [ForeignKey("CandidateId")]
-        public ConfigRequestRecipient Candidate { get; set; }
+        public Candidate Candidate { get; set; }
 
         //public DocumentVersion? LatestVersion { get; set; }
     }

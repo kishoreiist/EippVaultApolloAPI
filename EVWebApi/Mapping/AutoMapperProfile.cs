@@ -188,7 +188,9 @@ namespace EVWebApi.Mapping
                 opt => opt.MapFrom(src =>
                 src.Period.HasValue
                 ? src.Period.Value.ToString("yyyy-MM", CultureInfo.InvariantCulture)
-                : null));
+                : null))
+                 
+                 .ForMember(dest=>dest.DocumentType,opt=>opt.MapFrom(src=>src.DocumentType.Label));
 
             //---------------onboarding-------------------
         }

@@ -22,8 +22,7 @@ namespace EVWebApi.Interfaces.Services
         Task<(Stream ZipStream, string ZipFileName)> GetZIPFile(ExportDto dto);
         Task<(byte[] Excel, string FileName)> GetExportExcel(ExportExcelDocDto dto);
         Task<List<DocumentFileExplorer>> GetFileExplorerDocumentAsync(int id);
-        Task<List<string>> GetDocTypeAsync();
-
+        Task<List<DocTypeCreateDto>> GetDocTypeAsync();
         Task<BatchResponseDTO> BatchUploadDocuments(BatchUploadDTO dto, int? currentuserid, string? username, string? fullname);
         Task<DocumentResponseDto?> UploadDocumentChunks(DocumentUploadDto dto, int? currentuserid,string? username,string? fullname);
         Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int? userId);

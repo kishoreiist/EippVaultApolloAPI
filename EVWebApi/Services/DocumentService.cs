@@ -444,9 +444,11 @@ namespace EVWebApi.Services
 
             if (!string.IsNullOrWhiteSpace(query.DocType))
             {
-                var docType = await _uow.Documents.GetOrCreateDocLabelAsync(query.DocType);
+               
+                var docType = await _uow.Documents.GetDocTypeDetailsByNameAsync(query.DocType);
                 docTypeId = docType.Id;
             }
+
             var docQuery = FilteredQuery(cabinetId, query, docTypeId);
 
             var totalRecords = await docQuery.CountAsync();
@@ -488,7 +490,7 @@ namespace EVWebApi.Services
 
             if (!string.IsNullOrWhiteSpace(query.DocType))
             {
-                var docType = await _uow.Documents.GetOrCreateDocLabelAsync(query.DocType);
+                var docType = await _uow.Documents.GetDocTypeDetailsByNameAsync(query.DocType);
                 docTypeId = docType.Id;
             }
             var docQuery = FilteredQuery(cabinetId, query, docTypeId);
@@ -520,11 +522,12 @@ namespace EVWebApi.Services
                 .ToList();
 
             var candidateDocs = await _context.OnboardingHRDocument
-                .Where(x => onboardingCandidateIds.Contains(x.RecipientId) && x.Status == "active")
+                .Include(x => x.DocumentType)
+                .Where(x => onboardingCandidateIds.Contains(x.CandidateId) && x.Status == "active")
                 .ToListAsync();
 
             var groupedCandidateDocs = candidateDocs
-                .GroupBy(x => x.RecipientId)
+                .GroupBy(x => x.CandidateId)
                 .ToDictionary(
                     g => g.Key,
                     g => g.ToList());
@@ -834,7 +837,7 @@ namespace EVWebApi.Services
                 {
                     var doc=await _configrepo.DeleteOnboardingDocument(dto.Id);
 
-                    await IsAllOnboardingDocsArchived(doc.RecipientId);
+                    await IsAllOnboardingDocsArchived(doc.CandidateId);
                     cabinetid = 2;//hardcoding hr cabinet id
                 }
                 return (cabinetid, true);
@@ -848,7 +851,7 @@ namespace EVWebApi.Services
             bool hasActiveDocs =
             await _context.OnboardingHRDocument
             .AnyAsync(x =>
-            x.RecipientId == candidateId &&
+            x.CandidateId == candidateId &&
             x.Status != "archived");
 
             if (!hasActiveDocs)
@@ -884,7 +887,7 @@ namespace EVWebApi.Services
                     else
                     {
                         var doc=await _configrepo.DeleteOnboardingDocument(item.Id);
-                        await IsAllOnboardingDocsArchived(doc.RecipientId);
+                        await IsAllOnboardingDocsArchived(doc.CandidateId);
                         summary.Success++;
                     }
                   
@@ -1177,7 +1180,7 @@ namespace EVWebApi.Services
                 DocumentTypes? docType = null;
                 if (!string.IsNullOrWhiteSpace(dto.DocumentType))
                 {
-                    docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+                    docType = await _uow.Documents.GetDocTypeDetailsByNameAsync(dto.DocumentType);
                     document.DocumentTypeId = docType.Id;
                     //document.DocumentType = null;
                 }
@@ -1274,7 +1277,7 @@ namespace EVWebApi.Services
 
         //-----------------GET DOC TYPE------------------------
 
-        public async Task<List<string>> GetDocTypeAsync()
+        public async Task<List<DocTypeCreateDto>> GetDocTypeAsync()
         {
             var doctype = await _uow.Documents.GetDocTypesAsync();
             if (doctype == null)
@@ -1417,7 +1420,8 @@ namespace EVWebApi.Services
                     {
                         if (!docTypeCache.TryGetValue(record.DocumentType, out docType))
                         {
-                            docType = await _uow.Documents.GetOrCreateDocLabelAsync(record.DocumentType);
+
+                            docType = await _uow.Documents.GetDocTypeDetailsByNameAsync(record.DocumentType);///Now others won't work...for others need pre or post
                             docTypeCache[record.DocumentType] = docType;
                         }
                     }
@@ -1672,7 +1676,7 @@ namespace EVWebApi.Services
 
             DocumentTypes? docType = null;
             if (!string.IsNullOrWhiteSpace(dto.DocumentType))
-                docType = await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+                docType = await _uow.Documents.GetDocTypeDetailsByNameAsync(dto.DocumentType);
 
             var uploadRootTemplate= _uploadRoot .Replace("{StorageRoot}", _storageRoot).Replace("{ClientName}", _clientName);
             string CabName = cabinet.CabinetName;
@@ -2068,7 +2072,7 @@ namespace EVWebApi.Services
                 string newPhysicalPath = Path.Combine(cabinetFolder, newFileName);
 
                 var docType =
-                    await _uow.Documents.GetOrCreateDocLabelAsync(dto.DocumentType);
+                    await _uow.Documents.GetDocTypeDetailsByNameAsync(dto.DocumentType);
 
                 var newDocument = new Document
                 {

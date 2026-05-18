@@ -11,7 +11,7 @@ namespace EVWebApi.Interfaces.Repositories
         IQueryable<ConfigRequest> GetConfigListAsync();
         Task<ConfigRequestRecipient?> GetConfigRequestByToken(string token);
         Task<List<ConfigRequest>> GetConfigRequestAsync(ConfigQueryDetailDto dto);
-        Task<int?> GetUploadCount(int recipientId);
+        Task<int?> GetUploadCount(int recipientId, int candidateId);
         Task<OnboardingDocument> GetOnboardingFilesAsync(int docid);
         Task<ConfigRequestRecipient?> MatchOnboardingCandidateAsync(HrParsedRowDto row);
         Task<HrConfirmationBatch> CreateOnboardingBatch(HrConfirmationBatch batch);
@@ -19,5 +19,10 @@ namespace EVWebApi.Interfaces.Repositories
         Task<string> GetOnboardingFileNameById(int id);
         Task<List<int>> GetActiveOnboardDocIdsForUserAsync(int userId, IEnumerable<int> documentIds);
        Task<OnboardingDocument> DeleteOnboardingDocument(int id);
+
+
+        Task<List<int>> GetExisitngCandidatesByEmail(List<string> emails);
+        Task<Candidate> GetCandidateByIdAsync(int id);
+        Task<ConfigRequestRecipient?> GetRecipientReqByCandidateId(int candidateId);
     }
 }

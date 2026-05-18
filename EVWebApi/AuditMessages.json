@@ -9,7 +9,8 @@
 
       "Record Updated": "{username} updated a record in the {module} page, Record : {target}.",
       "Record Deleted": "{username} deleted a record from the {module} page.",
-
+      "LaptopRequest Send": "{username} sent an email to '{target}' issuing laptop for new joiners",
+      "LaptopRequest Failed": "{username} failed to send an email to '{target}' for laptop issuance.",
 
       "Document Retrieved": "{username} accessed documents in the {cabinetName} cabinet. {filters}",
       "Viewed Document": "{username} accessed document in the {cabinetName} cabinet. File Name : {target}",

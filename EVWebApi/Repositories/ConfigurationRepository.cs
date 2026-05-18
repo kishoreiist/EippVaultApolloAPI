@@ -2,6 +2,7 @@
 using DocumentFormat.OpenXml.Office2010.Excel;
 using EVWebApi.Data;
 using EVWebApi.DTOs.HR;
+using EVWebApi.Exceptions;
 using EVWebApi.Interfaces.Repositories;
 using EVWebApi.Models;
 using EVWebApi.Models.HR;
@@ -55,7 +56,7 @@ namespace EVWebApi.Repositories
                         .ThenInclude(c => c.CollectionDocumentTypes)
                             .ThenInclude(cd => cd.DocumentType)
                 .Include(r => r.UploadedDocuments)
-
+                .Include(r => r.Candidate)
                 .FirstOrDefaultAsync(r => r.Token == token);
         }
 
@@ -64,6 +65,7 @@ namespace EVWebApi.Repositories
             return _context.ConfigurationRequests
                 .Include(r => r.Collection)
                 .Include(r => r.Recipients)
+                    .ThenInclude(r => r.Candidate)
                 .OrderByDescending(r=>r.Id)
                 .AsQueryable();
 
@@ -73,10 +75,12 @@ namespace EVWebApi.Repositories
         public async Task<List<ConfigRequest>> GetConfigRequestAsync(ConfigQueryDetailDto dto)
         {
             var statusFilter = string.IsNullOrEmpty(dto.Status) ? "completed" : dto.Status;
-
+            var typeFilter = string.IsNullOrEmpty(dto.Type)? "pre": dto.Type;
             return await _context.ConfigurationRequests
                 .Where(cr =>
                  (string.IsNullOrEmpty(dto.Region) || cr.Collection.Region == dto.Region)
+                 &&
+                (cr.Collection.Type == typeFilter)
                  &&
                  (cr.Recipients.Any(r => r.Status == statusFilter)))
 
@@ -86,15 +90,16 @@ namespace EVWebApi.Repositories
                         .ThenInclude(cd => cd.DocumentType)
                 .Include(r => r.Recipients
                     .Where(r => r.Status == statusFilter)) // keep filtered recipients
+                    .ThenInclude(r => r.Candidate)
                 .ToListAsync();
         }
 
         
 
-        public async Task<int?>GetUploadCount(int recipientId)
+        public async Task<int?>GetUploadCount(int recipientId,int candidateId)
         {
             return await _context.OnboardingHRDocument
-               .Where(x => x.RecipientId == recipientId)
+               .Where(x => x.RecipientId == recipientId && x.CandidateId == candidateId)
                .Select(x => x.DocumentTypeId)
                .Distinct()
                .CountAsync();
@@ -106,7 +111,7 @@ namespace EVWebApi.Repositories
                 .Include(d=>d.DocumentType)
                 .FirstOrDefaultAsync(d => d.Id == docid);
 
-            if (doc == null)
+            if (doc == null || doc.Status== "archived")
                 throw new Exception("Document not found");
 
 
@@ -166,15 +171,16 @@ namespace EVWebApi.Repositories
                 .Where(x =>
                     x.Status == "completed" ||
                     x.Status == "inProgress")
+                .Include(x=>x.Candidate)
                 .ToListAsync();
 
             return candidates.FirstOrDefault(x =>
 
-                NormalizeInput(x.Email) == normalizedEmail &&
+                NormalizeInput(x.Candidate.Email) == normalizedEmail &&
 
-                NormalizeInput(x.PAN) == normalizedPan &&
+                NormalizeInput(x.Candidate.PAN) == normalizedPan &&
 
-                NormalizeInput(x.Adhaar) == normalizedAadhaar
+                NormalizeInput(x.Candidate.Adhaar) == normalizedAadhaar
             );
         }
 
@@ -214,9 +220,32 @@ namespace EVWebApi.Repositories
             }
         }
 
+        public async Task<List<int>> GetExisitngCandidatesByEmail(List<string> emails)
+        {
+            if (emails == null || !emails.Any())
+                return new List<int>();
+            var normalizedEmails = emails.Select(NormalizeInput).ToList();
+            return await _context.Candidates
+                .Where(r => normalizedEmails.Contains(NormalizeInput(r.Email)))
+                .Select(r => r.Id)
+                .ToListAsync();
+        }
 
+        public async Task<Candidate> GetCandidateByIdAsync(int id)
+        {
+            return await _context.Candidates.FindAsync(id) ?? throw new NotFoundException("Candidate not found");
+        }
 
-
+        public async Task<ConfigRequestRecipient?> GetRecipientReqByCandidateId(int candidateId)
+        {
+            return await _context.ConfigurationRequestRecipient
+                .Include(x => x.Request)
+                    .ThenInclude(r => r.Collection)
+                .FirstOrDefaultAsync(x =>
+                    x.CandidateId == candidateId &&
+                    x.Request.Collection.Type.ToLower() == "pre");
+        }
+        //-----------------------------helpers--------------------------
         private static string NormalizeInput(string? value)
         {
             return value?

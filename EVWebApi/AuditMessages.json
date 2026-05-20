@@ -11,7 +11,8 @@
       "Record Deleted": "{username} deleted a record from the {module} page.",
       "LaptopRequest Send": "{username} sent an email to '{target}' issuing laptop for new joiners",
       "LaptopRequest Failed": "{username} failed to send an email to '{target}' for laptop issuance.",
-
+      "Remove Candidate Failed": "{username} failed to remove a candidate.",
+      "Candidate Removed": "{username} removed a candidate. Candidate details: {target}.",
       "Document Retrieved": "{username} accessed documents in the {cabinetName} cabinet. {filters}",
       "Viewed Document": "{username} accessed document in the {cabinetName} cabinet. File Name : {target}",
       "Document View": "{username} viewed a document.",

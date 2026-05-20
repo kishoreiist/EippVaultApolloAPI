@@ -39,10 +39,11 @@ namespace EVWebApi.Models
         [Column("last_mfa_verified_at")]
         public DateTime? LastMfaVerifiedAt { get; set; }
 
-
+        [Column("created_at")]
         public DateTime CreatedAt { get; set; }
+        [Column("password_changed_at")]
         public DateTime? PasswordChangedAt { get; set; } = DateTime.UtcNow;
-
+        [Column("updated_at")]
         public DateTime UpdatedAt { get; set; }
 
         //email entity level normalization

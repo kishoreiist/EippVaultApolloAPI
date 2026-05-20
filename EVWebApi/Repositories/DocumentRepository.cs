@@ -222,6 +222,122 @@ namespace EVWebApi.Repositories
 
             return await query.ToListAsync();
         }
+
+        //public async Task<List<DocumentExportDto>> ExcelExportQuery(ExportExcelDocDto dto)
+        //{
+        //    var baseQuery = _context.Documents
+        //        .AsNoTracking()
+        //        .Where(d =>
+        //            d.Status == "active" &&
+        //            d.CabinetId == dto.CabinetId);
+
+        //    // Filter selected documents
+        //    if (dto.DocumentIds != null && dto.DocumentIds.Any())
+        //    {
+        //        baseQuery = baseQuery
+        //            .Where(d => dto.DocumentIds.Contains(d.DocumentId));
+        //    }
+        //    else
+        //    {
+        //        baseQuery = baseQuery
+        //            .OrderByDescending(d => d.UploadedAt)
+        //            .Take(500);
+        //    }
+
+        //    // Fetch only required fields
+        //    var documents = await baseQuery
+        //        .Select(d => new
+        //        {
+        //            d.DocumentId,
+        //            d.CandidateId,
+        //            d.EmployeeId,
+        //            d.Name,
+        //            d.DOB,
+        //            d.DOJ,
+        //            d.ContactNumber,
+        //            d.Designation,
+        //            d.FileName,
+        //            d.FilePath,
+        //            DocumentType = d.DocumentType != null
+        //                ? d.DocumentType.Label
+        //                : null
+        //        })
+        //        .ToListAsync();
+
+        //    // -----------------------------
+        //    // NORMAL DOCUMENTS
+        //    // -----------------------------
+        //    var normalDocs = documents
+        //        .Where(d =>
+        //            !string.IsNullOrWhiteSpace(d.FileName) &&
+        //            !string.IsNullOrWhiteSpace(d.FilePath))
+        //        .Select(d => new DocumentExportDto
+        //        {
+        //            DocumentId = d.DocumentId,
+        //            CandidateId = d.CandidateId,
+        //            EmployeeId = d.EmployeeId,
+        //            Name = d.Name,
+        //            DOJ = d.DOJ,
+        //            DOB = d.DOB,
+        //            ContactNumber = d.ContactNumber,
+        //            Designation = d.Designation,
+        //            DocumentType = d.DocumentType,
+        //            FileName = d.FileName,
+        //            FilePath = d.FilePath
+        //        })
+        //        .ToList();
+
+        //    // -----------------------------
+        //    // ONBOARDING DOCUMENTS
+        //    // -----------------------------
+
+        //    // Distinct candidate ids only
+        //    var candidateMap = documents
+        //        .Where(d =>
+        //            string.IsNullOrWhiteSpace(d.FileName) &&
+        //            string.IsNullOrWhiteSpace(d.FilePath) &&
+        //            d.CandidateId.HasValue)
+        //        .GroupBy(d => d.CandidateId!.Value)
+        //        .ToDictionary(g => g.Key, g => g.First());
+
+        //    var candidateIds = candidateMap.Keys.ToList();
+
+        //    var onboardingDocs = new List<DocumentExportDto>();
+
+        //    if (candidateIds.Any())
+        //    {
+        //        onboardingDocs = await _context.OnboardingHRDocument
+        //            .AsNoTracking()
+        //            .Where(x =>
+        //                candidateIds.Contains(x.CandidateId) &&
+        //                x.Status == "active")
+        //            .Select(x => new DocumentExportDto
+        //            {
+        //                DocumentId = candidateMap[x.CandidateId].DocumentId,
+        //                OnboardingDocId = x.Id,
+        //                CandidateId = x.CandidateId,
+
+        //                EmployeeId = candidateMap[x.CandidateId].EmployeeId,
+        //                Name = candidateMap[x.CandidateId].Name,
+        //                Designation = candidateMap[x.CandidateId].Designation,
+        //                ContactNumber = candidateMap[x.CandidateId].ContactNumber,
+        //                DOJ = candidateMap[x.CandidateId].DOJ,
+        //                DOB = candidateMap[x.CandidateId].DOB,
+
+        //                DocumentType = x.DocumentType != null
+        //                    ? x.DocumentType.Label
+        //                    : null,
+
+        //                FileName = x.FileName,
+        //                FilePath = x.FilePath
+        //            })
+        //            .ToListAsync();
+        //    }
+
+        //    return normalDocs
+        //        .Concat(onboardingDocs)
+        //        .ToList();
+        //}
         //-------------------get grouping rule by cabinet--------------//
         public async Task<List<string>> GetCabinetGroupingColumns(int cabinetId)
         {

@@ -23,6 +23,7 @@ using Org.BouncyCastle.Cms;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
 using Syncfusion.EJ2.Grids;
+using Syncfusion.EJ2.Spreadsheet;
 using System.Data.Common;
 using System.Security;
 using System.Text;
@@ -41,6 +42,7 @@ namespace EVWebApi.Services
         private readonly IEmailSender _emailSender;
         private readonly string _externalUploadUrl;
         private readonly string _uploadRoot;
+        private readonly string _tempRoot;
         private readonly string _baseUrl;
         private readonly string _storageRoot;
         private readonly string _clientName;
@@ -57,6 +59,7 @@ namespace EVWebApi.Services
             _baseUrl = config["Frontend:BaseUrl"];
             _externalUploadUrl = config["DocumentSettings:ExternalUploadURL"];
             _uploadRoot = config["DocumentSettings:OnboardingFilePath"];
+            _tempRoot = config["DocumentSettings:TempPath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
             _clientName = config["DocumentSettings:ClientName"];
             _dataSource = dataSource;
@@ -395,8 +398,8 @@ namespace EVWebApi.Services
                         .Select(email => new Candidate
                         {
                             Email = email,
-                            Region = collection.Region
-                            //CreatedAt = DateTime.UtcNow
+                            Region = collection.Region,
+                            CreatedAt = DateTime.UtcNow
                         })
                         .ToList();
 
@@ -1104,6 +1107,7 @@ namespace EVWebApi.Services
                         RecipientId = r.CandidateId,
                         Email = r.Candidate.Email,
                         Name = r.Candidate.Name,
+                        Phone=r.Candidate.Phone,
                         PAN = r.Candidate.PAN,
                         Adhaar = r.Candidate.Adhaar,
                         Dob = r.Candidate.DateOfBirth,
@@ -1487,11 +1491,64 @@ namespace EVWebApi.Services
 
         }
 
+        public async Task<Models.Document> ConfirmCandidateAsync(ConfirmIndivitualCandidateDto dto, int userId)
+        {
+            var candidate = await _context.Candidates
+                .FirstOrDefaultAsync(c => c.Id == dto.CandidateId);
+            if (candidate == null)
+                throw new NotFoundException("Candidate not found");
+            if (candidate.IsHired)
+                throw new BadRequestException("Candidate is already hired");
+            var alreadyExists = await _context.Documents.AnyAsync(d =>
+                    d.CandidateId == dto.CandidateId &&
+                    d.EmployeeId == dto.EmployeeId);
+            if (alreadyExists)
+                throw new BadRequestException("Candidate with same employee ID already exists");
+            try
+            {
+
+                var document = new Models.Document
+                {
+                    CandidateId = dto.CandidateId,
+                    CabinetId = 2,
+                    Region = candidate.Region,
+                    // Basic onboarding details
+                    Designation = dto.Designation,
+                    DOJ = dto.DOJ,
+                    EmployeeId = dto.EmployeeId,
+                    DOB = candidate.DateOfBirth,
+                    ContactNumber = candidate.Phone,
+                    Name = candidate.Name,
+
+                    //FileName = string.Empty,
+                    //FilePath = string.Empty,
+
+                    Status = "active",
+                    UploadedAt = DateTime.UtcNow,
+                    UploadedBy = userId
+                };
+                _context.Documents.Add(document);
+                candidate.IsHired = true;
+                await _context.SaveChangesAsync();
+                return document;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error confirming candidate: {ex.Message}");
+
+            }
+        }
+        //---------------------------------------------------------------------------------------------//
+
 
         public async Task<OnboardingDocument> InternalDocumentUploadAsync(InternalUploaddto dto)
         {
             var candidate = await _context.ConfigurationRequestRecipient
-                .FirstOrDefaultAsync(x => x.Id == dto.CandidateId && x.RequestId == dto.RecipientId);
+                .Include(x=>x.Candidate)
+                .FirstOrDefaultAsync(x => x.CandidateId == dto.CandidateId 
+                && x.Id == dto.RequestId
+                )
+                ;
 
             if (candidate == null)
                 throw new NotFoundException("Candidate not found");
@@ -1504,7 +1561,7 @@ namespace EVWebApi.Services
                 .Trim()
                 .Replace(" ", "_");
 
-            var orgFolderName = $"{safeCandidateName}_{candidate.Token}";
+           var orgFolderName = $"{safeCandidateName}_{candidate.Token}";
 
             var finalPath = Path.Combine(folderPath, orgFolderName);
 
@@ -1519,8 +1576,8 @@ namespace EVWebApi.Services
 
             var entity = new OnboardingDocument
             {
-                RecipientId = dto.RecipientId,
-                CandidateId = candidate.Id,
+                RecipientId = dto.RequestId,
+                CandidateId = candidate.CandidateId,
                 DocumentTypeId = dto.DocumentTypeId,
                 FilePath = dbPath,
                 FileName = dto.FileName,
@@ -1560,49 +1617,69 @@ namespace EVWebApi.Services
             if (!File.Exists(fullPath))
                 throw new NotFoundException("File not found");
 
-            string tempExtractedPath = Path.GetTempFileName();
-            string tempRemainingPath = Path.GetTempFileName();
+            //string tempExtractedPath = Path.GetTempFileName();
+            //string tempRemainingPath = Path.GetTempFileName();
+            var tempRoot = _tempRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var operationFolder = Path.Combine(
+                tempRoot,
+                Guid.NewGuid().ToString());
+
+            Directory.CreateDirectory(operationFolder);
+
+            string tempExtractedPath = Path.Combine(
+                operationFolder,
+                "extract.pdf");
+
+            string tempRemainingPath = Path.Combine(
+                operationFolder,
+                "remaining.pdf");
+
 
             try
             {
-                using var originalPdf =
-                    PdfReader.Open(fullPath, PdfDocumentOpenMode.Import);
-
-                if (dto.FromPage < 1 ||
-                    dto.ToPage < 1 ||
-                    dto.FromPage > dto.ToPage ||
-                    dto.ToPage > originalPdf.PageCount)
-                {
-                    throw new ValidationException(
-                        $"Invalid page range. PDF has {originalPdf.PageCount} pages.");
-                }
-
-                var extractedPdf = new PdfDocument();
-                var remainingPdf = new PdfDocument();
-
-                for (int i = 0; i < originalPdf.PageCount; i++)
-                {
-                    int pageNumber = i + 1;
-
-                    if (pageNumber >= dto.FromPage &&
-                        pageNumber <= dto.ToPage)
+                using (var originalPdf =
+                    PdfReader.Open(fullPath, PdfDocumentOpenMode.Import))
                     {
-                        extractedPdf.AddPage(originalPdf.Pages[i]);
-                    }
-                    else
+                    if (dto.FromPage < 1 ||
+                        dto.ToPage < 1 ||
+                        dto.FromPage > dto.ToPage ||
+                        dto.ToPage > originalPdf.PageCount)
                     {
-                        remainingPdf.AddPage(originalPdf.Pages[i]);
+                        throw new ValidationException(
+                            $"Invalid page range. PDF has {originalPdf.PageCount} pages.");
                     }
+
+                    var extractedPdf = new PdfDocument();
+                    var remainingPdf = new PdfDocument();
+
+                    for (int i = 0; i < originalPdf.PageCount; i++)
+                    {
+                        int pageNumber = i + 1;
+
+                        if (pageNumber >= dto.FromPage &&
+                            pageNumber <= dto.ToPage)
+                        {
+                            extractedPdf.AddPage(originalPdf.Pages[i]);
+                        }
+                        else
+                        {
+                            remainingPdf.AddPage(originalPdf.Pages[i]);
+                        }
+                    }
+
+                    if (extractedPdf.PageCount == 0)
+                        throw new ValidationException("No pages extracted");
+
+                    extractedPdf.Save(tempExtractedPath);
+                    remainingPdf.Save(tempRemainingPath);
                 }
-
-                if (extractedPdf.PageCount == 0)
-                    throw new ValidationException("No pages extracted");
-
-                extractedPdf.Save(tempExtractedPath);
-                remainingPdf.Save(tempRemainingPath);
-
                 // replace original with remaining pages
-                File.Move(tempRemainingPath, fullPath, true);
+                //File.Move(tempRemainingPath, fullPath, true);
+                File.Copy(tempRemainingPath, fullPath, true);
+                File.Delete(tempRemainingPath);
 
                 var extension = Path.GetExtension(originalDoc.FileName);
 
@@ -1616,7 +1693,7 @@ namespace EVWebApi.Services
 
                 var uploadDto = new InternalUploaddto
                 {
-                    RecipientId = originalDoc.RecipientId,
+                    RequestId = originalDoc.RecipientId,
                     CandidateId = originalDoc.CandidateId,
                     DocumentTypeId = docType.Id,
                     FileName = newFileName,
@@ -1635,15 +1712,29 @@ namespace EVWebApi.Services
                     Status = uploadedDoc.Status
                 };
             }
-            catch
+            //catch
+            //{
+            //    if (File.Exists(tempExtractedPath))
+            //        File.Delete(tempExtractedPath);
+
+            //    if (File.Exists(tempRemainingPath))
+            //        File.Delete(tempRemainingPath);
+
+            //    throw;
+            //}
+            finally
             {
-                if (File.Exists(tempExtractedPath))
-                    File.Delete(tempExtractedPath);
-
-                if (File.Exists(tempRemainingPath))
-                    File.Delete(tempRemainingPath);
-
-                throw;
+                try
+                {
+                    if (Directory.Exists(operationFolder))
+                    {
+                        Directory.Delete(operationFolder, true);
+                    }
+                }
+                catch
+                {
+                    throw new ServerException("Failed deleting temporary folder.");
+                }
             }
         }
 
@@ -1874,8 +1965,79 @@ namespace EVWebApi.Services
             return true;
         }
 
+        public async Task<string> RemoveCandidateAsync(int candidateId,int userid)
+        {
+           
+            var candidate = await _context.Candidates
+                .Include(x=>x.OnboardingDocs)
+                .Where(x=>x.Status=="active")
+                .FirstOrDefaultAsync(x => x.Id == candidateId);
+            if (candidate == null)
+                throw new NotFoundException("Candidate not found");
+            //if (candidate.IsHired)
+            //    throw new BadRequestException("Candidate is already hired");
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+
+                candidate.Status = "deleted";
+                candidate.DeletedAt = DateTime.UtcNow;
+                candidate.DeletedBy = userid;
+                foreach (var doc in candidate.OnboardingDocs)
+                {
+                    doc.Status = "archived";
+                }
+                await _context.SaveChangesAsync();
+                await IsAllCandidatesDeleted(candidateId);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return candidate.Name ?? string.Empty;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw new ServerException("Failed to remove candidate. Please try again.");
+            }
+        }
+
+
+
         //-------------------------helpers---------------------------------------
 
+        private async Task IsAllCandidatesDeleted(int candidateId)
+        {
+            var configReqIds = await _context.ConfigurationRequestRecipient
+                .Where(r => r.CandidateId == candidateId)
+                .Select(r => r.Request.Id)
+                 .Distinct()
+                .ToListAsync();
+            if (!configReqIds.Any())
+                return;
+
+            foreach (var requestId in configReqIds)
+            {
+                var hasActiveCandidates = await _context.ConfigurationRequestRecipient
+                .Include(r => r.Candidate)
+                .AnyAsync(r =>
+                    r.RequestId == requestId &&
+                    r.Candidate.Status == "active");
+
+                if (!hasActiveCandidates)
+                {
+                    var configRequest = await _context.ConfigurationRequestRecipient
+                        .Where(r => r.RequestId == requestId).ToListAsync();
+
+                    foreach (var config in configRequest)
+                    {
+                        config.Status = "deleted";
+                        // config.CancelledAt = DateTime.UtcNow;
+                    }
+                   
+                }
+            }
+
+        }
         private async Task<string> BuildLaptopRequestBodyAsync(List<Candidate> candidates, string message)
         {
 

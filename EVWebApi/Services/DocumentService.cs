@@ -585,16 +585,6 @@ namespace EVWebApi.Services
                        Status = first.Status,
                        CabinetId = first.CabinetId,
 
-                       //DocumentTypes = g.Select(d => new DocumentChildDDTO
-                       //{
-                       //    DocumentId = d.DocumentId,
-                       //    DocumentType = d.DocumentType?.Label,
-                       //    NotesCount = d.Notes?.Count ?? 0,
-                       //    FileName = d.FileName,
-                       //    FilePath = d.FilePath
-                       //}).ToList()
-
-
                        DocumentTypes = g.SelectMany(d =>
                        {
                            // Normal uploaded document

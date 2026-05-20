@@ -1,4 +1,5 @@
-﻿using EVWebApi.Models;
+﻿using EVWebApi.DTOs.Document;
+using EVWebApi.Models;
 
 namespace EVWebApi.Helpers.ExportToExcel
 {

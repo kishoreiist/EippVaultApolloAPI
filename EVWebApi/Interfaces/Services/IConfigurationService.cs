@@ -2,6 +2,8 @@
 using EVWebApi.DTOs.Group;
 using EVWebApi.DTOs.HR;
 using EVWebApi.DTOs.Pagination;
+using EVWebApi.Models;
+using EVWebApi.Models.HR;
 
 namespace EVWebApi.Interfaces.Services
 {
@@ -24,12 +26,15 @@ namespace EVWebApi.Interfaces.Services
         Task<HrUploadResponseDto> OnboardingExcelUploadAsync(OnboardingUploadDto dto,int? userId);
         Task<(byte[], string)> ExportFailedRowsAsync(int batchId);
         Task<ConfirmedCandidateDto> ConfirmOnboardingBatchAsync(int batchId, int userId);
+        Task<Document> ConfirmCandidateAsync(ConfirmIndivitualCandidateDto dto, int userId);
+
         Task<DocumentResponseDto> SplitOnboardingDocumentAsync(SplitAndExtractPdfDto dto);
         Task<(byte[], string)> ExportOnboardingReport(ExportOnboardingReportQuery query);
 
 
         Task<StatusCountResponseDto> GetCandidatesStatusCountAsync(StatusCountQueryParamDto dto);
         Task<bool> SendLaptopRequestMailAsync(RequestLaptopDto dto, CancellationToken ct = default);
+        Task<string> RemoveCandidateAsync(int candidatid,int userid);
 
 
     }

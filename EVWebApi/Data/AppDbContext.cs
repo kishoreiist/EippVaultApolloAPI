@@ -261,7 +261,6 @@ namespace EVWebApi.Data
                 .HasOne(ud => ud.Recipient)
                 .WithMany(r => r.UploadedDocuments)
                 .HasForeignKey(ud => ud.RecipientId)
-                
                 .OnDelete(DeleteBehavior.Cascade);
 
             // UploadedDocument → DocumentType
@@ -272,7 +271,7 @@ namespace EVWebApi.Data
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<OnboardingDocument>()
                 .HasOne(d => d.Candidate)
-                .WithMany()
+                .WithMany(x => x.OnboardingDocs)
                 .HasForeignKey(d => d.CandidateId)
                 .OnDelete(DeleteBehavior.Restrict);
 

@@ -26,6 +26,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<List<string>> GetCabinetUploadColumns(int cabinetId);
         Task<List<Document>> GetDocumentsByIds(List<int> ids);
         Task<List<Document>> ExcelExportQuery(ExportExcelDocDto dto);
+        //Task<List<DocumentExportDto>> ExcelExportQuery(ExportExcelDocDto dto);
         Task<int> GetDocumentIdFromPathAsync(string filePath); //need to check
         //--------NOTES----------------
         Task<List<NotesDto>> GetDocumentWithNotesAsync(int documentId);

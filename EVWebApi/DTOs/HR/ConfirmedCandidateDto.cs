@@ -9,7 +9,13 @@ namespace EVWebApi.DTOs.HR
         public int Skipped { get; set; }
         public string Message { get; set; }
     }
-
+    public class  ConfirmIndivitualCandidateDto
+    {
+        public required int CandidateId { get; set; }
+        public required string EmployeeId { get; set; }
+        public required string Designation { get; set; }
+        public required DateTime DOJ { get; set; }
+    }
     public class ExportOnboardingReportQuery
     {
         [FromQuery(Name = "report_type")]

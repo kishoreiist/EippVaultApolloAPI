@@ -1,4 +1,5 @@
 ﻿using EVWebApi.DTOs.HR;
+using EVWebApi.Exceptions;
 using EVWebApi.Helpers;
 using EVWebApi.Interfaces.Services;
 using EVWebApi.Services;
@@ -271,6 +272,24 @@ namespace EVWebApi.Controllers
             return Ok(result);
         }
         [Authorize(Roles = "admin,super_admin")]
+        [HttpPost("confirm_candidate")]
+        public async Task<IActionResult> ConfirmCandidate([FromBody] ConfirmIndivitualCandidateDto dto)
+        {
+            try
+            {
+                var result = await _service.ConfirmCandidateAsync(dto, CurrentUserId);
+                
+                return Ok(new
+                {
+                    message = "Candidate confirmed successfully"
+                });
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+        [Authorize(Roles = "admin,super_admin")]
         [HttpGet("export_onboarding_report")]
         public async Task<IActionResult> ExportOnboardingReport([FromQuery] ExportOnboardingReportQuery query)
         {
@@ -298,7 +317,7 @@ namespace EVWebApi.Controllers
 
                 var result = await _service.SendLaptopRequestMailAsync(dto);
                 if (result)
-                { 
+                {
                     await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Configuration", "LaptopRequest Send", dto.To);
                     return Ok(new
                     {
@@ -312,12 +331,42 @@ namespace EVWebApi.Controllers
                 });
 
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 throw;
             }
 
         }
+
+        [Authorize(Roles = "admin,super_admin")]
+        [HttpDelete("remove_candidate/{id}")]
+        public async Task<IActionResult> RemoveCandidate(int id)
+        {
+            try
+            {
+
+                var result = await _service.RemoveCandidateAsync(id, CurrentUserId);
+                if (string.IsNullOrEmpty(result))
+                {
+                    await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Configuration", "Remove Candidate Failed");
+
+                    return NotFound();
+                }
+                await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Configuration", "Candidate Removed",result);
+                return Ok(new
+                {
+                    message = "Candidate removed successfully"
+                });
+
+
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+
+
     }
  }
 

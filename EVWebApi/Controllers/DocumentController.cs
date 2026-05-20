@@ -471,7 +471,11 @@ namespace EVWebApi.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, $"An error occurred while splitting the document.,{ex.Message}");
+                return StatusCode(500, new
+                {
+                    Message = "An error occurred while splitting the document.",
+                    Error = ex.InnerException?.Message ?? ex.Message
+                });
             }
         }
 

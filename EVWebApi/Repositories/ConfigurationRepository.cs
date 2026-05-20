@@ -71,7 +71,7 @@ namespace EVWebApi.Repositories
 
         }
 
-
+        //---need to addd
         public async Task<List<ConfigRequest>> GetConfigRequestAsync(ConfigQueryDetailDto dto)
         {
             var statusFilter = string.IsNullOrEmpty(dto.Status) ? "completed" : dto.Status;
@@ -83,14 +83,12 @@ namespace EVWebApi.Repositories
                 (cr.Collection.Type == typeFilter)
                  &&
                  (cr.Recipients.Any(r => r.Status == statusFilter)))
-
-                //cr.Recipients.Any(r => r.Status == statusFilter))
                 .Include(r => r.Collection)
                     .ThenInclude(c => c.CollectionDocumentTypes)
                         .ThenInclude(cd => cd.DocumentType)
                 .Include(r => r.Recipients
-                    .Where(r => r.Status == statusFilter)) // keep filtered recipients
-                    .ThenInclude(r => r.Candidate)
+                    .Where(r => r.Status == statusFilter && r.Candidate.Status == "active" && r.Candidate.IsHired != true))   
+                    .ThenInclude(r => r.Candidate)      
                 .ToListAsync();
         }
 

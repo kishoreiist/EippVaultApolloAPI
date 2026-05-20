@@ -565,8 +565,8 @@ namespace EVWebAPI.Controllers
                        
                     });
                 }
-                Response.Cookies.Delete("refresh_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
-                Response.Cookies.Delete("access_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
+                //Response.Cookies.Delete("refresh_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
+                //Response.Cookies.Delete("access_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
                 Response.Cookies.Append(
                     "access_token",
                     result.AccessToken,

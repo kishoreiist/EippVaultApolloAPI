@@ -16,12 +16,12 @@ namespace EVWebApi.DTOs.HR
         public string? Description { get; set; }
         
     }
-    public class ConfigQueryParamsDto
-    {
-        [FromQuery(Name ="region")]
-        public string? Region { get; set; }
+    //public class ConfigQueryParamsDto
+    //{
+    //    [FromQuery(Name ="region")]
+    //    public string? Region { get; set; }
        
-    }
+    //}
 
     public class ConfigQueryDetailDto
     {
@@ -157,12 +157,15 @@ namespace EVWebApi.DTOs.HR
         public string DocType { get; set; }
         public int FileId { get; set; }
         public string FilePath { get; set; }
+        public string? FileUrl { get; set; }
+        public string Category { get; set; }
 
     }
     public class DocumentTypeListDto
     {
         public int DocumentTypeId { get; set; }
         public string DocType { get; set; }
+        public string Category { get; set; }
     }
     public class PendingDocDto
     {
@@ -177,5 +180,20 @@ namespace EVWebApi.DTOs.HR
         public string SafeCandidateName { get; set; } = string.Empty;
         public string FinalFolderPath { get; set; } = string.Empty;
         public string OriginalFolderName { get; set; } = string.Empty;
+    }
+
+    public class CompletedRecipientDto
+    {
+        public int RecipientId { get; set; }
+        public string Email { get; set; }
+        public string Name { get; set; }
+        public string Phone { get; set; }
+        public string Adhaar { get; set; }
+        public string PAN { get; set; }
+        public DateTime? Dob { get; set; }
+        public string Status { get; set; }
+        public bool IsHired { get; set; }
+        public bool IsLaptopRequestSent { get; set; }
+        public List<DocumentTypeDetailDto> Documents { get; set; }
     }
 }

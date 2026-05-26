@@ -323,8 +323,8 @@ namespace EVWebAPI.Controllers
                 var isHttps = Request.IsHttps;//to hanlde http in demo
                 
                 // Always clear stale tokens first
-                Response.Cookies.Delete("access_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
-                Response.Cookies.Delete("refresh_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
+                //Response.Cookies.Delete("access_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
+                //Response.Cookies.Delete("refresh_token", _cookieHelper.Build(DateTime.UtcNow, HttpContext));
 
                 Response.Cookies.Append(
                     "refresh_token",

@@ -14,7 +14,7 @@ namespace EVWebApi.Models
         public int VersionNo { get; set; }
 
         [Column("file_name")]
-        public string FileName { get; set; }
+        public string? FileName { get; set; }
 
         [Column("uploaded_by")]
         public int? UploadedBy { get; set; }

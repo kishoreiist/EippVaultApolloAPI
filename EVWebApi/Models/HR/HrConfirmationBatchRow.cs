@@ -20,6 +20,8 @@ namespace EVWebApi.Models.HR
         public string? EmployeeId { get; set; }
         [Column("designation")]
         public string? Designation { get; set; }
+        [Column("department")]
+        public string? Department { get; set; }
         [Column("doj")]
         public DateTime? DOJ { get; set; }
         [Column("candidate_name")]

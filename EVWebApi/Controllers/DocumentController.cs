@@ -199,8 +199,11 @@ namespace EVWebApi.Controllers
 
         //edit by doc id
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateDocument(int id, [FromQuery] UpdateDocumentDto dto)
+        public async Task<IActionResult> UpdateDocument(int id, [FromBody] UpdateDocumentDto dto)
         {
+            try
+            {
+
             var updated = await _documentService.UpdateDocumentAsync(id, dto, CurrentUserId);
 
             if (updated == null)
@@ -209,6 +212,16 @@ namespace EVWebApi.Controllers
             await _auditlogservice.LogAsync(CurrentUserId, CurrentUsername, "Document", "Document Updated", updated.FileName, updated.CabinetId);
 
             return Ok(updated);
+
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "Document updated failed",
+                    Error = ex.Message
+                });
+            }
         }
         // SINGLE DELETE DOC
         [HttpDelete]
@@ -559,12 +572,12 @@ namespace EVWebApi.Controllers
         //excel open
 
         //--------------get sheetname-----------------
-        [HttpGet("sheets/{documentId}")]
-        public async Task<IActionResult> GetSheetNames(int documentId)
+        [HttpGet("sheets")]
+        public async Task<IActionResult> GetSheetNames([FromQuery] DocumentRequestDto dto)
         {
             try
             {
-                var sheets = await _documentService.GetExcelSheetNamesAsync(documentId);
+                var sheets = await _documentService.GetExcelSheetNamesAsync(dto);
                 return Ok(sheets);
             }
             catch (Exception ex)

@@ -55,8 +55,8 @@ namespace EVWebApi.Services
                 UploadedAt = doc.UploadedAt,
                 UploadedBy = doc.UploadedBy,
 
-                FileName = doc.FileName,
-                FilePath = doc.FilePath,
+                FileName = doc.FileName?? doc.FileName,
+                FilePath = doc.FilePath?? doc.FilePath,
 
                 InvoiceNumber = doc.InvoiceNumber ?? doc.InvoiceNumber,
 

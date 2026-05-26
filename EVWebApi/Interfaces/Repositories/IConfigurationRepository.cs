@@ -20,7 +20,7 @@ namespace EVWebApi.Interfaces.Repositories
         Task<List<int>> GetActiveOnboardDocIdsForUserAsync(int userId, IEnumerable<int> documentIds);
        Task<OnboardingDocument> DeleteOnboardingDocument(int id);
 
-
+        IQueryable<Candidate> GetCandidateDocsById(int candidateId);
         Task<List<int>> GetExisitngCandidatesByEmail(List<string> emails);
         Task<Candidate> GetCandidateByIdAsync(int id);
         Task<ConfigRequestRecipient?> GetRecipientReqByCandidateId(int candidateId);

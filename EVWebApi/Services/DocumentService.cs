@@ -336,6 +336,14 @@ namespace EVWebApi.Services
                 else
                     docQuery = docQuery.Where(d => d.Designation.ToLower().Contains(query.Designation.ToLower()));
             }
+
+            if (!string.IsNullOrWhiteSpace(query.Department))
+            {
+                if (query.SearchType == null || query.SearchType == SearchType.starts_with)
+                    docQuery = docQuery.Where(d => d.Department.ToLower().StartsWith(query.Department.ToLower()));
+                else
+                    docQuery = docQuery.Where(d => d.Department.ToLower().Contains(query.Department.ToLower()));
+            }
             //CONTACT NO
             if (!string.IsNullOrWhiteSpace(query.ContactNumber))
             {
@@ -569,6 +577,7 @@ namespace EVWebApi.Services
                        Name = first.Name,
                        ContactNumber = first.ContactNumber,
                        Designation = first.Designation,
+                       Department = first.Department,
                        DOB = first.DOB,
                        DOJ = first.DOJ,
                        Region = first.Region,
@@ -808,11 +817,12 @@ namespace EVWebApi.Services
             var files = await _repo.GetFileExplorerAsync(id);
             if (files == null)
                 throw new NotFoundException("Files not found in storage");
-
+  
 
             return files.Select(d => new DocumentFileExplorer
             {
                 DocumentId = d.DocumentId,
+                OnboardingDocId = d.OnboardingDocId,
                 FilePath = Path.GetDirectoryName(d.FilePath)!.Replace("\\", "/"),
                 FileName = d.FileName
             }).ToList();
@@ -1889,6 +1899,16 @@ namespace EVWebApi.Services
 
         public async Task<BatchResponseDTO> ApplyExcelPatchAsync(ExcelPatchRequestDto dto, int? userId)
         {
+            if (dto.Source == DocumentSourceType.Onboarding)
+            {
+                var onboardingDoc = await _configService.ApplyOboardingExcelPatchAsync(dto, userId);
+                if (onboardingDoc == null)
+                    throw new NotFoundException("Onboarding document not found");
+
+                return onboardingDoc;
+            }
+
+
             var response = new BatchResponseDTO();
             var document = await _uow.Documents.GetDocument(dto.DocumentId);
             if (document == null || document.Status == "archived")
@@ -2428,13 +2448,25 @@ namespace EVWebApi.Services
 
         //------------excel view-------------------------
         //get sheet names
-        public async Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId)
+        public async Task<OpenExcelDto> GetExcelSheetNamesAsync(DocumentRequestDto dto)
         {
-            var document = await _repo.GetDocument(documentId);
-            if (document == null)
+
+
+            if (dto.Source == DocumentSourceType.Onboarding)
+            {
+
+                var onboardingsheets = await _configService.GetOnboardingExcelSheetNamesAsync(dto); 
+                if (onboardingsheets == null)
+                    throw new NotFoundException("Document not found");
+                return onboardingsheets;
+
+            }
+
+            var doc = await _repo.GetDocument(dto.Id);
+            if (doc == null)
                 throw new KeyNotFoundException("Document not found");
 
-            var relativePath = document.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var relativePath = doc.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
 
             var uploadRootTemplate = _uploadRoot
                 .Replace("{StorageRoot}", _storageRoot)
@@ -2454,7 +2486,7 @@ namespace EVWebApi.Services
                 ".xls", ".xlsx", ".xlsb", ".xlsm", ".xltx", ".xltm"
             };
 
-            var extension = Path.GetExtension(document.FileName);
+            var extension = Path.GetExtension(doc.FileName);
 
             if (!allowedExtensions.Contains(extension))
             {
@@ -2479,12 +2511,27 @@ namespace EVWebApi.Services
                 })
                 .ToList();
 
-            return sheets;
+            return new OpenExcelDto
+            {
+                Source=dto.Source,
+                Sheets = sheets
+            };
         }
 
 
         public async Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto)
         {
+
+            if (dto.Source == DocumentSourceType.Onboarding)
+            {
+
+                var onboardingExcel = await _configService.OpenOnboardingExcelSheetAsync(dto);
+                if (onboardingExcel == null)
+                    throw new NotFoundException("Document not found");
+                return onboardingExcel;
+
+            }
+
             var document = await _repo.GetDocument(dto.DocumentId);
             if (document == null)
                 throw new KeyNotFoundException("Document not found");

@@ -14,6 +14,7 @@ namespace EVWebApi.DTOs.HR
         public required int CandidateId { get; set; }
         public required string EmployeeId { get; set; }
         public required string Designation { get; set; }
+        public required string Department { get; set; }
         public required DateTime DOJ { get; set; }
     }
     public class ExportOnboardingReportQuery

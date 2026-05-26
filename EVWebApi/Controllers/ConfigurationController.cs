@@ -189,10 +189,10 @@ namespace EVWebApi.Controllers
 
         }
         [Authorize(Roles = "admin,super_admin")]
-        [HttpGet("requests/list")]
-        public async Task<IActionResult> GetAllRequests([FromQuery] ConfigQueryParamsDto dto)
+        [HttpGet("recipeint/{id}")]
+        public async Task<IActionResult> GetRecipientDetials(int id)
         {
-            var result = await _service.GetAllConfigsAsync(CurrentUserId, "super_admin", dto);
+            var result = await _service.GetRecipientDetailsAsync(id);
             return Ok(result);
         }
 

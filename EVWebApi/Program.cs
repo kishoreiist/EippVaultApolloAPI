@@ -35,6 +35,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc.Filters;
 using EVWebApi.Helpers.Security.Filters;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -162,9 +163,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
             OnChallenge =async context =>
             {
-                Log.Warning("JWT CHALLENGE: Unauthorized request. Error: {Error}, Desc: {Desc}",
-                    context.Error,
-                    context.ErrorDescription);
+                Log.Warning($"JWT CHALLENGE: Unauthorized request. Error: {context.Error}, Desc: {context.ErrorDescription}");
 
                 context.HandleResponse();
                 context.Response.StatusCode = 401;
@@ -330,6 +329,19 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
 }
+
+
+//for profile pic file
+
+var storageRoot = builder.Configuration["DocumentSettings:StorageRoot"];
+var clientName = builder.Configuration["DocumentSettings:ClientName"];
+
+var profileImagePath = Path.Combine(storageRoot!, clientName!, "ProfileImages");
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(profileImagePath),
+    RequestPath = "/images"
+});
 
 //serilog
 

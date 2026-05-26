@@ -52,6 +52,8 @@ namespace EVWebApi.DTOs.Document
         public string? ContactNumber { get; set; }
         [FromQuery(Name = "designation")]
         public string? Designation { get; set; }
+        [FromQuery(Name = "department")]
+        public string? Department { get; set; }
         [FromQuery(Name = "login_id")]
         public string? LoginId { get; set; }
         [FromQuery(Name = "status")]

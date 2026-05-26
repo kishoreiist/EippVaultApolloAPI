@@ -22,11 +22,14 @@ using Npgsql;
 using Org.BouncyCastle.Cms;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
+using Serilog;
 using Syncfusion.EJ2.Grids;
 using Syncfusion.EJ2.Spreadsheet;
+using Syncfusion.XlsIO;
 using System.Data.Common;
 using System.Security;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using static QRCoder.PayloadGenerator;
 
@@ -44,11 +47,14 @@ namespace EVWebApi.Services
         private readonly string _uploadRoot;
         private readonly string _tempRoot;
         private readonly string _baseUrl;
+        private readonly string _backendBaseUrl;
         private readonly string _storageRoot;
         private readonly string _clientName;
+        private readonly string _profilePic;
         private readonly NpgsqlDataSource _dataSource;
+        private readonly IUnitOfWork _uow;
         public ConfigurationService(AppDbContext context, IDocumentRepository docrepo, IConfigurationRepository repo, IEmailSender emailSender, IConfiguration config,
-            IMetadataReaderFactoryService metadataReaderFactory, INotificationService notificationService, NpgsqlDataSource dataSource)
+            IMetadataReaderFactoryService metadataReaderFactory, INotificationService notificationService, NpgsqlDataSource dataSource, IUnitOfWork uow)
         {
             _context = context;
             _docrepo = docrepo;
@@ -57,12 +63,15 @@ namespace EVWebApi.Services
             _notificationService = notificationService;
             _metadataReaderFactory = metadataReaderFactory;
             _baseUrl = config["Frontend:BaseUrl"];
+            _backendBaseUrl = config["BackEnd:BaseUrl"];
             _externalUploadUrl = config["DocumentSettings:ExternalUploadURL"];
             _uploadRoot = config["DocumentSettings:OnboardingFilePath"];
             _tempRoot = config["DocumentSettings:TempPath"];
             _storageRoot = config["DocumentSettings:StorageRoot"];
             _clientName = config["DocumentSettings:ClientName"];
+            _profilePic = config["DocumentSettings:ProfileImagesPath"];
             _dataSource = dataSource;
+            _uow = uow;
         }
 
         public async Task<CollectionResponseDto> CreateCollectionAsync(CreateCollectionDto dto, int? userId)
@@ -90,6 +99,19 @@ namespace EVWebApi.Services
                 };
                 var docType = await _docrepo.GetOrCreateDocLabelAsync(docTypeDto);
                 docTypeEntities.Add(docType);
+            }
+
+            //mandatory docs
+            if (dto.Type == "pre")
+            {
+                var mandatoryDoc = await _context.DocumentTypes
+                .FirstOrDefaultAsync(x => x.Key == "passport_size_photograph");
+
+                if (mandatoryDoc != null &&
+                    !docTypeEntities.Any(x => x.Id == mandatoryDoc.Id))
+                {
+                    docTypeEntities.Add(mandatoryDoc);
+                }
             }
 
             var collection = new DocumentCollection
@@ -338,6 +360,198 @@ namespace EVWebApi.Services
             await _context.SaveChangesAsync();
         }
         //------------------------------------send url---------------------------------------------
+        //public async Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId)
+        //{
+
+        //    await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        //    try
+        //    {
+        //        var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
+
+        //        if (collection == null)
+        //            throw new NotFoundException("Collection not found");
+
+        //        var user = await _context.Users
+        //            .Where(u => u.UserId == userId)
+        //            .Select(u => new
+        //            {
+        //                u.Email,
+        //                u.Username
+        //            })
+        //            .FirstOrDefaultAsync();
+
+        //        // Create Request
+        //        var request = new ConfigRequest
+        //        {
+        //            ConfigName = dto.Name,
+        //            CollectionId = dto.CollectionId,
+        //            ExpiryDate = dto.ExpiryDate!.Value,
+        //            Description = dto.Description,
+        //            CreatedBy = userId,
+        //            CreatedAt = DateTime.UtcNow
+        //        };
+
+        //        // Normalize emails
+        //        var normalizedEmails = dto.Emails
+        //            .Where(e => !string.IsNullOrWhiteSpace(e))
+        //            .Select(e => e.Trim().ToLower())
+        //            .Distinct()
+        //            .ToList();
+
+        //        var candidates = new List<Candidate>();
+        //        var existingCandidates = await _context.Candidates
+        //            .Where(c => normalizedEmails.Contains(c.Email.ToLower()))
+        //            .ToListAsync();
+
+        //        // PRE ONBOARDING
+        //        if (collection.Type.ToLower() == "pre")
+        //        {
+        //            var existingEmails = existingCandidates
+        //                .Select(c => c.Email.ToLower())
+        //                .ToList();
+        //            if (existingEmails.Any())
+        //            {
+        //                throw new BadRequestException(
+        //                    $"Candidates already exist: {string.Join(", ", existingEmails)}");
+        //            }
+
+        //            candidates = normalizedEmails
+        //                .Select(email => new Candidate
+        //                {
+        //                    Email = email,
+        //                    Region = collection.Region,
+        //                    CreatedAt = DateTime.UtcNow
+        //                })
+        //                .ToList();
+
+        //            _context.Candidates.AddRange(candidates);
+
+        //            await _context.SaveChangesAsync();
+        //        }
+
+        //        // POST ONBOARDING
+        //        else
+        //        {
+        //            candidates = existingCandidates;
+
+
+        //            var foundEmails = candidates
+        //                .Select(c => c.Email.ToLower())
+        //                .ToList();
+
+        //            var missingEmails = normalizedEmails
+        //                .Except(foundEmails)
+        //                .ToList();
+
+        //            if (missingEmails.Any())
+        //            {
+        //                throw new BadRequestException(
+        //                    $"Candidates not found for post onboarding: {string.Join(", ", missingEmails)}");//For post onboarding, all provided email IDs must already exist in Candidates table.
+        //            }
+
+        //            var notHiredCandidates = candidates
+        //                .Where(c => !c.IsHired)
+        //                .Select(c => c.Email)
+        //                .ToList();
+
+        //            if (notHiredCandidates.Any())
+        //            {
+        //                throw new BadRequestException(
+        //                    $"Post onboarding documents can only be assigned to hired candidates. Not hired: {string.Join(", ", notHiredCandidates)}");
+        //            }
+        //        }
+
+        //        // Create recipients
+
+
+        //        var recipients = candidates
+        //            .Select(candidate => new ConfigRequestRecipient
+        //            {
+        //                Token = Guid.NewGuid().ToString(),
+        //                CandidateId = candidate.Id,
+        //                Status = "pending"
+
+        //            })
+        //            .ToList();
+
+        //        request.Recipients = recipients;
+        //        _context.ConfigurationRequests.Add(request);
+
+        //        await _context.SaveChangesAsync();
+        //        await transaction.CommitAsync();
+
+
+        //        //Generate email tasks (parallel)
+
+        //        int success = 0;
+        //        int failed = 0;
+        //        var failedDetails = new List<string>();
+        //        var lockObj = new object();
+
+        //        var semaphore = new SemaphoreSlim(5); // max 5 parallel
+        //        var emailTasks = recipients.Select(async r =>
+        //        {
+        //            var link = $"{_externalUploadUrl}/{r.Token}";
+
+        //            var body = $@"
+        //            <p>Greetings,</p>
+        //            <p>Please upload the required documents using the link below:</p>
+        //            <p><a href='{link}'><b>Upload Your Documents</b></a></p>
+        //            <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
+        //            <br><p>If you need any assistance, feel free to contact us.</p></br>
+
+        //            <p>Regards,</p>
+        //            <p>Apollo EIPP Vault Team</p>
+        //        ";
+        //            var subject = "Action Required: Upload Your Documents";
+        //            await semaphore.WaitAsync();
+        //            try
+        //            {
+        //                var sent = await _emailSender.SendAsync(r.Candidate.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
+
+        //                lock (lockObj)
+        //                {
+        //                    if (sent)
+        //                        success++;
+        //                    else
+        //                        failed++;
+        //                }
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                lock (lockObj)
+        //                {
+        //                    failed++;
+        //                    failedDetails.Add($"Email failed for {r.Candidate.Email}: {ex.Message}");
+        //                }
+        //            }
+        //            finally
+        //            {
+        //                semaphore.Release();
+        //            }
+        //        });
+
+        //        // Send all emails in parallel
+        //        await Task.WhenAll(emailTasks);
+
+
+        //        return new ConfigurationResponseDto
+        //        {
+        //            RequestId = request.Id,
+        //            TotalEmails = recipients.Count,
+        //            Success = success,
+        //            Failed = failed,
+        //            FailedEmailDetails = failedDetails
+
+        //        };
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await transaction.RollbackAsync();
+        //        throw new ServerException(ex.InnerException.Message);
+        //    }
+        //}
         public async Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId)
         {
 
@@ -379,7 +593,7 @@ namespace EVWebApi.Services
 
                 var candidates = new List<Candidate>();
                 var existingCandidates = await _context.Candidates
-                    .Where(c => normalizedEmails.Contains(c.Email.ToLower()))
+                    .Where(c => normalizedEmails.Contains(c.Email.Trim().ToLower()))
                     .ToListAsync();
 
                 // PRE ONBOARDING
@@ -388,13 +602,12 @@ namespace EVWebApi.Services
                     var existingEmails = existingCandidates
                         .Select(c => c.Email.ToLower())
                         .ToList();
-                    if (existingEmails.Any())
-                    {
-                        throw new BadRequestException(
-                            $"Candidates already exist: {string.Join(", ", existingEmails)}");
-                    }
+                    var newEmails = normalizedEmails
+                         .Where(e => !existingEmails.Contains(e))
+                        .ToList();
 
-                    candidates = normalizedEmails
+
+                    var newCandidates = newEmails
                         .Select(email => new Candidate
                         {
                             Email = email,
@@ -403,9 +616,29 @@ namespace EVWebApi.Services
                         })
                         .ToList();
 
-                    _context.Candidates.AddRange(candidates);
+                    if (newCandidates.Any())
+                    {
+                        _context.Candidates.AddRange(newCandidates);
+                        await _context.SaveChangesAsync();
+                    }
+                    candidates = existingCandidates
+                        .Concat(newCandidates)
+                        .ToList();
+                    //if (existingEmails.Any())
+                    //{
+                    //    throw new BadRequestException(
+                    //        $"Candidates already exist: {string.Join(", ", existingEmails)}");
+                    //}
 
-                    await _context.SaveChangesAsync();
+                    //candidates = normalizedEmails
+                    //    .Select(email => new Candidate
+                    //    {
+                    //        Email = email,
+                    //        Region = collection.Region,
+                    //        CreatedAt = DateTime.UtcNow
+                    //    })
+                    //    .ToList();
+
                 }
 
                 // POST ONBOARDING
@@ -527,112 +760,9 @@ namespace EVWebApi.Services
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                throw new ServerException(ex.InnerException.Message);
+                throw new ServerException(ex.InnerException?.Message ?? ex.Message);
             }
         }
-
-        //public async Task<ConfigurationResponseDto> SendConfigurationAsync(ConfigurationRequestDto dto, int userId)
-        //{
-
-            //    var collection = await _repo.GetCollectionByIdAsync(dto.CollectionId);
-            //    if (collection == null)
-            //        throw new NotFoundException("Collection not found");
-
-            //    var user = await _context.Users
-            //        .Where(u => u.UserId == userId)
-            //        .Select(u => new { u.Email, u.Username })
-            //        .FirstOrDefaultAsync();
-
-            //    var request = new ConfigRequest
-            //    {
-            //        ConfigName=dto.Name,
-            //        CollectionId = dto.CollectionId,
-            //        ExpiryDate = dto.ExpiryDate.Value,
-            //        Description = dto.Description,
-            //        CreatedBy = userId,
-            //        CreatedAt = DateTime.UtcNow
-            //    };
-
-
-            //    var recipients = dto.Emails
-            //        .Where(e => !string.IsNullOrWhiteSpace(e))
-            //        .Select(email => new ConfigRequestRecipient
-            //        {
-            //            Email = email.Trim(),
-            //            Token = Guid.NewGuid().ToString(),
-            //            Status = "pending"
-            //        })
-            //        .ToList();
-
-            //    request.Recipients = recipients;
-
-            //    _context.ConfigurationRequests.Add(request);
-            //    await _context.SaveChangesAsync();
-
-            //    //Generate email tasks (parallel)
-
-            //    int success = 0;
-            //    int failed = 0;
-            //    var failedDetails = new List<string>();
-            //    var lockObj = new object();
-
-            //    var semaphore = new SemaphoreSlim(5); // max 5 parallel
-            //    var emailTasks = recipients.Select(async r =>
-            //    {
-            //        var link = $"{_externalUploadUrl}/{r.Token}";
-
-            //        var body = $@"
-            //        <p>Greetings,</p>
-            //        <p>Please upload the required documents using the link below:</p>
-            //        <p><a href='{link}'><b>Upload Your Documents</b></a></p>
-            //        <p style='font-size:13px;color:#FF0000;'><i>Note : This link will expire on {dto.ExpiryDate}.</i></p>
-            //        <br><p>If you need any assistance, feel free to contact us.</p></br>
-
-            //        <p>Regards,</p>
-            //        <p>Apollo EIPP Vault Team</p>
-            //    ";
-            //        var subject = "Action Required: Upload Your Documents";
-            //        await semaphore.WaitAsync();
-            //        try
-            //        {
-            //            var sent = await _emailSender.SendAsync(r.Email, ReplyTo: user.Email, UserName: "Apollo OnBoarding", subject, body);
-
-            //            lock (lockObj)
-            //            {
-            //                if (sent)
-            //                    success++;
-            //                else
-            //                    failed++;
-            //            }
-            //        }
-            //        catch (Exception ex)
-            //        {
-            //            lock (lockObj)
-            //            {
-            //                failed++;
-            //                failedDetails.Add($"Email failed for {r.Email}: {ex.Message}");
-            //            }
-            //        }
-            //        finally
-            //        {
-            //            semaphore.Release();
-            //        }
-            //    });
-
-            //    // Send all emails in parallel
-            //    await Task.WhenAll(emailTasks);
-
-
-            //    return new ConfigurationResponseDto
-            //    {
-            //        RequestId = request.Id,
-            //        TotalEmails = recipients.Count,
-            //        Success = success,
-            //        Failed = failed,
-            //        FailedEmailDetails = failedDetails
-
-            //    };
-            //}
 
 
         public async Task<UploadPageResponseDto> GetUploadDocsAsync(string token)
@@ -891,33 +1021,40 @@ namespace EVWebApi.Services
 
         //}
 
-        public async Task<List<ConfigListDto>> GetAllConfigsAsync(int userId, string userType, ConfigQueryParamsDto dto)
+        public async Task<List<CompletedRecipientDto>> GetRecipientDetailsAsync(int candidateId)
         {
-            var query = _repo.GetConfigListAsync();
-            if (!string.IsNullOrEmpty(userType) && userType != "super_admin")
+            var profilePicDocTypeId = _context.DocumentTypes
+                .FirstOrDefault(x => x.Key == "passport_size_photograph")
+                ?.Id;
+
+            
+            return await _repo.GetCandidateDocsById(candidateId)
+                .Select(c => new CompletedRecipientDto
             {
-                query = query.Where(r => r.CreatedBy == userId);
-            }
-            if (!string.IsNullOrEmpty(dto.Region))
-                query = query.Where(r => r.Collection.Region == dto.Region);
-            //if(!string.IsNullOrEmpty(dto.Status))
-            //    query=query.Where(r=>r.Recipients.)
-
-            return await query
-                .Select(r => new ConfigListDto
+                RecipientId = c.Id,
+                Email = c.Email,
+                Name = c.Name,
+                Phone = c.Phone,
+                Adhaar = c.Adhaar,
+                PAN = c.PAN,
+                Dob = c.DateOfBirth,
+                Status = c.Status,
+                IsHired = c.IsHired,
+                IsLaptopRequestSent = c.IsLaptopRequestSent,
+                Documents = c.OnboardingDocs.Select(d => new DocumentTypeDetailDto
                 {
-                    ConfigId = r.Id,
-                    CollectionName = r.Collection.Name,
-                    Region = r.Collection.Region,
-                    CreatedAt = r.CreatedAt,
-                    Description = r.Description,
-                    TotalRecipients = r.Recipients.Count,
-                    Pending = r.Recipients.Count(x => x.Status == "pending"),
-                    InProgress = r.Recipients.Count(x => x.Status == "inProgress"),
-                    Completed = r.Recipients.Count(x => x.Status == "completed")
-                })
-                .ToListAsync();
-
+                   
+                    DocumentTypeId = d.DocumentTypeId,
+                    DocType = d.DocumentType.Label,
+                    FilePath = d.FilePath,
+                    FileUrl = d.DocumentType.Key == "passport_size_photograph"
+                        ? $"{_backendBaseUrl}/images/{d.FilePath}"
+                        : $"{_backendBaseUrl}/api/documents/preview/{d.Id}",
+                    Category = d.DocumentType.Category,
+                    FileId =d.Id
+                }).ToList()
+                
+            }).ToListAsync();
 
         }
 
@@ -1052,7 +1189,9 @@ namespace EVWebApi.Services
                     x.DocumentTypeId,
                     x.Id,
                     x.FilePath,
-                    DocType = x.DocumentType.Label
+                    x.Recipient,
+                    DocType = x.DocumentType.Label,
+                    Category = x.DocumentType.Category
                 })
                 .ToListAsync();
 
@@ -1062,7 +1201,8 @@ namespace EVWebApi.Services
                     .Select(dt => new DocumentTypeListDto
                     {
                         DocumentTypeId = dt.DocumentTypeId,
-                        DocType = dt.DocumentType.Label
+                        DocType = dt.DocumentType.Label,
+                        Category = dt.DocumentType.Category
                     })
                     .ToList() ?? new List<DocumentTypeListDto>();
 
@@ -1085,7 +1225,8 @@ namespace EVWebApi.Services
                             DocumentTypeId = x.DocumentTypeId,
                             DocType = x.DocType,
                             FileId = x.Id,
-                            FilePath = x.FilePath
+                            FilePath = x.FilePath,
+                            Category = x.Category
                         })
                         .ToList();
 
@@ -1184,7 +1325,296 @@ namespace EVWebApi.Services
             };
         }
 
+        //open excel------------------------------
+        public async Task<OpenExcelDto> GetOnboardingExcelSheetNamesAsync(DocumentRequestDto dto)
+        {
+          
+            var doc = await _repo.GetOnboardingFilesAsync(dto.Id);
+            if (doc == null)
+                throw new NotFoundException("Document not found");
 
+
+            var relativePath = doc.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            if (!fullPath.StartsWith(_storageRoot))
+                throw new SecurityException("Invalid file path");
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found in storage");
+
+
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".xls", ".xlsx", ".xlsb", ".xlsm", ".xltx", ".xltm"
+            };
+
+            var extension = Path.GetExtension(doc.FileName);
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new InvalidOperationException("Invalid Excel file extension/File is not an excel.");
+            }
+
+
+            using var excelEngine = new ExcelEngine();
+            var application = excelEngine.Excel;
+            application.DefaultVersion = ExcelVersion.Xlsx;
+
+
+            using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
+            var workbook = application.Workbooks.Open(stream);
+
+            //var sheetNames = workbook.Worksheets.Select(s => s.Name).ToList();
+            var sheets = workbook.Worksheets
+                .Select((sheet, index) => new ListDto
+                {
+                    Id = index,
+                    Name = sheet.Name
+                })
+                .ToList();
+
+            return new OpenExcelDto
+            {
+                Source = dto.Source,
+                Sheets = sheets
+            };
+        }
+        public async Task<string> OpenOnboardingExcelSheetAsync(DocumentExcelOpenDTO dto)
+        {
+            var document = await _repo.GetOnboardingFilesAsync(dto.DocumentId);
+            if (document == null)
+                throw new NotFoundException("Document not found");
+
+
+            var relativePath = document.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            if (!fullPath.StartsWith(_storageRoot))
+                throw new SecurityException("Invalid file path");
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found in storage");
+
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".xls", ".xlsx", ".xlsb", ".xlsm", ".xltx", ".xltm"
+            };
+
+            var extension = Path.GetExtension(document.FileName);
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new InvalidOperationException("Invalid Excel file extension/File is not an excel.");
+            }
+
+
+            int requestedRowCount = Math.Clamp(dto.RowCount, 1, 500);
+            int startRow = Math.Max(dto.StartRow, 1);
+
+            using var excelEngine = new ExcelEngine();
+            var application = excelEngine.Excel;
+            application.DefaultVersion = ExcelVersion.Xlsx;
+
+            using var stream = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read);
+
+            var workbook = application.Workbooks.Open(stream);
+
+            if (dto.SheetIndex < 0 || dto.SheetIndex >= workbook.Worksheets.Count)
+                throw new KeyNotFoundException($"Invalid sheet index, total sheet count is {workbook.Worksheets.Count}");
+
+
+            var sheet = workbook.Worksheets[dto.SheetIndex];
+
+            int lastRow = sheet.UsedRange.LastRow;
+            int lastCol = sheet.UsedRange.LastColumn;
+
+            if (startRow > lastRow)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    sheetName = sheet.Name,
+                    sheetIndex = dto.SheetIndex,
+                    startRow,
+                    rowCount = 0,
+                    totalRows = lastRow,
+                    totalColumns = lastCol,
+                    cells = new List<object>()
+                });
+            }
+
+            int endRow = Math.Min(startRow + requestedRowCount - 1, lastRow);
+            var cells = new List<object>((endRow - startRow + 1) * lastCol);
+
+            for (int r = startRow; r <= endRow; r++)
+            {
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var cell = sheet.Range[r, c];
+
+                    if (string.IsNullOrWhiteSpace(cell.DisplayText))
+                        continue;
+
+                    var style = cell.CellStyle;
+
+                    // Font color
+                    string fontColor =
+                        style.Font.RGBColor != null
+                            ? $"#{style.Font.RGBColor}"
+                            : null;
+
+                    // Background color
+                    string backgroundColor =
+                        !style.Color.IsEmpty
+                            ? $"#{style.Color.R:X2}{style.Color.G:X2}{style.Color.B:X2}"
+                            : null;
+
+                    cells.Add(new
+                    {
+                        row = r,
+                        col = c,
+                        value = cell.DisplayText,
+                        style = new
+                        {
+                            bold = style.Font.Bold,
+                            italic = style.Font.Italic,
+                            fontColor,
+                            backgroundColor,
+                            hAlign = style.HorizontalAlignment.ToString()
+                        }
+                    });
+                }
+            }
+
+            var response = new
+            {
+                sheetName = sheet.Name,
+                sheetIndex = dto.SheetIndex,
+                startRow,
+                rowCount = endRow - startRow + 1,
+                totalRows = lastRow,
+                totalColumns = lastCol,
+                cells
+            };
+
+            return JsonSerializer.Serialize(response, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+        }
+
+
+        public async Task<BatchResponseDTO> ApplyOboardingExcelPatchAsync(ExcelPatchRequestDto dto, int? userId)
+        {
+            var response = new BatchResponseDTO();
+            var document = await _repo.GetOnboardingFilesAsync(dto.DocumentId);
+            if (document == null || document.Status == "archived")
+                throw new Exception("Document not found");
+
+            //var cabinet = await _uow.Cabinets.GetByIdAsync(dto.CabinetId);
+            //if (cabinet == null || document.CabinetId != dto.CabinetId)
+            //    throw new Exception("Invalid CabinetId");
+
+
+            //var excelPath = document.FilePath;
+
+            var relativePath = document.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            var uploadRootTemplate = _uploadRoot
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            if (!fullPath.StartsWith(_storageRoot))
+                throw new SecurityException("Invalid file path");
+
+            if (!File.Exists(fullPath))
+                throw new NotFoundException("File not found in storage");
+
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".xls", ".xlsx", ".xlsb", ".xlsm", ".xltx", ".xltm"
+            };
+
+            var extension = Path.GetExtension(document.FileName);
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new InvalidOperationException("Invalid Excel file extension/File is not an excel.");
+            }
+            using var fileStream = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.None);
+
+            using var excelEngine = new ExcelEngine();
+            var application = excelEngine.Excel;
+            application.DefaultVersion = ExcelVersion.Xlsx;
+
+            var workbook = application.Workbooks.Open(fileStream);
+
+            foreach (var change in dto.Changes)
+            {
+
+                int idx = change.Address.LastIndexOf('!');
+                if (idx == -1)
+                {
+                    response.Failed++;
+                    response.FailedDocDetails.Add($"Invalid cell address format: {change.Address}");
+                    continue;
+                }
+
+                string sheetName = change.Address.Substring(0, idx);
+                string cellAddress = change.Address.Substring(idx + 1);
+
+                var worksheet = workbook.Worksheets
+                    .FirstOrDefault(w => w.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase));
+                if (worksheet == null)
+                {
+                    response.Failed++;
+                    response.FailedDocDetails.Add($"Sheet not found: {sheetName}");
+                    continue;
+                }
+
+                try
+                {
+                    var cell = worksheet.Range[cellAddress];
+                    //worksheet.Range[cellAddress].Value = change.Value;
+                    cell.SetCellValue(change.Value);
+                    response.Success++;
+                }
+                catch (Exception ex)
+                {
+                    response.Failed++;
+                    response.FailedDocDetails.Add($"Cell {change.Address} update failed: {ex.Message}");
+                }
+            }
+
+
+            fileStream.SetLength(0);
+            workbook.SaveAs(fileStream);
+            workbook.Close();
+
+            response.TotalProcessed = dto.Changes.Count;
+            return response;
+
+        }
         //-----------------------------------------HR Onboarding Confirmation Batch Upload------------------------------
 
         public async Task<HrUploadResponseDto> OnboardingExcelUploadAsync(OnboardingUploadDto dto, int? userId)
@@ -1426,6 +1856,7 @@ namespace EVWebApi.Services
                     Region = row.Candidate.Region,
                     // Basic onboarding details
                     Designation = row.Designation,
+                    Department=row.Department,
                     DOJ = row.DOJ,
                     EmployeeId = row.EmployeeId,
                     DOB = row.DOB,
@@ -1514,6 +1945,7 @@ namespace EVWebApi.Services
                     Region = candidate.Region,
                     // Basic onboarding details
                     Designation = dto.Designation,
+                    Department=dto.Department,
                     DOJ = dto.DOJ,
                     EmployeeId = dto.EmployeeId,
                     DOB = candidate.DateOfBirth,
@@ -2243,13 +2675,44 @@ namespace EVWebApi.Services
         {
             var assignedDocsId = recipient.Request.Collection.CollectionDocumentTypes.Select(i => i.DocumentTypeId);
 
-            var uploadFolder = BuildFolder(candidateName, recipient.Token,type);
+            var profilePicDocTypeId = recipient.Request.Collection.CollectionDocumentTypes
+                    .FirstOrDefault(x => x.DocumentType.Key == "passport_size_photograph")
+                    ?.DocumentTypeId;
+
+            var uploadFolder = BuildFolder(candidateName, recipient.Token, type);
+
+
 
             foreach (var doc in files)
             {
+                //var dbPath = string.Empty;
+                //var displayFileName = string.Empty;
+
                 if (doc.File == null || doc.File.Length == 0)
                     continue;
-                if (assignedDocsId.Contains(doc.DocumentTypeId))
+                if (!assignedDocsId.Contains(doc.DocumentTypeId))
+                {
+                    throw new NotFoundException(
+                        "Uploaded files includes documents which is not assigned to the recipient");
+                }
+                
+                bool isProfilePic = doc.DocumentTypeId == profilePicDocTypeId;
+                string dbPath;
+                string displayFileName;
+
+                if (isProfilePic)
+                {
+                    ValidateProfileImage(doc.File);
+                    var profileFolder = BuildProfileImageFolder();
+                    var extension = Path.GetExtension(doc.File.FileName);
+
+                    displayFileName =
+                        $"{recipient.Candidate.Id}_{Guid.NewGuid():N}{extension}";
+
+                    (dbPath, displayFileName) = await SaveFileAsync(doc.File,profileFolder.FinalFolderPath,profileFolder.OriginalFolderName,displayFileName);
+                }
+
+                else
                 {
                     var originalExtension = Path.GetExtension(doc.File.FileName);
 
@@ -2261,47 +2724,122 @@ namespace EVWebApi.Services
                         .Replace(" ", "_");
 
                     // display filename
-                    var displayFileName = $"{uploadFolder.SafeCandidateName}_{docTypeLabel}{originalExtension}";
+                    displayFileName = $"{uploadFolder.SafeCandidateName}_{docTypeLabel}{originalExtension}";
 
 
-                    var filePath = Path.Combine(uploadFolder.FinalFolderPath, displayFileName);
-                    var dbPath = Path.Combine(uploadFolder.OriginalFolderName, displayFileName);
-                    using (var stream = new FileStream(filePath, FileMode.Create))
-                    {
-                        await doc.File.CopyToAsync(stream);
-                    }
+                    (dbPath, displayFileName) = await SaveFileAsync(doc.File,uploadFolder.FinalFolderPath,uploadFolder.OriginalFolderName,displayFileName);
+                }
 
-                    //Replace if already exists
-                    var existing = recipient.UploadedDocuments
-                        .FirstOrDefault(x => x.DocumentTypeId == doc.DocumentTypeId);
+                //Replace if already exists
+                var existing = recipient.UploadedDocuments
+                    .FirstOrDefault(x => x.DocumentTypeId == doc.DocumentTypeId);
 
-                    if (existing != null)
-                    {
-                        existing.FilePath = dbPath;
-                        existing.UploadedAt = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        _context.OnboardingHRDocument.Add(new OnboardingDocument
-                        {
-                            RecipientId = recipient.Id,
-                            CandidateId= recipient.Candidate.Id,
-                            DocumentTypeId = doc.DocumentTypeId,
-                            FilePath = dbPath,
-                            FileName = displayFileName,
-                            UploadedAt = DateTime.UtcNow,
-                            Status = "active",
-                            Source = "candidate_upload"
-                        });
-                    }
+                if (existing != null)
+                {
+                    DeleteExistingFile(existing.FilePath,existing.DocumentType.Key);
+                    existing.FilePath = dbPath;
+                    existing.UploadedAt = DateTime.UtcNow;
                 }
                 else
                 {
-                    throw new NotFoundException("Uploaded files includes documents which is not assigned to the recipient");
+                    _context.OnboardingHRDocument.Add(new OnboardingDocument
+                    {
+                        RecipientId = recipient.Id,
+                        CandidateId= recipient.Candidate.Id,
+                        DocumentTypeId = doc.DocumentTypeId,
+                        FilePath = dbPath,
+                        FileName = displayFileName,
+                        UploadedAt = DateTime.UtcNow,
+                        Status = "active",
+                        Source = "candidate_upload"
+                    });
                 }
+                
+               
             }
             await _context.SaveChangesAsync();
 
+        }
+        
+        private async Task<(string dbPath, string fileName)> SaveFileAsync(IFormFile file,string folderPath,string dbFolder,string fileName)
+        {
+            EnsureDirectoryExists(folderPath);
+
+            var fullPath = Path.Combine(folderPath, fileName);
+
+            using (var stream = new FileStream(fullPath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var dbPath = Path.Combine(dbFolder, fileName);
+
+            return (dbPath, fileName);
+        }
+
+        private void DeleteExistingFile(string dbPath,string type)
+        {
+            string rootPath;
+            if (string.IsNullOrWhiteSpace(dbPath))
+                return;
+            if (type == "passport_size_photograph")
+            {
+                rootPath = _profilePic
+           .Replace("{StorageRoot}", _storageRoot)
+           .Replace("{ClientName}", _clientName);
+            }
+            else
+            {
+                rootPath = _uploadRoot
+            .Replace("{StorageRoot}", _storageRoot)
+            .Replace("{ClientName}", _clientName);
+            }
+            var fullPath = Path.Combine(rootPath, dbPath);
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+        }
+
+        private void ValidateProfileImage(IFormFile file)
+        {
+            var allowedExtensions = new[]
+            {
+                     ".jpg",
+                     ".jpeg",
+                     ".png",
+                     ".webp"
+             };
+
+            var extension = Path
+                .GetExtension(file.FileName)
+                .ToLower();
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new Exception("Invalid profile image format");
+            }
+        }
+        private UploadFolderDto BuildProfileImageFolder()
+        {
+            var folderPath = _profilePic
+                .Replace("{StorageRoot}", _storageRoot)
+                .Replace("{ClientName}", _clientName);
+
+            EnsureDirectoryExists(folderPath);
+
+            return new UploadFolderDto
+            {
+                FinalFolderPath = folderPath,
+                OriginalFolderName = "profile-images"
+            };
+        }
+        private void EnsureDirectoryExists(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+            }
         }
         private UploadFolderDto BuildFolder(string candidateName, string token,string type)
         {

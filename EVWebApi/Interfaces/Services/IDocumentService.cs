@@ -50,7 +50,7 @@ namespace EVWebApi.Interfaces.Services
 
         Task<DocumentStreamResultDTO?> GenerateProtectedDownloadAsync(DocumentRequestDto dto, int? userid);
 
-        Task<List<ListDto>> GetExcelSheetNamesAsync(int documentId);
+        Task<OpenExcelDto> GetExcelSheetNamesAsync(DocumentRequestDto dto);
         Task<string> OpenExcelSheetAsync(DocumentExcelOpenDTO dto);
 
 

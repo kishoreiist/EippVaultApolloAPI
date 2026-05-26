@@ -1,4 +1,6 @@
-﻿namespace EVWebApi.DTOs.Document
+﻿using Microsoft.AspNetCore.Mvc;
+
+namespace EVWebApi.DTOs.Document
 {
     public class DocumentStreamResultDTO
     {
@@ -15,7 +17,9 @@
 
     public class DocumentRequestDto
     {
+        [FromQuery(Name = "id")]
         public int Id { get; set; }
+        [FromQuery(Name = "source")]
         public DocumentSourceType Source { get; set; }
     }
 

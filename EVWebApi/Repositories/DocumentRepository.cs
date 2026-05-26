@@ -44,7 +44,6 @@ namespace EVWebApi.Repositories
                 .Include(d => d.MetadataList)
                 .Include(d => d.Notes)
                 .Include(d => d.DocumentType)
-
                 .FirstOrDefaultAsync(d => d.DocumentId == id);
 
             if (doc == null)
@@ -100,22 +99,63 @@ namespace EVWebApi.Repositories
         }
 
         //---------------------File explorer -----------------------
+        //public async Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId)
+        //{
+        //    var files = await _context.Documents
+        //.Where(d => d.CabinetId == cabinetId && d.Status == "active")
+        //.Select(d => new DocumentFileExplorer
+        //{
+
+        //    DocumentId = d.DocumentId,
+        //    FileName = d.FileName,
+        //    FilePath = d.FilePath
+        //})
+        //.ToListAsync();
+
+        //    return files;
+        //}
+
         public async Task<List<DocumentFileExplorer>> GetFileExplorerAsync(int cabinetId)
         {
-            var files = await _context.Documents
-        .Where(d => d.CabinetId == cabinetId && d.Status == "active")
-        .Select(d => new DocumentFileExplorer
-        {
-            DocumentId = d.DocumentId,
-            FileName = d.FileName,
-            FilePath = d.FilePath
-        })
-        .ToListAsync();
+            var documents = await _context.Documents
+                .Where(d => d.CabinetId == cabinetId && d.Status == "active")
+                .Include(d => d.Candidate)
+                    .ThenInclude(c => c.OnboardingDocs).AsNoTracking()
+                 .OrderByDescending(d=>d.DocumentId)
+                .ToListAsync();
 
-            return files;
+            var result = new List<DocumentFileExplorer>();
+
+            foreach (var d in documents)
+            {
+                // Candidate onboarding docs
+                if (d.CandidateId != null && d.Candidate != null)
+                {
+                    result.AddRange(
+                        d.Candidate.OnboardingDocs.Select(o => new DocumentFileExplorer
+                        {
+                            DocumentId = d.DocumentId,
+                            OnboardingDocId=o.Id,
+                            FileName = o.FileName,
+                            FilePath = o.FilePath
+                        }));
+                }
+
+                // Normal uploaded docs
+                else if (!string.IsNullOrWhiteSpace(d.FileName) &&
+                         !string.IsNullOrWhiteSpace(d.FilePath))
+                {
+                    result.Add(new DocumentFileExplorer
+                    {
+                        DocumentId = d.DocumentId,
+                        FileName = d.FileName,
+                        FilePath = d.FilePath
+                    });
+                }
+            }
+
+            return result;
         }
-
-
         //-----------GET NOTES BY DOC ID FROM DB------------------
         public override async Task<Document?> GetByIdAsync(int id)
         {

@@ -3,6 +3,7 @@
     public class ExcelPatchRequestDto
     {
         public int DocumentId { get; set; }
+        public DocumentSourceType Source { get; set; }
         public int CabinetId { get; set; }
         public List<ExcelCellPatchDto> Changes { get; set; } = new();
     }

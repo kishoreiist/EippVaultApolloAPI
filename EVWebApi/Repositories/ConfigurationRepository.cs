@@ -82,7 +82,9 @@ namespace EVWebApi.Repositories
                  &&
                 (cr.Collection.Type == typeFilter)
                  &&
-                 (cr.Recipients.Any(r => r.Status == statusFilter)))
+                 (cr.Recipients.Any(r => r.Status == statusFilter &&
+                r.Candidate.Status == "active" &&
+                r.Candidate.IsHired != true)))
                 .Include(r => r.Collection)
                     .ThenInclude(c => c.CollectionDocumentTypes)
                         .ThenInclude(cd => cd.DocumentType)
@@ -242,6 +244,13 @@ namespace EVWebApi.Repositories
                 .FirstOrDefaultAsync(x =>
                     x.CandidateId == candidateId &&
                     x.Request.Collection.Type.ToLower() == "pre");
+        }
+
+        public  IQueryable<Candidate> GetCandidateDocsById(int candidateId)
+        {
+            return _context.Candidates
+               // .Include(x => x.OnboardingDocs)
+                .Where(x => x.Id == candidateId && x.Status=="active");
         }
         //-----------------------------helpers--------------------------
         private static string NormalizeInput(string? value)

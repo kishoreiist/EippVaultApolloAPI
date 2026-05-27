@@ -245,6 +245,9 @@ namespace EVWebApi.Repositories
         {
             var query = _context.Documents
                 .Where(d => d.Status == "active")
+                 .Include(d => d.Candidate)
+                    .ThenInclude(c => c.OnboardingDocs)
+                           .ThenInclude(od => od.DocumentType)
                 .Include(d => d.DocumentType)
                 .AsNoTracking();
 

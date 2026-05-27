@@ -1838,12 +1838,15 @@ namespace EVWebApi.Services
 
             foreach (var row in matchedRows)
             {
-                // Prevent duplicate insertion
+                // Prevent duplicate insertion of same candidate
                 var alreadyExists = await _context.Documents.AnyAsync(d =>
                     d.CandidateId == row.CandidateId &&
                     d.EmployeeId == row.EmployeeId);
 
-                if (alreadyExists)
+                var alreadyExistsEmpId = await _context.Documents.AnyAsync(d =>
+                    d.EmployeeId == row.EmployeeId);
+
+                if (alreadyExists || alreadyExistsEmpId)
                 {
                     skipped++;
                     continue;
@@ -1933,7 +1936,11 @@ namespace EVWebApi.Services
             var alreadyExists = await _context.Documents.AnyAsync(d =>
                     d.CandidateId == dto.CandidateId &&
                     d.EmployeeId == dto.EmployeeId);
-            if (alreadyExists)
+
+            var alreadyExistsEmpId = await _context.Documents.AnyAsync(d =>
+                   d.EmployeeId == dto.EmployeeId);
+
+            if (alreadyExists || alreadyExistsEmpId)
                 throw new BadRequestException("Candidate with same employee ID already exists");
             try
             {

@@ -1058,6 +1058,27 @@ namespace EVWebApi.Services
 
         //-------------------------export to excel-------------------
 
+        //private List<Document> GroupDocumentsForExport(
+        //    List<Document> documents,
+        //    List<string> groupingKey)
+        //{
+        //    return documents
+        //        .GroupBy(d =>
+        //            string.Join("||", groupingKey.Select(k =>
+        //                d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
+        //        .Select(g =>
+        //        {
+        //            var first = g.First();
+
+        //            first.DocType = string.Join(", ",
+        //                g.Select(d => d.DocumentType?.Label)
+        //                 .Where(x => !string.IsNullOrEmpty(x))
+        //                 .Distinct());
+
+        //            return first;
+        //        })
+        //        .ToList();
+        //}
         private List<Document> GroupDocumentsForExport(
             List<Document> documents,
             List<string> groupingKey)
@@ -1065,19 +1086,54 @@ namespace EVWebApi.Services
             return documents
                 .GroupBy(d =>
                     string.Join("||", groupingKey.Select(k =>
-                        d.GetType().GetProperty(k)?.GetValue(d)?.ToString() ?? "")))
+                    {
+                        return k switch
+                        {
+                            "DocType" => GetDocumentTypeLabels(d),
+
+                            _ => d.GetType()
+                                  .GetProperty(k)?
+                                  .GetValue(d)?
+                                  .ToString() ?? ""
+                        };
+                    })))
                 .Select(g =>
                 {
                     var first = g.First();
 
                     first.DocType = string.Join(", ",
-                        g.Select(d => d.DocumentType?.Label)
-                         .Where(x => !string.IsNullOrEmpty(x))
+                        g.SelectMany(d => GetDocumentTypeLabelList(d))
+                         .Where(x => !string.IsNullOrWhiteSpace(x))
                          .Distinct());
 
                     return first;
                 })
                 .ToList();
+        }
+
+        private string GetDocumentTypeLabels(Document d)
+        {
+            return string.Join(", ", GetDocumentTypeLabelList(d));
+        }
+
+        private IEnumerable<string> GetDocumentTypeLabelList(Document d)
+        {
+            // CASE 1: Document has direct document type
+            if (d.DocumentType != null)
+            {
+                return new[] { d.DocumentType.Label };
+            }
+
+            // CASE 2: Get from candidate onboarding docs
+            if (d.Candidate?.OnboardingDocs != null)
+            {
+                return d.Candidate.OnboardingDocs
+                    .Where(x => x.DocumentType != null)
+                    .Select(x => x.DocumentType.Label)
+                    .Distinct();
+            }
+
+            return Enumerable.Empty<string>();
         }
         public async Task<(byte[] Excel,string FileName)> GetExportExcel(ExportExcelDocDto dto)
         {

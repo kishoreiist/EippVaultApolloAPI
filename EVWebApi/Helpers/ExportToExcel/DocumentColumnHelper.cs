@@ -14,6 +14,7 @@ namespace EVWebApi.Helpers.ExportToExcel
             ["DOB"] = d => d.DOB,
             ["DOJ"] = d => d.DOJ,
             ["DocType"] = d => d.DocType,
+            ["Name"] = d => d.Name,
 
 
             ["ManufactureId"] = d => d.ManufactureId,

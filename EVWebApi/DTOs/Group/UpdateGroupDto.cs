@@ -1,0 +1,12 @@
+﻿namespace EVWebApi.DTOs.Group
+{
+    public class UpdateGroupDto
+    {
+        public required int GroupId { get; set; }   
+        public required string GroupName { get; set; }
+        public string UserType { get; set; }
+        public string? Region { get; set; }
+        public List<int>? AccessList { get; set; }
+        public List<int>? CabinetsList { get; set; }
+    }
+}

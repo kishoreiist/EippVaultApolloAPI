@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  evwebapi:
+    build:
+      context: D:\Shirin\NEW EIPP VAULT\eipp vault backend\EippVault.api\EVWebApi
+      dockerfile: Dockerfile
+    container_name: evwebapi
+    ports:
+      - "6000:80"
+    depends_on:
+      - postgres
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=eippvault;Username=postgres;Password=postgres"
+
+  postgres:
+    image: postgres:15
+    container_name: ev_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eippvault
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

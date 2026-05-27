@@ -1,0 +1,46 @@
+﻿namespace EVWebApi.Helpers
+{
+    public static class AuditMessageHelper
+    {
+        public static string FormatMessage(
+            string template,
+            string? username,
+            string module,
+            string action,
+            string? target = null,
+            int? cabinetId = null,  
+            string? filters = null)
+        {
+            if (string.IsNullOrEmpty(template))
+                return string.Empty;
+
+            string cabinetName = "";
+
+            var cabinetNames = new Dictionary<int, string>
+            {
+                {1, "Invoice"},
+                {2, "HR"},
+                {3, "Statement"},
+                {4, "AP Files"},
+                {5,"Purchase Department" }
+            };
+            if (module == "Document")
+            {
+                if (cabinetId.HasValue)
+            {
+                cabinetName = cabinetNames.ContainsKey(cabinetId.Value)
+                    ? cabinetNames[cabinetId.Value]
+                    : $"Cabinet {cabinetId.Value}";
+            }
+            }
+
+            return template
+                .Replace("{module}", module)
+                .Replace("{username}", username)
+                .Replace("{action}", action)
+                .Replace("{cabinetName}", cabinetName)
+                .Replace("{target}", target)
+                .Replace("{filters}", string.IsNullOrEmpty(filters) ? string.Empty : filters);
+        }
+    }
+}

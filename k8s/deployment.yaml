@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eipp-apollo-api
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: eipp-apollo-api
+
+  template:
+    metadata:
+      labels:
+        app: eipp-apollo-api
+
+    spec:
+      containers:
+      - name: eipp-apollo-api
+        image: ghcr.io/kishoreiist/apollo-api:latest
+
+        ports:
+        - containerPort: 8080
+
+        env:
+        - name: ConnectionStrings__DefaultConnection
+      valueFrom:
+        secretKeyRef:
+          name: apollo-secret
+          key: ConnectionStrings__DefaultConnection

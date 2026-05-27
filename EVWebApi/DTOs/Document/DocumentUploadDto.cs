@@ -1,0 +1,54 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace EVWebApi.DTOs.Document
+{
+    public class DocumentUploadDto
+    {
+        public int CabinetId { get; set; }
+        public IFormFile File { get; set; } = default;
+      
+        public string? InvoiceNumber { get; set; }
+
+
+        public string? EmployeeId { get; set; }
+
+        public string? ContactNumber { get; set; }
+        public string? Designation { get; set; }
+        public string? Department { get; set; }
+        public DateTime? InvoiceDate { get; set; }
+        public DateTime? StatementDate { get; set; }
+        public DateTime? DOJ { get; set; }
+        public DateTime? DOB { get; set; }
+        public decimal? Amount { get; set; }
+
+        
+        public decimal? PaidAmount { get; set; }
+        public string? DocumentType { get; set; }
+        public string? Region { get; set; }
+
+        public int? ManufactureId { get; set; }//------------------now just id value, but need to keep fk relation
+        public string? Name { get; set; }
+        public string? Period { get; set; }
+        public string? LoginId { get; set; }
+        public string? LoginName { get; set; }
+        public string? Remarks { get; set; }
+
+        // chunk-related (optional)
+        public string? UploadId { get; set; }
+        public int? ChunkIndex { get; set; }
+        public int? TotalChunks { get; set; }
+        public string OriginalFileName { get; set; } = default!;
+
+        public string? Action { get; set; }
+    }
+    public class DocTypeCreateDto
+    {
+        public string Label { get; set; } = default!;
+        public string Type { get; set; } = default!;
+    }
+}

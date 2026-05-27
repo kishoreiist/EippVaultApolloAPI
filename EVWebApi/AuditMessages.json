@@ -1,0 +1,67 @@
+{
+  "AuditMessages": {
+    "CommonActions": {
+      "Record Created": "{username} created a new record in the {module} page. Record: {target}.",
+      "Record Retrieved": "{username} retrieved record details from {module} page. Record: {target}.",
+      "User created": "{username} created a new user and sent a welcome email with a password reset link. Details: {target}.",
+
+      "All Records Retrieved": "{username} retrieved all records from {module} page. {filters}", //--------GET ALL
+
+      "Record Updated": "{username} updated a record in the {module} page, Record : {target}.",
+      "Record Deleted": "{username} deleted a record from the {module} page.",
+      "LaptopRequest Send": "{username} sent an email to '{target}' issuing laptop for new joiners",
+      "LaptopRequest Failed": "{username} failed to send an email to '{target}' for laptop issuance.",
+      "Remove Candidate Failed": "{username} failed to remove a candidate.",
+      "Candidate Removed": "{username} removed a candidate. Candidate details: {target}.",
+      "Document Retrieved": "{username} accessed documents in the {cabinetName} cabinet. {filters}",
+      "Viewed Document": "{username} accessed document in the {cabinetName} cabinet. File Name : {target}",
+      "Document View": "{username} viewed a document.",
+      "Document Download": "{username} downloaded a document.",
+      "Document Updated": "{username} modified a document in the  {cabinetName} cabinet.",
+      "Document Uploaded": "{username} successfully uploaded a document to the {cabinetName} cabinet. {filters} , File Name : '{target}'",
+      "Document Upload Failed": "{username} attempted to upload document to the {cabinetName} cabinet,the operation failed.  Error details : {target}.",
+      "Document Delete": "{username} deleted a record from the {cabinetName} page.",
+      "Batch Document Delete": "{username} deleted records from the {cabinetName} page. {filters}",
+      "Export Merged PDF": "{username} exported pdf files in {cabinetName} cabinet.",
+      "Export File": "{username} exported datas in {cabinetName} cabinet into zip/excel file.",
+      "File Explorer Accessed": "{username} accessed the files in {cabinetName} folder.",
+      "Document Batch Upload": "{username} attempted to upload a batch of documents in {cabinetName} cabinet.{filters}",
+      "Note Retrieved": "{username} retrieved note details",
+      "Note Created": "{username} created a new note. Note Content - {target}",
+      "Note Modified": "{username} updated a note. Note Content - {target}",
+      "Note Deleted": "{username} deleted a note. Note Content - {target}",
+      "Download-External": "External user - {username} downloaded the document.",
+      "PDF SPLIT": "{username} splitted and extracted Pages {target}, in {cabinetName} cabinet.",
+      "Excel Patch": "{username} updated a excel document in {cabinetName} cabinet.",
+      "Excel open": "{username} have viewed an excel document with {filters}.",
+      "Excel open fail": "{username} have tried viewing an excel document with {filters} but failed.",
+      "Export Excel": "{username} exported {module} data into excel file.",
+
+      "Email Sent": "{username} send an email.{filters}",
+      "Email Send Failed": "{username} request to send an email but failed.{filters}",
+
+      "Login Successful": "{username} authenticated successfully. {filters}",
+      "MFA Enabled": "Multi-factor authentication enabled successfully. {filters}",
+      "MFA Verified": "MFA verified successfully & authentication token issued for {username}. {filters}",
+      "Logout Successful": "User {username} logged out successfully.",
+      "Initial Login Successful": "{username} initial login after account creation is sucessful. {filters}",
+
+      "Download items Generated": "{username} fetched all accessible documents",
+      "Document Link Email Sent": "{username} send an document download link email to the users in email group {target}.",
+      "Download-External Failed": "External user -{username} attempted to download document & the operation failed.  Error details : {target}.",
+
+      "Forgot Password": "{username} requested a password reset link. {filters}",
+      "Forgot Username": "{username} requested username details via forgot username. {filters}",
+      "Reset Password": "{username} has successfully reset the account password. {filters}",
+
+      "BlackList IPs Retrieved": "{username} fetched all blacklisted ip details. {filters}",
+      "Locked users Retrieved": "{username} fetched all locked users details. {filters}",
+      "UnLocked User": "{username} unlocked a locked user.Details: {target}.",
+      "Removed IP from blacklist": "{username} whitelisted an blocked ip address. Details: {target}."
+    },
+    "Default": {
+      "Message": "Executed action: {action} on module: {module}. Record: {target}.Details - {filters}"
+    }
+  }
+}
+

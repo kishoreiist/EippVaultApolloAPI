@@ -1958,10 +1958,8 @@ namespace EVWebApi.Services
                     DOB = candidate.DateOfBirth,
                     ContactNumber = candidate.Phone,
                     Name = candidate.Name,
-
                     //FileName = string.Empty,
                     //FilePath = string.Empty,
-
                     Status = "active",
                     UploadedAt = DateTime.UtcNow,
                     UploadedBy = userId

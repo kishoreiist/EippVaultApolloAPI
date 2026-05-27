@@ -2713,7 +2713,7 @@ namespace EVWebApi.Services
                     displayFileName =
                         $"{recipient.Candidate.Id}_{Guid.NewGuid():N}{extension}";
 
-                    (dbPath, displayFileName) = await SaveFileAsync(doc.File,profileFolder.FinalFolderPath,profileFolder.OriginalFolderName,displayFileName);
+                    (dbPath, displayFileName) = await SaveFileAsync(doc.File,profileFolder.FinalFolderPath,null,displayFileName);
                 }
 
                 else
@@ -2765,7 +2765,7 @@ namespace EVWebApi.Services
 
         }
         
-        private async Task<(string dbPath, string fileName)> SaveFileAsync(IFormFile file,string folderPath,string dbFolder,string fileName)
+        private async Task<(string dbPath, string fileName)> SaveFileAsync(IFormFile file,string folderPath,string? dbFolder,string fileName)
         {
             EnsureDirectoryExists(folderPath);
 
@@ -2775,10 +2775,12 @@ namespace EVWebApi.Services
             {
                 await file.CopyToAsync(stream);
             }
-
-            var dbPath = Path.Combine(dbFolder, fileName);
-
-            return (dbPath, fileName);
+            if(dbFolder != null)
+            {
+                var dbPath = Path.Combine(dbFolder, fileName);
+                return (dbPath, fileName);
+            }
+            return (fileName, fileName);
         }
 
         private void DeleteExistingFile(string dbPath,string type)
@@ -2834,8 +2836,8 @@ namespace EVWebApi.Services
 
             return new UploadFolderDto
             {
-                FinalFolderPath = folderPath,
-                OriginalFolderName = "profile-images"
+                FinalFolderPath = folderPath
+                //,OriginalFolderName = "profile-images"
             };
         }
         private void EnsureDirectoryExists(string path)

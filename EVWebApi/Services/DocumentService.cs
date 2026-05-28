@@ -1616,6 +1616,7 @@ namespace EVWebApi.Services
                     tempDir,
                     Path.GetFileName(dto.OriginalFileName ?? dto.File.FileName)
                 );
+                tempFilePath= tempFilePath.Replace("\\", "//");
                 await using (var stream = new FileStream(tempFilePath, FileMode.Create))
                 {
                     await dto.File.CopyToAsync(stream);
@@ -1789,7 +1790,7 @@ namespace EVWebApi.Services
                         CabinetId = dto.CabinetId,
                         FileName = fileName,
                         //FilePath = $@"\storage\Uploads\{dateFolder}\{folderName}\{fileName}",
-                        FilePath = $@"{CabName}\{dateFolder}\{fileName}",
+                        FilePath = $@"{CabName}/{dateFolder}/{fileName}",
                         UploadedBy = currentuserid,
                         //Version = version,
                         Status = "active",

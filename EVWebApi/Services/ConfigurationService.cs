@@ -1542,19 +1542,46 @@ namespace EVWebApi.Services
 
             //var excelPath = document.FilePath;
 
-            var relativePath = document.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+            //var relativePath = document.FilePath.TrimStart('/', '\\').Replace("/", Path.DirectorySeparatorChar.ToString());
+
+            //var uploadRootTemplate = _uploadRoot
+            //    .Replace("{StorageRoot}", _storageRoot)
+            //    .Replace("{ClientName}", _clientName);
+
+            //var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+
+            //if (!fullPath.StartsWith(_storageRoot))
+            //    throw new SecurityException("Invalid file path");
+
+            //if (!File.Exists(fullPath))
+            //    throw new NotFoundException("File not found in storage");
+
+            var relativePath = document.FilePath
+    .TrimStart('/', '\\')
+    .Replace("\\", "/");
 
             var uploadRootTemplate = _uploadRoot
                 .Replace("{StorageRoot}", _storageRoot)
                 .Replace("{ClientName}", _clientName);
 
-            var fullPath = Path.Combine(uploadRootTemplate, relativePath);
+            var combinedPath = Path.Combine(
+                uploadRootTemplate,
+                relativePath
+            );
 
-            if (!fullPath.StartsWith(_storageRoot))
+            var fullPath = Path.GetFullPath(combinedPath);
+
+            var normalizedStorageRoot = Path.GetFullPath(_storageRoot);
+
+            if (!fullPath.StartsWith(normalizedStorageRoot, StringComparison.Ordinal))
+            {
                 throw new SecurityException("Invalid file path");
+            }
 
-            if (!File.Exists(fullPath))
-                throw new NotFoundException("File not found in storage");
+            if (!System.IO.File.Exists(fullPath))
+            {
+                throw new NotFoundException($"File not found in storage: {fullPath}");
+            }
 
             var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
